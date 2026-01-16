@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DB Pro Master v24.4 (Vercel Edition)</title>
+    <title>DB Pro Master v24.5 (Final Sort)</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         /* [1. 기본 스타일 및 디자인 프레임워크 - PC 버전 유지] */
@@ -229,7 +229,7 @@
 
 <div id="login-screen">
     <div class="login-box">
-        <h2 style="color:var(--primary); margin-bottom:30px;"><i class="fa-solid fa-server"></i> DB Pro v24.2</h2>
+        <h2 style="color:var(--primary); margin-bottom:30px;"><i class="fa-solid fa-server"></i> DB Pro v24.5</h2>
         <input type="text" id="login-user-name" class="login-input" placeholder="성함 입력 (예: 홍길동)" onkeypress="if(event.keyCode==13) document.getElementById('login-pw').focus()">
         <input type="password" id="login-pw" class="login-input" placeholder="비밀번호 (초기: 1234)" onkeypress="if(event.keyCode==13) attemptLogin('member')">
         
@@ -950,7 +950,7 @@
         if(page === 'history') renderHistory();
     }
 
-    // [★수정됨] 화면 렌더링 시점에 '강제 최신순 정렬' 기능 추가 (렌더링 직전 정렬)
+    // [★수정됨] 2단계 강력 정렬 로직 (날짜 우선 -> 시간 차선)
     function renderList() {
         const tbody = document.getElementById('list-body'); 
         if(!tbody) return;
@@ -1005,12 +1005,21 @@
             return true;
         });
 
-        // [★핵심] 렌더링 직전에 ID(시간값) 기준으로 내림차순 정렬 (큰 숫자가 위로)
-        // 이 코드가 화면 순서를 최종 결정합니다.
+        // [★핵심] 이중 정렬 로직 (Double Sort)
+        // 1순위: 접수일(Date) 내림차순 (최신 날짜가 위로)
+        // 2순위: 같은 날짜라면 ID(시간값) 내림차순 (방금 입력한게 위로)
         filtered.sort((a, b) => {
-            const idA = Number(a.id) || 0;
-            const idB = Number(b.id) || 0;
-            return idB - idA;
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            
+            if (dateB !== dateA) {
+                return dateB - dateA; // 날짜가 다르면 날짜순 정렬
+            } else {
+                // 날짜가 같으면 ID(등록시간)순 정렬
+                const idA = Number(a.id) || 0;
+                const idB = Number(b.id) || 0;
+                return idB - idA;
+            }
         });
 
         // 2. 그리기
