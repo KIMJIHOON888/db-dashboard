@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DB Pro Master v24.5 (Final Sort)</title>
+    <title>DB Pro Master v24.6 (Date Fix)</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         /* [1. 기본 스타일 및 디자인 프레임워크 - PC 버전 유지] */
@@ -229,7 +229,7 @@
 
 <div id="login-screen">
     <div class="login-box">
-        <h2 style="color:var(--primary); margin-bottom:30px;"><i class="fa-solid fa-server"></i> DB Pro v24.5</h2>
+        <h2 style="color:var(--primary); margin-bottom:30px;"><i class="fa-solid fa-server"></i> DB Pro v24.6</h2>
         <input type="text" id="login-user-name" class="login-input" placeholder="성함 입력 (예: 홍길동)" onkeypress="if(event.keyCode==13) document.getElementById('login-pw').focus()">
         <input type="password" id="login-pw" class="login-input" placeholder="비밀번호 (초기: 1234)" onkeypress="if(event.keyCode==13) attemptLogin('member')">
         
@@ -950,7 +950,7 @@
         if(page === 'history') renderHistory();
     }
 
-    // [★수정됨] 2단계 강력 정렬 로직 (날짜 우선 -> 시간 차선)
+    // [★수정됨] 2단계 강력 정렬 로직 및 날짜 파싱 강화 (누락 해결)
     function renderList() {
         const tbody = document.getElementById('list-body'); 
         if(!tbody) return;
@@ -980,12 +980,37 @@
             kw = searchEl ? searchEl.value.toLowerCase() : '';
         }
 
-        // 1. 필터링 (기존 로직 유지)
+        // 1. 필터링 (기존 로직 유지 + 날짜 파싱 강화)
         let filtered = dbList.filter(d => {
             if (!d) return false; 
-            const dDate = new Date(d.date);
-            if(year !== 'all' && dDate.getFullYear() != year) return false;
-            if(month !== 'all' && (dDate.getMonth() + 1) != month) return false;
+            
+            // [★핵심 수정] 날짜 형식이 다양해도 강제로 연/월 추출
+            let dYear, dMonth;
+            try {
+                // 1. 표준 날짜 객체 생성 시도
+                let dateObj = new Date(d.date);
+                
+                // 2. 만약 유효하지 않은 날짜라면 (Invalid Date), 문자열 파싱 시도
+                if (isNaN(dateObj.getTime())) {
+                    // 예: "2026. 1. 15" 또는 "2026/01/15" 형태 처리
+                    const parts = d.date.match(/(\d{4})[\.\-\/]\s?(\d{1,2})[\.\-\/]\s?(\d{1,2})/);
+                    if (parts) {
+                        dYear = parseInt(parts[1]);
+                        dMonth = parseInt(parts[2]);
+                    } else {
+                        // 날짜를 도저히 알 수 없으면 필터링에서 제외하거나 포함 (여기선 포함)
+                        dYear = 0; dMonth = 0; 
+                    }
+                } else {
+                    dYear = dateObj.getFullYear();
+                    dMonth = dateObj.getMonth() + 1;
+                }
+            } catch (e) {
+                dYear = 0; dMonth = 0;
+            }
+
+            if(year !== 'all' && dYear != year) return false;
+            if(month !== 'all' && dMonth != month) return false;
             
             const dSource = d.source || ""; 
             if(source === '쉐어받음') {
@@ -1009,8 +1034,17 @@
         // 1순위: 접수일(Date) 내림차순 (최신 날짜가 위로)
         // 2순위: 같은 날짜라면 ID(시간값) 내림차순 (방금 입력한게 위로)
         filtered.sort((a, b) => {
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
+            // 날짜 비교를 위해 문자열을 정리
+            const cleanDate = (str) => {
+                if (!str) return 0;
+                // "2026. 1. 15" -> "2026-01-15" 형태로 변환 시도
+                const parts = str.match(/(\d{4})[\.\-\/]\s?(\d{1,2})[\.\-\/]\s?(\d{1,2})/);
+                if (parts) return new Date(`${parts[1]}-${parts[2]}-${parts[3]}`).getTime();
+                return new Date(str).getTime();
+            };
+
+            const dateA = cleanDate(a.date) || 0;
+            const dateB = cleanDate(b.date) || 0;
             
             if (dateB !== dateA) {
                 return dateB - dateA; // 날짜가 다르면 날짜순 정렬
