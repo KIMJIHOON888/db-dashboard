@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DB Pro Master v24.23 (Final)</title>
+    <title>DB Pro Master v24.24</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -111,18 +111,14 @@
         .meeting-upcoming { background: #dbeafe; color: #2563eb; }
         .meeting-overdue { background: #fee2e2; color: #dc2626; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-        /* 관리자 코멘트 알림 - 더 눈에 띄게 */
         .admin-alert-icon { color: #ff6b00; margin-left: 5px; animation: alertBounce 1s ease-in-out infinite; filter: drop-shadow(0 0 3px #ff6b00); font-size: 16px; }
         @keyframes alertBounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.2); } }
-        /* D-day 배지 */
         .dday-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; margin-left: 4px; }
         .dday-today { background: #fef3c7; color: #d97706; animation: pulse 1.5s infinite; }
         .dday-soon { background: #dbeafe; color: #2563eb; }
         .dday-overdue { background: #fee2e2; color: #dc2626; }
-        /* 전화번호 클릭 */
         .phone-link { color: var(--primary); cursor: pointer; text-decoration: underline; }
         .phone-link:hover { color: var(--primary-dark); }
-        /* 팀원 관리 모달 */
         #member-modal .modal-window { width: 600px; height: auto; max-height: 80vh; }
         #member-modal .modal-body { display: block; padding: 20px; overflow-y: auto; }
         .member-list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #e2e8f0; }
@@ -135,7 +131,6 @@
         .btn-icon-danger:hover { background: #fecaca; }
         .add-member-row { display: flex; gap: 10px; padding: 15px; background: #f8fafc; border-radius: 8px; margin-top: 15px; }
         .add-member-row input { flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; }
-        /* 로드맵 스타일 */
         #roadmap-modal .modal-window { width: 1400px; height: 95vh; }
         #roadmap-modal .modal-body { display: block; padding: 30px; overflow-y: auto; }
         .roadmap-toolbar { background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #e2e8f0; }
@@ -189,7 +184,7 @@
 <div id="login-screen">
     <div class="login-box">
         <h2 style="color:var(--primary); margin-bottom:10px;"><i class="fa-solid fa-server"></i> DB Pro Master</h2>
-        <div style="font-size:14px; color:#64748b; margin-bottom:20px; font-weight:600;">v24.23 Final</div>
+        <div style="font-size:14px; color:#64748b; margin-bottom:20px; font-weight:600;">v24.24</div>
         <div id="login-loading" style="display:none; text-align:center; margin-bottom:15px; color:var(--primary);"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i><br><span style="font-size:12px; font-weight:600;">접속 중...</span></div>
         <input type="text" id="login-user-name" class="login-input" placeholder="성함 입력 (예: 홍길동)" onkeypress="if(event.keyCode==13) document.getElementById('login-pw').focus()">
         <input type="password" id="login-pw" class="login-input" placeholder="비밀번호" onkeypress="if(event.keyCode==13) attemptLogin('member')">
@@ -235,7 +230,7 @@
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
             <div id="meeting-alert-badge" style="display:none;" onclick="showMeetingList()"></div>
-            <div style="font-size:12px; color:#64748b; font-weight:bold; background:#f1f5f9; padding:6px 12px; border-radius:20px;">v24.23</div>
+            <div style="font-size:12px; color:#64748b; font-weight:bold; background:#f1f5f9; padding:6px 12px; border-radius:20px;">v24.24</div>
         </div>
     </div>
 
@@ -353,7 +348,7 @@
                     <div id="box-end" class="dynamic-section"><div class="form-group"><label>종료 사유</label><input type="text" id="input-end-reason"></div></div>
                     <div id="box-contract" class="dynamic-section contract-box">
                         <div class="form-grid">
-                            <div class="form-group"><label>계약 상품</label><input type="text" id="input-product"></div>
+                            <div class="form-group"><label>계약 상품</label><input type="text" id="input-product" placeholder="예)교보경정"></div>
                             <div class="form-group"><label>계약 금액 (원)</label><input type="text" id="input-amount" onkeyup="formatCurrency(this); calculateShare();"></div>
                         </div>
                         <div class="share-info" id="share-calculator">
@@ -370,7 +365,7 @@
             </div>
             <div class="panel-right">
                 <h4><i class="fa-regular fa-clock"></i> 활동 로그</h4>
-                <div style="font-size:12px; color:#64748b; margin-bottom:10px; background:#f1f5f9; padding:12px; border-radius:8px;">모든 이슈를 실시간 기록으로 남겨 놓으세요</div>
+                <div style="font-size:12px; color:#64748b; margin-bottom:10px; background:#f1f5f9; padding:12px; border-radius:8px;">모든 이슈를 실시간 기록으로 남겨 놓으세요 예) ~차 부재중, 미팅 후 진행내용 등등</div>
                 <div style="display:flex; gap:5px; margin-bottom:10px;"><input type="text" id="hist-input" placeholder="내용 입력" style="flex:1;" onkeypress="if(event.keyCode==13) addLog()"><button onclick="addLog()" class="btn btn-primary">등록</button></div>
                 <div id="log-list" style="flex:1; overflow-y:auto; border-top:1px solid #eee; padding-top:10px;"></div>
                 <div style="margin-top:auto; display:flex; gap:5px;"><button onclick="saveData()" class="btn btn-primary" style="flex:1;">저장</button><button onclick="deleteData()" class="btn btn-danger">삭제</button></div>
@@ -491,7 +486,7 @@ function getDdayText(meetDateStr) {
     const diffDays = Math.ceil((meetDate - today) / (1000 * 60 * 60 * 24));
     if(diffDays === 0) return '<span class="dday-badge dday-today">D-DAY</span>';
     else if(diffDays > 0 && diffDays <= 7) return '<span class="dday-badge dday-soon">D-' + diffDays + '</span>';
-    else if(diffDays < 0 && diffDays >= -7) return '<span class="dday-badge dday-overdue">D+' + Math.abs(diffDays) + '</span>';
+    // 수정4: 지나간 일정은 표시 안함
     return '';
 }
 
@@ -680,10 +675,11 @@ function updateShareFields() {
         else if(source === '추장호DB') finalOptions = '<option value="">선택</option><option value="추장호">🎯 추장호</option>' + commonOptions.replace('<option value="">선택</option>','');
         sel.innerHTML = finalOptions; sel.value = currentVal;
     });
-    if(source === '회사DB') { selectors[0].value = '회사'; selectors[0].disabled = true; inputs[0].value = 10; inputs[0].readOnly = true; }
-    else if(source === '팀DB') { selectors[0].value = 'SM'; selectors[0].disabled = true; inputs[0].value = 30; inputs[0].readOnly = true; }
-    else if(source === '추장호DB') { selectors[0].value = '추장호'; selectors[0].disabled = true; inputs[0].value = 30; inputs[0].readOnly = true; }
-    else { selectors[0].disabled = false; inputs[0].readOnly = false; }
+    // 수정2,3: 추장호DB 50%, 쉐어비율 수정 가능하게 (readOnly 제거)
+    if(source === '회사DB') { selectors[0].value = '회사'; selectors[0].disabled = true; inputs[0].value = 10; }
+    else if(source === '팀DB') { selectors[0].value = 'SM'; selectors[0].disabled = true; inputs[0].value = 30; }
+    else if(source === '추장호DB') { selectors[0].value = '추장호'; selectors[0].disabled = true; inputs[0].value = 50; }
+    else { selectors[0].disabled = false; }
 }
 
 function calculateShare() {
@@ -694,12 +690,6 @@ function calculateShare() {
         const partnerSel = document.getElementById('share-partner-' + i);
         const percentIn = document.getElementById('share-percent-' + i);
         const valSpan = document.getElementById('share-val-' + i);
-        const source = document.getElementById('input-source').value;
-        if(i===1) {
-            if(source==='회사DB') { percentIn.value=10; partnerSel.value='회사'; }
-            if(source==='팀DB') { percentIn.value=30; partnerSel.value='SM'; }
-            if(source==='추장호DB') { percentIn.value=30; partnerSel.value='추장호'; }
-        }
         const pct = parseInt(percentIn.value) || 0;
         let shareAmt = 0;
         if(pct > 0 && partnerSel.value) shareAmt = Math.floor(total * (pct / 100));
@@ -997,7 +987,6 @@ function saveData() {
 
 function deleteData() { if(!confirm('삭제하시겠습니까?')) return; const id=document.getElementById('edit-id').value; showLoading(); fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'delete', id:id}) }).then(r=>r.json()).then(d=>{ hideLoading(); showToast('삭제 완료'); document.getElementById('modal').style.display='none'; fetchDB(()=>renderList()); }).catch(e=>{ hideLoading(); showToast('실패', 'error'); }); }
 
-// 로드맵 관련 함수들
 function printRoadmap() {
     const printArea = document.getElementById('roadmap-print-area');
     const printWindow = window.open('', '_blank', 'width=1200,height=800');
@@ -1052,7 +1041,6 @@ function renderRoadmapView() {
     });
 }
 
-// 모달 변경 감지
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('#modal input, #modal select, #modal textarea').forEach(el => {
         el.addEventListener('change', () => { isModalDirty = true; });
