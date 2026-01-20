@@ -682,7 +682,7 @@ function updateShareFields() {
     });
     if(source === '회사DB') { selectors[0].value = '회사'; selectors[0].disabled = true; inputs[0].value = 10; inputs[0].readOnly = true; }
     else if(source === '팀DB') { selectors[0].value = 'SM'; selectors[0].disabled = true; inputs[0].value = 30; inputs[0].readOnly = true; }
-    else if(source === '추장호DB') { selectors[0].value = '추장호'; selectors[0].disabled = true; inputs[0].value = 30; inputs[0].readOnly = true; }
+    else if(source === '추장호DB') { selectors[0].value = '추장호'; selectors[0].disabled = true; inputs[0].value = 50; inputs[0].readOnly = true; }
     else { selectors[0].disabled = false; inputs[0].readOnly = false; }
 }
 
@@ -698,7 +698,7 @@ function calculateShare() {
         if(i===1) {
             if(source==='회사DB') { percentIn.value=10; partnerSel.value='회사'; }
             if(source==='팀DB') { percentIn.value=30; partnerSel.value='SM'; }
-            if(source==='추장호DB') { percentIn.value=30; partnerSel.value='추장호'; }
+            if(source==='추장호DB') { percentIn.value=50; partnerSel.value='추장호'; }
         }
         const pct = parseInt(percentIn.value) || 0;
         let shareAmt = 0;
@@ -1062,3 +1062,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 </body>
 </html>
+
