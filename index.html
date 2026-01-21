@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DB Pro Master v24.24</title>
+    <title>DB Pro Master v24.25</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -184,7 +184,7 @@
 <div id="login-screen">
     <div class="login-box">
         <h2 style="color:var(--primary); margin-bottom:10px;"><i class="fa-solid fa-server"></i> DB Pro Master</h2>
-        <div style="font-size:14px; color:#64748b; margin-bottom:20px; font-weight:600;">v24.24</div>
+        <div style="font-size:14px; color:#64748b; margin-bottom:20px; font-weight:600;">v24.25</div>
         <div id="login-loading" style="display:none; text-align:center; margin-bottom:15px; color:var(--primary);"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i><br><span style="font-size:12px; font-weight:600;">접속 중...</span></div>
         <input type="text" id="login-user-name" class="login-input" placeholder="성함 입력 (예: 홍길동)" onkeypress="if(event.keyCode==13) document.getElementById('login-pw').focus()">
         <input type="password" id="login-pw" class="login-input" placeholder="비밀번호" onkeypress="if(event.keyCode==13) attemptLogin('member')">
@@ -230,7 +230,7 @@
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
             <div id="meeting-alert-badge" style="display:none;" onclick="showMeetingList()"></div>
-            <div style="font-size:12px; color:#64748b; font-weight:bold; background:#f1f5f9; padding:6px 12px; border-radius:20px;">v24.24</div>
+            <div style="font-size:12px; color:#64748b; font-weight:bold; background:#f1f5f9; padding:6px 12px; border-radius:20px;">v24.25</div>
         </div>
     </div>
 
@@ -332,6 +332,7 @@
                 <div class="card" style="margin:0 0 20px 0; border-left:4px solid #f59e0b;">
                     <div style="color:#b45309; font-weight:800; margin-bottom:10px;">2단계: 전화 검증</div>
                     <div class="form-grid">
+                        <div class="form-group"><label>통화여부</label><select id="input-call-status"><option value="">선택</option><option value="부재 중">부재 중</option><option value="장난DB">장난DB</option><option value="재 통화 요청">재 통화 요청</option><option value="통화종결">통화종결</option></select></div>
                         <div class="form-group"><label>대표 신용점수</label><select id="input-credit"><option value="">미확인</option><option value="900이상">900점 이상</option><option value="800이상">800점 이상</option><option value="700이상">700점 이상</option><option value="700미만">700점 미만</option><option value="사고이력">사고 이력</option></select></div>
                         <div class="form-group"><label>연매출 (백만원)</label><input type="text" id="input-annual-rev" onkeyup="formatCurrency(this)"></div>
                         <div class="form-group"><label>세금 체납여부</label><select id="input-tax"><option value="완납">완납</option><option value="분납중">분납중</option><option value="연체중">연체중</option><option value="기타">기타</option></select></div>
@@ -365,7 +366,7 @@
             </div>
             <div class="panel-right">
                 <h4><i class="fa-regular fa-clock"></i> 활동 로그</h4>
-                <div style="font-size:12px; color:#64748b; margin-bottom:10px; background:#f1f5f9; padding:12px; border-radius:8px;">모든 이슈를 실시간 기록으로 남겨 놓으세요 예) ~차 부재중, 미팅 후 진행내용 등등</div>
+                <div style="font-size:12px; color:#64748b; margin-bottom:10px; background:#f1f5f9; padding:12px; border-radius:8px;">모든 이슈를 실시간 기록으로 남겨 놓으세요<br>예) ~차 부재중, 미팅 후 진행내용 등등</div>
                 <div style="display:flex; gap:5px; margin-bottom:10px;"><input type="text" id="hist-input" placeholder="내용 입력" style="flex:1;" onkeypress="if(event.keyCode==13) addLog()"><button onclick="addLog()" class="btn btn-primary">등록</button></div>
                 <div id="log-list" style="flex:1; overflow-y:auto; border-top:1px solid #eee; padding-top:10px;"></div>
                 <div style="margin-top:auto; display:flex; gap:5px;"><button onclick="saveData()" class="btn btn-primary" style="flex:1;">저장</button><button onclick="deleteData()" class="btn btn-danger">삭제</button></div>
@@ -486,7 +487,6 @@ function getDdayText(meetDateStr) {
     const diffDays = Math.ceil((meetDate - today) / (1000 * 60 * 60 * 24));
     if(diffDays === 0) return '<span class="dday-badge dday-today">D-DAY</span>';
     else if(diffDays > 0 && diffDays <= 7) return '<span class="dday-badge dday-soon">D-' + diffDays + '</span>';
-    // 수정4: 지나간 일정은 표시 안함
     return '';
 }
 
@@ -652,7 +652,7 @@ function toggleStatusFields() {
     if(s==='대기') document.getElementById('box-wait').classList.add('active');
     if(s==='진행중') document.getElementById('box-ing').classList.add('active');
     if(s==='가망고객') document.getElementById('box-prospect').classList.add('active');
-    if(s==='계약') { document.getElementById('box-contract').classList.add('active'); calculateShare(); }
+    if(s==='계약') { document.getElementById('box-contract').classList.add('active'); updateShareFields(); calculateShare(); }
     if(s==='종료') document.getElementById('box-end').classList.add('active');
     document.getElementById('btn-roadmap-area').style.display = (s === '진행중' || s === '계약') ? 'block' : 'none';
 }
@@ -662,24 +662,55 @@ function updateShareFields() {
     const currentMember = document.getElementById('display-member').innerText;
     const selectors = [1,2,3].map(i => document.getElementById('share-partner-' + i));
     const inputs = [1,2,3].map(i => document.getElementById('share-percent-' + i));
+    
     let commonOptions = '<option value="">선택</option>';
-    members.forEach(m => { if(m.role !== 'admin' && m.name !== currentMember) commonOptions += '<option value="' + m.name + '">' + m.name + ' 팀장</option>'; });
-    selectors.forEach((sel, idx) => {
-        const currentVal = sel.value; 
-        let finalOptions = commonOptions;
-        if(source === '회사DB' && idx === 0) finalOptions = '<option value="회사">🏢 회사</option>';
-        else if(source === '팀DB' && idx === 0) finalOptions = '<option value="SM">🗣️ SM</option>';
-        else if(source === '추장호DB' && idx === 0) finalOptions = '<option value="추장호">🎯 추장호</option>';
-        else if(source === '회사DB') finalOptions = '<option value="">선택</option><option value="회사">🏢 회사</option>' + commonOptions.replace('<option value="">선택</option>','');
-        else if(source === '팀DB') finalOptions = '<option value="">선택</option><option value="SM">🗣️ SM</option>' + commonOptions.replace('<option value="">선택</option>','');
-        else if(source === '추장호DB') finalOptions = '<option value="">선택</option><option value="추장호">🎯 추장호</option>' + commonOptions.replace('<option value="">선택</option>','');
-        sel.innerHTML = finalOptions; sel.value = currentVal;
+    members.forEach(m => { 
+        if(m.role !== 'admin' && m.name !== currentMember) 
+            commonOptions += '<option value="' + m.name + '">' + m.name + ' 팀장</option>'; 
     });
-    // 수정2,3: 추장호DB 50%, 쉐어비율 수정 가능하게 (readOnly 제거)
-    if(source === '회사DB') { selectors[0].value = '회사'; selectors[0].disabled = true; inputs[0].value = 10; }
-    else if(source === '팀DB') { selectors[0].value = 'SM'; selectors[0].disabled = true; inputs[0].value = 30; }
-    else if(source === '추장호DB') { selectors[0].value = '추장호'; selectors[0].disabled = true; inputs[0].value = 50; }
-    else { selectors[0].disabled = false; }
+    
+    // 셀렉터 옵션 설정
+    selectors.forEach((sel, idx) => {
+        let finalOptions = commonOptions;
+        if(idx === 0) {
+            if(source === '회사DB') finalOptions = '<option value="회사">🏢 회사</option>';
+            else if(source === '팀DB') finalOptions = '<option value="SM">🗣️ SM</option>';
+            else if(source === '추장호DB') finalOptions = '<option value="추장호">🎯 추장호</option>';
+        } else {
+            if(source === '회사DB') finalOptions = '<option value="">선택</option><option value="회사">🏢 회사</option>' + commonOptions.replace('<option value="">선택</option>','');
+            else if(source === '팀DB') finalOptions = '<option value="">선택</option><option value="SM">🗣️ SM</option>' + commonOptions.replace('<option value="">선택</option>','');
+            else if(source === '추장호DB') finalOptions = '<option value="">선택</option><option value="추장호">🎯 추장호</option>' + commonOptions.replace('<option value="">선택</option>','');
+        }
+        sel.innerHTML = finalOptions;
+    });
+    
+    // DB출처에 따른 기본값 설정
+    if(source === '회사DB') { 
+        selectors[0].value = '회사'; 
+        selectors[0].disabled = true; 
+        inputs[0].value = 10; 
+    }
+    else if(source === '팀DB') { 
+        selectors[0].value = 'SM'; 
+        selectors[0].disabled = true; 
+        inputs[0].value = 30; 
+    }
+    else if(source === '추장호DB') { 
+        selectors[0].value = '추장호'; 
+        selectors[0].disabled = true; 
+        inputs[0].value = 50; 
+    }
+    else { 
+        // 개인DB, 기타DB 등의 경우 - 모두 리셋
+        selectors[0].value = '';
+        selectors[0].disabled = false; 
+        inputs[0].value = '';
+        // 2, 3번도 리셋
+        selectors[1].value = '';
+        inputs[1].value = '';
+        selectors[2].value = '';
+        inputs[2].value = '';
+    }
 }
 
 function calculateShare() {
@@ -919,7 +950,9 @@ function openModal(id) {
         document.getElementById('edit-id').value=d.id; document.getElementById('display-member').innerText=d.member;
         document.getElementById('input-date').value=d.date; document.getElementById('input-source').value=d.source; document.getElementById('input-grade-prov').value=d.gradeProv||'A';
         document.getElementById('input-company').value=d.company; document.getElementById('input-ceo').value=d.ceo||''; document.getElementById('input-phone').value=d.phone||'';
-        document.getElementById('input-industry').value=d.industry||''; document.getElementById('input-revenue').value=d.revenue||'미확인'; document.getElementById('input-credit').value=d.credit||'';
+        document.getElementById('input-industry').value=d.industry||''; document.getElementById('input-revenue').value=d.revenue||'미확인'; 
+        document.getElementById('input-call-status').value=d.callStatus||'';
+        document.getElementById('input-credit').value=d.credit||'';
         document.getElementById('input-annual-rev').value=d.annualRev?d.annualRev.toLocaleString():''; document.getElementById('input-tax').value=d.tax||'완납'; document.getElementById('input-region').value=d.region||'';
         document.getElementById('input-meet-date').value=d.meetDate||''; document.getElementById('input-status').value=d.status;
         document.getElementById('input-wait-reason').value=d.waitReason||''; document.getElementById('input-ing-detail').value=d.ingDetail||'';
@@ -933,11 +966,20 @@ function openModal(id) {
         document.getElementById('edit-id').value=''; document.getElementById('display-member').innerText=currentUser.name; document.getElementById('input-date').valueAsDate=new Date();
         document.getElementById('input-source').value='회사DB'; document.getElementById('input-grade-prov').value='A';
         document.getElementById('input-company').value=''; document.getElementById('input-ceo').value=''; document.getElementById('input-phone').value='';
-        document.getElementById('input-industry').value=''; document.getElementById('input-revenue').value='미확인'; document.getElementById('input-credit').value='';
+        document.getElementById('input-industry').value=''; document.getElementById('input-revenue').value='미확인'; 
+        document.getElementById('input-call-status').value='';
+        document.getElementById('input-credit').value='';
         document.getElementById('input-annual-rev').value=''; document.getElementById('input-tax').value='완납'; document.getElementById('input-region').value=''; document.getElementById('input-meet-date').value='';
         document.getElementById('input-status').value='대기'; document.getElementById('input-wait-reason').value=''; document.getElementById('input-ing-detail').value=''; document.getElementById('input-prospect-detail').value=''; document.getElementById('input-end-reason').value='';
         document.getElementById('input-product').value=''; document.getElementById('input-amount').value=''; consult.value='';
-        updateShareFields(); [1,2,3].forEach(i=>{ document.getElementById('share-partner-' + i).value=''; document.getElementById('share-percent-' + i).value=''; document.getElementById('share-val-' + i).innerText='0'; }); calculateShare();
+        // 신규 등록 시 쉐어 필드 초기화
+        [1,2,3].forEach(i=>{ 
+            document.getElementById('share-partner-' + i).value=''; 
+            document.getElementById('share-percent-' + i).value=''; 
+            document.getElementById('share-val-' + i).innerText='0'; 
+        });
+        updateShareFields();
+        calculateShare();
         tempLogs=[]; tempRoadmap=[];
     }
     toggleGradeField(); toggleStatusFields(); renderLogs();
@@ -970,7 +1012,9 @@ function saveData() {
         id:id, member:document.getElementById('display-member').innerText, date:document.getElementById('input-date').value,
         source:document.getElementById('input-source').value, gradeProv:document.getElementById('input-grade-prov').value,
         company:companyVal, ceo:document.getElementById('input-ceo').value, phone:document.getElementById('input-phone').value,
-        industry:document.getElementById('input-industry').value, revenue:document.getElementById('input-revenue').value, credit:document.getElementById('input-credit').value,
+        industry:document.getElementById('input-industry').value, revenue:document.getElementById('input-revenue').value, 
+        callStatus:document.getElementById('input-call-status').value,
+        credit:document.getElementById('input-credit').value,
         annualRev:parseInt(document.getElementById('input-annual-rev').value.replace(/,/g,''))||0, tax:document.getElementById('input-tax').value, region:document.getElementById('input-region').value,
         meetDate:document.getElementById('input-meet-date').value, status:document.getElementById('input-status').value,
         waitReason:document.getElementById('input-wait-reason').value, ingDetail:document.getElementById('input-ing-detail').value, prospectDetail:document.getElementById('input-prospect-detail').value, endReason:document.getElementById('input-end-reason').value,
