@@ -218,10 +218,12 @@
     <div id="nav-list" class="nav-item active" onclick="navTo('list'); toggleMobileMenu();"><i class="fa-solid fa-folder-open"></i> <span id="menu-list-text">나의 DB 관리</span></div>
     <div id="nav-analysis" class="nav-item" onclick="navTo('analysis'); toggleMobileMenu();"><i class="fa-solid fa-chart-column"></i> 실적 상세 분석</div>
     <div id="nav-history" class="nav-item" onclick="navTo('history'); toggleMobileMenu();"><i class="fa-solid fa-calendar-days"></i> 월별 히스토리</div>
+    <div id="nav-member-request" class="nav-item" style="display:none; background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #f59e0b;" onclick="openMemberRequestModal(); toggleMobileMenu();"><i class="fa-solid fa-comment-dots"></i> 건의사항/질문</div>
     <div id="admin-menu" style="display:none; margin-top:20px;">
         <div style="font-size:11px; opacity:0.7; font-weight:bold; padding-left:10px; margin-bottom:5px;">관리자 전용</div>
         <div id="nav-dashboard" class="nav-item" onclick="navTo('dashboard'); toggleMobileMenu();"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑</div>
         <div id="nav-members" class="nav-item" onclick="openMemberModal(); toggleMobileMenu();"><i class="fa-solid fa-users-gear"></i> 팀원 관리</div>
+        <div id="nav-admin-request" class="nav-item" onclick="openAdminRequestModal(); toggleMobileMenu();"><i class="fa-solid fa-envelope-open-text"></i> 팀원 요청글 <span id="request-badge" style="display:none; background:#ef4444; color:white; padding:2px 6px; border-radius:10px; font-size:11px; margin-left:5px; animation: pulse 1.5s infinite;">0</span></div>
     </div>
     <button onclick="logout()" style="margin-top:auto; background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px;"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
 </div>
@@ -314,6 +316,34 @@
     </div>
 </div>
 
+<!-- 팀원 건의사항 모달 -->
+<div class="modal-overlay" id="member-request-modal">
+    <div class="modal-window" style="width:600px; height:auto; max-height:85vh;">
+        <div class="modal-header" style="background:linear-gradient(135deg, #fef3c7, #fde68a);"><h3><i class="fa-solid fa-comment-dots"></i> 건의사항/질문</h3><button onclick="closeMemberRequestModal()" style="border:none; background:none; font-size:24px; cursor:pointer;">&times;</button></div>
+        <div class="modal-body" style="display:block; padding:20px; overflow-y:auto;">
+            <div style="margin-bottom:20px;">
+                <label style="font-weight:700; font-size:13px; color:#64748b; display:block; margin-bottom:8px;">새 건의사항/질문 작성</label>
+                <textarea id="member-request-input" placeholder="관리자에게 전달할 건의사항이나 질문을 작성하세요..." style="width:100%; min-height:100px; padding:12px; border:2px solid #fcd34d; border-radius:8px; font-size:14px; resize:vertical; background:#fffbeb;"></textarea>
+                <button class="btn btn-warning" style="margin-top:10px; width:100%;" onclick="submitMemberRequest()"><i class="fa-solid fa-paper-plane"></i> 전송하기</button>
+            </div>
+            <div style="border-top:1px solid #e2e8f0; padding-top:15px;">
+                <div style="font-weight:700; font-size:13px; color:#64748b; margin-bottom:10px;">📋 내가 보낸 요청 목록</div>
+                <div id="my-request-list" style="max-height:300px; overflow-y:auto;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 관리자 요청글 모달 -->
+<div class="modal-overlay" id="admin-request-modal">
+    <div class="modal-window" style="width:800px; height:auto; max-height:90vh;">
+        <div class="modal-header" style="background:#1e293b; color:white;"><h3><i class="fa-solid fa-envelope-open-text"></i> 팀원 요청글 관리</h3><button onclick="closeAdminRequestModal()" style="border:none; background:none; font-size:24px; cursor:pointer; color:white;">&times;</button></div>
+        <div class="modal-body" style="display:block; padding:20px; overflow-y:auto;">
+            <div id="admin-request-list"></div>
+        </div>
+    </div>
+</div>
+
 <!-- 메인 모달 -->
 <div class="modal-overlay" id="modal">
     <div class="modal-window">
@@ -345,6 +375,10 @@
                         <div class="form-group"><label>지역</label><select id="input-region"><option value="">선택</option><option value="서울">서울</option><option value="경기">경기</option><option value="인천">인천</option><option value="부산">부산</option><option value="대구">대구</option><option value="광주">광주</option><option value="대전">대전</option><option value="울산">울산</option><option value="세종">세종</option><option value="강원">강원</option><option value="충북">충북</option><option value="충남">충남</option><option value="전북">전북</option><option value="전남">전남</option><option value="경북">경북</option><option value="경남">경남</option><option value="제주">제주</option></select></div>
                         <div class="form-group"><label>미팅 일정</label><input type="date" id="input-meet-date" onclick="this.showPicker()"></div>
                     </div>
+                    <div class="form-group" style="margin-top:15px;">
+                        <label><i class="fas fa-phone-volume" style="color:#f59e0b;"></i> 전화이슈 메모</label>
+                        <textarea id="input-phone-issue" placeholder="부재중 재 시도 기록 and 통화 후 체크사항 기록" style="width:100%; min-height:80px; padding:12px; border:2px solid #fcd34d; border-radius:8px; background:#fffbeb; font-size:14px; resize:vertical;"></textarea>
+                    </div>
                 </div>
                 <div class="card" style="margin:0; border-left:4px solid #10b981;">
                     <div style="color:#047857; font-weight:800; margin-bottom:10px;">3단계: 진행 및 계약</div>
@@ -372,7 +406,7 @@
             </div>
             <div class="panel-right">
                 <h4><i class="fa-regular fa-clock"></i> 활동 로그</h4>
-                <div style="font-size:12px; color:#64748b; margin-bottom:10px; background:#f1f5f9; padding:12px; border-radius:8px;">모든 이슈를 실시간 기록으로 남겨 놓으세요<br>예) ~차 부재중, 미팅 후 진행내용 등등</div>
+                <div style="font-size:12px; color:#64748b; margin-bottom:10px; background:#f1f5f9; padding:12px; border-radius:8px;">실시간 진행과정 or 놓치지 말아야 할 메모기록!</div>
                 <div style="display:flex; gap:5px; margin-bottom:10px;"><input type="text" id="hist-input" placeholder="내용 입력" style="flex:1;" onkeypress="if(event.keyCode==13) addLog()"><button onclick="addLog()" class="btn btn-primary">등록</button></div>
                 <div id="log-list" style="flex:1; overflow-y:auto; border-top:1px solid #eee; padding-top:10px;"></div>
                 <div style="margin-top:auto; display:flex; gap:5px;"><button onclick="saveData()" class="btn btn-primary" style="flex:1;">저장</button><button onclick="deleteData()" class="btn btn-danger">삭제</button></div>
@@ -438,7 +472,7 @@ function sha256(ascii) {
 
 let members = [], dbList = [], currentUser = null, tempLogs = [], currentId = null, historyTab = 'prospect';
 let isAdminLogAdded = false, tempRoadmap = [], editIndex = -1, dragSrcEl = null, dragSrcIndex = null, isDragging = false;
-let isModalDirty = false;
+let isModalDirty = false, requestList = [];
 const roadmapItems = ["신보", "기보", "신용보증재단", "소진공", "중진공", "법인설립(전환)", "특허", "벤처인증", "연구전담부서설립", "재무등급관리"];
 const colorPalette = ['#0f172a', '#1e3a8a', '#1d4ed8', '#3b82f6', '#60a5fa', '#93c5fd'];
 
@@ -547,6 +581,7 @@ function fetchDB(callback) {
         document.getElementById('login-loading').style.display = 'none';
         if (data.db) dbList = data.db; else dbList = [];
         if (data.members) members = data.members;
+        if (data.requests) requestList = data.requests; else requestList = [];
         dbList.sort((a, b) => {
             const dateA = new Date(a.date).getTime() || 0;
             const dateB = new Date(b.date).getTime() || 0;
@@ -555,10 +590,19 @@ function fetchDB(callback) {
         });
         if(callback) callback();
         checkMeetingAlerts();
+        updateRequestBadge();
     }).catch(err => {
         document.getElementById('login-loading').style.display = 'none';
         console.error(err); showToast('서버 연결 실패', 'error');
     });
+}
+
+function updateRequestBadge() {
+    if(!currentUser || currentUser.role !== 'admin') return;
+    const unreadCount = requestList.filter(r => !r.isRead).length;
+    const badge = document.getElementById('request-badge');
+    if(unreadCount > 0) { badge.style.display = 'inline'; badge.innerText = unreadCount; }
+    else { badge.style.display = 'none'; }
 }
 
 function attemptLogin(type) {
@@ -590,18 +634,71 @@ function processLoginSuccess(user) {
         document.getElementById('admin-yoy-summary').style.display='block';
         document.getElementById('menu-list-text').innerText = '팀원 DB 관리';
         document.getElementById('page-title').innerText = '팀원 DB 관리';
+        document.getElementById('nav-member-request').style.display='none';
     } else {
         document.getElementById('app-sidebar').classList.remove('admin-mode');
         document.getElementById('admin-menu').style.display='none';
         document.getElementById('admin-yoy-summary').style.display='none';
         document.getElementById('menu-list-text').innerText = '나의 DB 관리';
         document.getElementById('page-title').innerText = '나의 DB 관리';
+        document.getElementById('nav-member-request').style.display='flex';
     }
-    setupHistoryTabs(); checkMeetingAlerts(); navTo('list');
+    setupHistoryTabs(); checkMeetingAlerts(); updateRequestBadge(); navTo('list');
 }
 
 function openMemberModal() { document.getElementById('member-modal').style.display = 'flex'; renderMemberList(); }
 function closeMemberModal() { document.getElementById('member-modal').style.display = 'none'; document.getElementById('new-member-name').value = ''; }
+
+function openMemberRequestModal() { document.getElementById('member-request-modal').style.display = 'flex'; renderMyRequests(); }
+function closeMemberRequestModal() { document.getElementById('member-request-modal').style.display = 'none'; document.getElementById('member-request-input').value = ''; }
+
+function openAdminRequestModal() { document.getElementById('admin-request-modal').style.display = 'flex'; renderAdminRequests(); markRequestsAsRead(); }
+function closeAdminRequestModal() { document.getElementById('admin-request-modal').style.display = 'none'; }
+
+function submitMemberRequest() {
+    const content = document.getElementById('member-request-input').value.trim();
+    if(!content) return showToast('내용을 입력하세요.', 'error');
+    const newRequest = { id: Date.now(), member: currentUser.name, content: content, date: new Date().toLocaleString(), isRead: false, reply: '' };
+    showLoading();
+    fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'add_request', data:newRequest}) }).then(r=>r.json()).then(d=>{
+        hideLoading();
+        if(d.result === 'success') { showToast('전송 완료!'); document.getElementById('member-request-input').value = ''; requestList.unshift(newRequest); renderMyRequests(); }
+        else { showToast('전송 실패', 'error'); }
+    }).catch(e=>{ hideLoading(); showToast('서버 오류', 'error'); });
+}
+
+function renderMyRequests() {
+    const container = document.getElementById('my-request-list');
+    const myReqs = requestList.filter(r => r.member === currentUser.name);
+    if(myReqs.length === 0) { container.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:20px;">보낸 요청이 없습니다.</div>'; return; }
+    container.innerHTML = myReqs.map(r => '<div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:10px; border-left:4px solid ' + (r.reply ? '#10b981' : '#f59e0b') + ';"><div style="font-size:12px; color:#64748b; margin-bottom:5px;">' + r.date + '</div><div style="font-weight:600; margin-bottom:8px;">' + r.content + '</div>' + (r.reply ? '<div style="background:#ecfdf5; padding:10px; border-radius:6px; margin-top:8px;"><div style="font-size:11px; color:#047857; font-weight:bold; margin-bottom:4px;">💬 관리자 답변</div><div style="font-size:13px;">' + r.reply + '</div></div>' : '<div style="font-size:12px; color:#f59e0b;">⏳ 답변 대기중</div>') + '</div>').join('');
+}
+
+function renderAdminRequests() {
+    const container = document.getElementById('admin-request-list');
+    if(requestList.length === 0) { container.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:40px;">요청글이 없습니다.</div>'; return; }
+    container.innerHTML = requestList.map((r, idx) => '<div style="background:' + (r.isRead ? '#f8fafc' : '#fffbeb') + '; padding:20px; border-radius:12px; margin-bottom:15px; border:1px solid ' + (r.isRead ? '#e2e8f0' : '#fcd34d') + ';"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span style="font-weight:bold; color:#1e293b;"><i class="fa-solid fa-user"></i> ' + r.member + '</span><span style="font-size:12px; color:#64748b;">' + r.date + '</span></div><div style="background:white; padding:12px; border-radius:8px; margin-bottom:10px; border:1px solid #e2e8f0;">' + r.content + '</div>' + (r.reply ? '<div style="background:#ecfdf5; padding:12px; border-radius:8px;"><div style="font-size:11px; color:#047857; font-weight:bold; margin-bottom:4px;">✅ 내 답변</div><div>' + r.reply + '</div></div>' : '<div style="display:flex; gap:8px;"><input type="text" id="reply-' + r.id + '" placeholder="답변 입력..." style="flex:1; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"><button class="btn btn-primary" onclick="submitReply(' + r.id + ')">답변</button></div>') + '</div>').join('');
+}
+
+function submitReply(reqId) {
+    const replyInput = document.getElementById('reply-' + reqId);
+    const reply = replyInput.value.trim();
+    if(!reply) return showToast('답변을 입력하세요.', 'error');
+    showLoading();
+    fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'reply_request', id:reqId, reply:reply}) }).then(r=>r.json()).then(d=>{
+        hideLoading();
+        if(d.result === 'success') { showToast('답변 완료!'); const req = requestList.find(r => r.id === reqId); if(req) req.reply = reply; renderAdminRequests(); }
+        else { showToast('답변 실패', 'error'); }
+    }).catch(e=>{ hideLoading(); showToast('서버 오류', 'error'); });
+}
+
+function markRequestsAsRead() {
+    const unreadIds = requestList.filter(r => !r.isRead).map(r => r.id);
+    if(unreadIds.length === 0) return;
+    requestList.forEach(r => { if(!r.isRead) r.isRead = true; });
+    updateRequestBadge();
+    fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'mark_read', ids:unreadIds}) });
+}
 
 function renderMemberList() {
     const container = document.getElementById('member-list-container');
@@ -967,6 +1064,7 @@ function renderAdminDashboard() {
 function openModal(id) {
     document.getElementById('modal').style.display='flex'; currentId=id||null; isAdminLogAdded=false; isModalDirty = false;
     const consult=document.getElementById('input-consulting');
+    const phoneIssue=document.getElementById('input-phone-issue');
     if(currentId) {
         const d=dbList.find(x=>x.id==id); if(currentUser.role!=='admin'&&d.hasAdminAlert) { d.hasAdminAlert=false; renderList(); }
         document.getElementById('edit-id').value=d.id; document.getElementById('display-member').innerText=d.member;
@@ -981,6 +1079,7 @@ function openModal(id) {
         document.getElementById('input-prospect-detail').value=d.prospectDetail||''; document.getElementById('input-end-reason').value=d.endReason||'';
         document.getElementById('input-product').value=d.product||''; document.getElementById('input-amount').value=d.totalAmount?d.totalAmount.toLocaleString():'';
         consult.value=d.consulting||'';
+        phoneIssue.value=d.phoneIssue||'';
         updateShareFields();
         if(d.shareList) d.shareList.forEach((s,i)=>{ if(i<3) { document.getElementById('share-partner-' + (i+1)).value=s.partner; document.getElementById('share-percent-' + (i+1)).value=s.percent; }});
         tempLogs=d.logs||[]; tempRoadmap=d.roadmap||[];
@@ -993,7 +1092,7 @@ function openModal(id) {
         document.getElementById('input-credit').value='';
         document.getElementById('input-annual-rev').value=''; document.getElementById('input-tax').value='완납'; document.getElementById('input-region').value=''; document.getElementById('input-meet-date').value='';
         document.getElementById('input-status').value='대기'; document.getElementById('input-wait-reason').value=''; document.getElementById('input-ing-detail').value=''; document.getElementById('input-prospect-detail').value=''; document.getElementById('input-end-reason').value='';
-        document.getElementById('input-product').value=''; document.getElementById('input-amount').value=''; consult.value='';
+        document.getElementById('input-product').value=''; document.getElementById('input-amount').value=''; consult.value=''; phoneIssue.value='';
         [1,2,3].forEach(i=>{ 
             document.getElementById('share-partner-' + i).value=''; 
             document.getElementById('share-percent-' + i).value=''; 
@@ -1040,6 +1139,7 @@ function saveData() {
         meetDate:document.getElementById('input-meet-date').value, status:document.getElementById('input-status').value,
         waitReason:document.getElementById('input-wait-reason').value, ingDetail:document.getElementById('input-ing-detail').value, prospectDetail:document.getElementById('input-prospect-detail').value, endReason:document.getElementById('input-end-reason').value,
         product:document.getElementById('input-product').value, totalAmount:total, amount:total-ded, shareList:shareList, consulting:consult.value,
+        phoneIssue:document.getElementById('input-phone-issue').value,
         logs:tempLogs, roadmap:tempRoadmap, hasAdminAlert:(currentUser.role==='admin'&&isAdminLogAdded)?true:(ex.hasAdminAlert||false)
     };
     showLoading();
