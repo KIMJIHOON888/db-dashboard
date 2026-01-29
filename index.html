@@ -463,7 +463,7 @@
 </div>
 
 <script>
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbx6q-ZRDFXlonVTY0F-24DROr87rebq992cTCntvpXjAvkwg3mpVk0ilPpF9gH0MfRliQ/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwcLiEa_C-BkOBPwugpKJdKfYGXeAEx_KVWpvtsUym7dXq_atZvIV2K1s10gEnMcEm4RA/exec';
 
 function sha256(ascii) {
     function rightRotate(value, amount) { return (value>>>amount) | (value<<(32 - amount)); }
@@ -518,32 +518,44 @@ function closeAdminRequestModal() { document.getElementById('admin-request-modal
 function submitMemberRequest() { 
     const content = document.getElementById('member-request-input').value.trim(); 
     if(!content) return showToast('내용을 입력하세요.', 'error'); 
-    const newRequest = { id: Date.now(), member: currentUser.name, content: content, date: new Date().toLocaleString(), isRead: false, reply: '' }; 
+
+    // 전송할 데이터 구조 정의
+    const newRequest = { 
+        id: Date.now(), 
+        member: currentUser.name, 
+        content: content, 
+        date: new Date().toLocaleString(), 
+        isRead: false, 
+        reply: '' 
+    }; 
+
     showLoading(); 
+    
     fetch(GAS_URL, { 
-        method:'POST', 
+        method: 'POST', 
         mode: 'cors',
+        redirect: 'follow', // 구글 앱스 스크립트 통신 필수 옵션
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body:JSON.stringify({action:'add_request', data:newRequest}) 
-    }).then(r => {
-        if(!r.ok) throw new Error('Network response was not ok');
-        return r.json();
-    }).then(d => { 
+        body: JSON.stringify({action: 'add_request', data: newRequest}) 
+    })
+    .then(r => r.json()) 
+    .then(d => { 
         hideLoading(); 
         if(d.result === 'success') { 
             showToast('전송 완료!'); 
             document.getElementById('member-request-input').value = ''; 
+            
+            // 화면 목록에 즉시 반영
             requestList.unshift(newRequest); 
             renderMyRequests(); 
         } else { 
-            showToast('전송 실패: ' + (d.message || ''), 'error'); 
+            showToast('전송 실패: ' + (d.error || '알 수 없는 오류'), 'error'); 
         } 
-    }).catch(e => { 
+    })
+    .catch(e => { 
         hideLoading(); 
         console.error('Request error:', e);
-        requestList.unshift(newRequest);
-        renderMyRequests();
-        showToast('요청이 저장되었습니다. (로컬)', 'warning'); 
+        showToast('서버 연결 오류가 발생했습니다.', 'error'); 
     }); 
 }
 function renderMyRequests() { const container = document.getElementById('my-request-list'); const myReqs = requestList.filter(r => r.member === currentUser.name); if(myReqs.length === 0) { container.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:20px;">보낸 요청이 없습니다.</div>'; return; } container.innerHTML = myReqs.map(r => '<div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:10px; border-left:4px solid ' + (r.reply ? '#10b981' : '#f59e0b') + ';"><div style="font-size:12px; color:#64748b; margin-bottom:5px;">' + r.date + '</div><div style="font-weight:600; margin-bottom:8px;">' + r.content + '</div>' + (r.reply ? '<div style="background:#ecfdf5; padding:10px; border-radius:6px; margin-top:8px;"><div style="font-size:11px; color:#047857; font-weight:bold; margin-bottom:4px;">💬 관리자 답변</div><div style="font-size:13px;">' + r.reply + '</div></div>' : '<div style="font-size:12px; color:#f59e0b;">⏳ 답변 대기중</div>') + '</div>').join(''); }
@@ -664,3 +676,4 @@ document.addEventListener('DOMContentLoaded', function() { document.querySelecto
 
 
 </body></html>
+
