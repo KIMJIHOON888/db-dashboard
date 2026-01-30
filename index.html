@@ -384,7 +384,7 @@
                 <div class="card" style="margin:0 0 20px 0; border-left:4px solid #f59e0b;">
                     <div style="color:#b45309; font-weight:800; margin-bottom:10px;">2단계: 전화 검증</div>
                     <div class="form-grid">
-                        <div class="form-group"><label>통화여부</label><select id="input-call-status"><option value="">선택</option><option value="부재중">부재중</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select></div>
+                        <div class="form-group"><label>통화여부</label><select id="input-call-status"><option value="">선택</option><option value="부재중">부재중</option><option value="연속부재 문자전송">연속부재 문자전송</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select></div>
                         <div class="form-group"><label>대표 신용점수</label><select id="input-credit"><option value="">미확인</option><option value="900이상">900점 이상</option><option value="800이상">800점 이상</option><option value="700이상">700점 이상</option><option value="700미만">700점 미만</option><option value="사고이력">사고 이력</option></select></div>
                         <div class="form-group"><label>연매출 (백만원)</label><input type="text" id="input-annual-rev" onkeyup="formatCurrency(this)"></div>
                         <div class="form-group"><label>세금 체납여부</label><select id="input-tax"><option value="완납">완납</option><option value="분납중">분납중</option><option value="연체중">연체중</option><option value="기타">기타</option></select></div>
@@ -676,4 +676,5 @@ document.addEventListener('DOMContentLoaded', function() { document.querySelecto
 
 
 </body></html>
+
 
