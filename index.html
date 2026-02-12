@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- saved from url=(0062)file:///C:/Users/user/Downloads/db_pro_master_v24.25_v3_1.html -->
+<!-- saved from url=(0062)file:///C:/Users/user/Downloads/db_pro_master_v24.25_v3_2.html -->
 <html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DB Pro Master v24.25</title>
-    <link href="./DB Pro Master v24.25 v3최종 버젼_files/all.min.css" rel="stylesheet">
-    <script src="./DB Pro Master v24.25 v3최종 버젼_files/xlsx.full.min.js.다운로드"></script>
-    <script src="./DB Pro Master v24.25 v3최종 버젼_files/chart.umd.min.js.다운로드"></script>
+    <link href="./DB Pro Master v24.25 최종버젼 이후의 테스트버젼_files/all.min.css" rel="stylesheet">
+    <script src="./DB Pro Master v24.25 최종버젼 이후의 테스트버젼_files/xlsx.full.min.js.다운로드"></script>
+    <script src="./DB Pro Master v24.25 최종버젼 이후의 테스트버젼_files/chart.umd.min.js.다운로드"></script>
     <style>
         :root { --primary: #2563eb; --primary-dark: #1e40af; --bg-light: #f1f5f9; --border: #e2e8f0; --text: #334155; --danger: #ef4444; --success: #10b981; --prospect: #8b5cf6; --warning: #f59e0b; }
         * { box-sizing: border-box; outline: none; }
@@ -225,6 +225,7 @@
     <div id="nav-analysis" class="nav-item" onclick="navTo(&#39;analysis&#39;); toggleMobileMenu();"><i class="fa-solid fa-chart-column"></i> 실적 상세 분석</div>
     <div id="nav-history" class="nav-item" onclick="navTo(&#39;history&#39;); toggleMobileMenu();"><i class="fa-solid fa-calendar-days"></i> 월별 히스토리</div>
     <div id="nav-calendar" class="nav-item" onclick="navTo(&#39;calendar&#39;); toggleMobileMenu();"><i class="fa-solid fa-calendar-check"></i> 미팅 캘린더</div>
+    <div id="nav-message" class="nav-item" onclick="navTo(&#39;message&#39;); toggleMobileMenu();"><i class="fa-solid fa-comments"></i> 메시지 <span id="msg-badge" style="display:none; background:#ef4444; color:white; font-size:10px; padding:2px 6px; border-radius:10px; margin-left:5px;"></span></div>
     <div id="nav-member-request" class="nav-item" style="display:none; background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #f59e0b;" onclick="openMemberRequestModal(); toggleMobileMenu();"><i class="fa-solid fa-comment-dots"></i> 건의사항/질문</div>
     <div id="admin-menu" style="display:none; margin-top:20px;">
         <div style="font-size:11px; opacity:0.7; font-weight:bold; padding-left:10px; margin-bottom:5px;">관리자 전용</div>
@@ -314,6 +315,34 @@
             <button class="btn btn-secondary" onclick="changeCalMonth(1)">다음 →</button>
         </div>
         <div id="calendar-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-top:10px;"></div>
+    </div>
+
+    <!-- ★★★ 1:1 메시지 (카카오톡 스타일) ★★★ -->
+    <div class="page-content" id="view-message" style="display:none;">
+        <div style="display:flex; height:calc(100vh - 140px); gap:0; border-radius:12px; overflow:hidden; border:1px solid #e2e8f0;">
+            <!-- 좌측: 대화 상대 목록 (관리자만 다중) -->
+            <div id="msg-member-list" style="width:200px; background:#f8fafc; border-right:1px solid #e2e8f0; overflow-y:auto; flex-shrink:0;">
+                <div style="padding:12px; font-weight:800; font-size:14px; background:#1e3a8a; color:white; text-align:center;">
+                    <i class="fa-solid fa-comments"></i> 대화 목록
+                </div>
+                <div id="msg-contacts"></div>
+            </div>
+            <!-- 우측: 채팅 영역 -->
+            <div style="flex:1; display:flex; flex-direction:column; background:white;">
+                <div id="msg-chat-header" style="padding:12px 16px; background:#f1f5f9; border-bottom:1px solid #e2e8f0; font-weight:800; font-size:15px;">
+                    <i class="fa-solid fa-user-circle" style="color:#3b82f6;"></i> <span id="msg-chat-name">대화 상대를 선택하세요</span>
+                </div>
+                <div id="msg-chat-body" style="flex:1; overflow-y:auto; padding:16px; background:#e8edf3;">
+                    <div style="text-align:center; color:#94a3b8; margin-top:40px;"><i class="fa-solid fa-comments" style="font-size:40px; opacity:0.3;"></i><br><br>대화 상대를 선택해주세요</div>
+                </div>
+                <div id="msg-input-area" style="display:none; padding:10px; border-top:1px solid #e2e8f0; background:#f8fafc;">
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="msg-input" placeholder="메시지 입력..." style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; border-radius:20px; outline:none; font-size:14px;" onkeypress="if(event.key===&#39;Enter&#39;)sendMessage()">
+                        <button onclick="sendMessage()" style="background:#3b82f6; color:white; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; font-size:16px;"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="page-content" id="view-dashboard" style="display:none;">
@@ -526,7 +555,7 @@ function showMeetingList(){var badge=document.getElementById('meeting-alert-badg
 function fetchDB(callback){if(!GAS_URL)return showToast('URL 설정 필요','error');document.getElementById('login-loading').style.display='block';fetch(GAS_URL).then(function(res){return res.json()}).then(function(data){document.getElementById('login-loading').style.display='none';if(data.db)dbList=data.db;else dbList=[];if(data.members)members=data.members;if(data.requests)requestList=data.requests;else requestList=[];dbList.sort(function(a,b){var dateA=new Date(a.date).getTime()||0;var dateB=new Date(b.date).getTime()||0;if(dateB!==dateA)return dateB-dateA;return(Number(b.id)||0)-(Number(a.id)||0)});if(callback)callback();checkMeetingAlerts();updateRequestBadge()}).catch(function(err){document.getElementById('login-loading').style.display='none';console.error(err);showToast('서버 연결 실패','error')})}
 function updateRequestBadge(){if(!currentUser||currentUser.role!=='admin')return;var unreadCount=requestList.filter(function(r){return!r.isRead}).length;var badge=document.getElementById('request-badge');if(unreadCount>0){badge.style.display='inline';badge.innerText=unreadCount}else{badge.style.display='none'}}
 function attemptLogin(type){var inputName=document.getElementById('login-user-name').value.trim();var inputPw=document.getElementById('login-pw').value;if(!inputName)return showToast("이름을 입력하세요.",'error');if(!inputPw)return showToast("비밀번호를 입력하세요.",'error');if(!isDataLoaded){return showToast("데이터 로딩 중입니다. 잠시 후 다시 시도하세요.",'warning')}var user=members.find(function(m){return m.name===inputName});if(!user)return showToast("등록되지 않은 사용자입니다.",'error');var hashedInput=sha256(inputPw);if(user.pw!==hashedInput)return showToast("비밀번호가 틀렸습니다.",'error');if(type==='admin'&&user.role!=='admin')return showToast("관리자 권한이 없습니다.",'error');processLoginSuccess(user)}
-function processLoginSuccess(user){currentUser=user;var isRemember=document.getElementById('login-remember').checked;if(isRemember){localStorage.setItem('last_login_id',user.name);localStorage.setItem('last_login_pw',user.pw)}else{localStorage.removeItem('last_login_id');localStorage.removeItem('last_login_pw')}document.getElementById('login-screen').style.display='none';document.getElementById('app-sidebar').style.display='flex';document.getElementById('app-main').style.display='flex';document.getElementById('profile-name').innerText=user.name;document.getElementById('profile-role').innerText=user.role==='admin'?'Admin Master':'Team Leader';if(user.role==='admin'){document.getElementById('app-sidebar').classList.add('admin-mode');document.getElementById('admin-menu').style.display='block';document.getElementById('admin-yoy-summary').style.display='block';document.getElementById('menu-list-text').innerText='팀원 DB 관리';document.getElementById('page-title').innerText='팀원 DB 관리';document.getElementById('nav-member-request').style.display='none';document.getElementById('member-perf-section').style.display='none'}else{document.getElementById('app-sidebar').classList.remove('admin-mode');document.getElementById('admin-menu').style.display='none';document.getElementById('admin-yoy-summary').style.display='none';document.getElementById('menu-list-text').innerText='나의 DB 관리';document.getElementById('page-title').innerText='나의 DB 관리';document.getElementById('nav-member-request').style.display='flex';document.getElementById('member-perf-section').style.display='block'}setupHistoryTabs();checkMeetingAlerts();updateRequestBadge();navTo('list')}
+function processLoginSuccess(user){currentUser=user;var isRemember=document.getElementById('login-remember').checked;if(isRemember){localStorage.setItem('last_login_id',user.name);localStorage.setItem('last_login_pw',user.pw)}else{localStorage.removeItem('last_login_id');localStorage.removeItem('last_login_pw')}document.getElementById('login-screen').style.display='none';document.getElementById('app-sidebar').style.display='flex';document.getElementById('app-main').style.display='flex';document.getElementById('profile-name').innerText=user.name;document.getElementById('profile-role').innerText=user.role==='admin'?'Admin Master':'Team Leader';if(user.role==='admin'){document.getElementById('app-sidebar').classList.add('admin-mode');document.getElementById('admin-menu').style.display='block';document.getElementById('admin-yoy-summary').style.display='block';document.getElementById('menu-list-text').innerText='팀원 DB 관리';document.getElementById('page-title').innerText='팀원 DB 관리';document.getElementById('nav-member-request').style.display='none';document.getElementById('member-perf-section').style.display='none'}else{document.getElementById('app-sidebar').classList.remove('admin-mode');document.getElementById('admin-menu').style.display='none';document.getElementById('admin-yoy-summary').style.display='none';document.getElementById('menu-list-text').innerText='나의 DB 관리';document.getElementById('page-title').innerText='나의 DB 관리';document.getElementById('nav-member-request').style.display='flex';document.getElementById('member-perf-section').style.display='block'}setupHistoryTabs();checkMeetingAlerts();updateRequestBadge();loadMessages(function(){updateMsgBadge()});navTo('list')}
 function openMemberModal(){document.getElementById('member-modal').style.display='flex';renderMemberList()}
 function closeMemberModal(){document.getElementById('member-modal').style.display='none';document.getElementById('new-member-name').value=''}
 function openMemberRequestModal(){document.getElementById('member-request-modal').style.display='flex';renderMyRequests()}
@@ -594,8 +623,8 @@ function renderFilters(){var container=document.getElementById('list-filter-cont
 function initDateSelects(){var yearSel=document.getElementById('filter-year');var monthSel=document.getElementById('filter-month');var histYearSel=document.getElementById('hist-year');var histMonthSel=document.getElementById('hist-month');var adminMonthSel=document.getElementById('admin-stat-month');var currentYear=new Date().getFullYear();var currentMonth=new Date().getMonth()+1;var opts='<option value="all">전체 연도</option>';for(var y=currentYear+1;y>=2023;y--)opts+='<option value="'+y+'" '+(y===currentYear?'selected':'')+'>'+y+'년</option>';if(yearSel)yearSel.innerHTML=opts;if(histYearSel)histYearSel.innerHTML=opts;var mOpts='<option value="all">전체 월</option>';for(var m=1;m<=12;m++)mOpts+='<option value="'+m+'"'+(m===currentMonth?' selected':'')+'>'+m+'월</option>';if(monthSel)monthSel.innerHTML=mOpts;if(histMonthSel)histMonthSel.innerHTML='<option value="all">전체 (1년치)</option>'+mOpts.replace('value="all"','').replace('전체 월','');var adminOpts='<option value="all">전체 월</option>';for(var am=1;am<=12;am++)adminOpts+='<option value="'+am+'"'+(am===currentMonth?' selected':'')+'>'+am+'월</option>';if(adminMonthSel)adminMonthSel.innerHTML=adminOpts}
 function setupHistoryTabs(){var tabsDiv=document.getElementById('history-tabs');if(!tabsDiv)return;var btnClass=function(tab){return'btn '+(historyTab===tab?'btn-primary':'btn-secondary')};if(currentUser.role==='admin'){tabsDiv.innerHTML='<button class="'+btnClass('admin-prospect')+'" onclick="switchHistoryTab(\'admin-prospect\')">🌟 가망고객</button><button class="'+btnClass('contract')+'" onclick="switchHistoryTab(\'contract\')">🤝 계약 고객</button>'}else{tabsDiv.innerHTML='<button class="'+btnClass('prospect')+'" onclick="switchHistoryTab(\'prospect\')">🌟 가망고객</button><button class="'+btnClass('contract')+'" onclick="switchHistoryTab(\'contract\')">🤝 계약 고객</button>'}}
 function switchHistoryTab(t){historyTab=t;setupHistoryTabs();renderHistory()}
-function navTo(page){if(page==='dashboard'&&currentUser.role!=='admin')return showToast("관리자 권한 필요",'error');document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active')});var map={'list':'nav-list','analysis':'nav-analysis','history':'nav-history','calendar':'nav-calendar','dashboard':'nav-dashboard'};if(document.getElementById(map[page]))document.getElementById(map[page]).classList.add('active');document.querySelectorAll('.page-content').forEach(function(el){el.style.display='none'});document.getElementById('view-'+page).style.display='block';history.pushState({page:page},page,'#'+page);if(page==='list'){renderFilters();if(currentUser.role==='admin'){document.getElementById('list-head').innerHTML='<tr><th>접수일</th><th>담당자</th><th>업체명</th><th>통화유무</th><th>미팅일</th><th>연락처</th><th>지역</th><th>출처</th><th>진행상태</th></tr>';document.getElementById('page-title').innerText='팀원 DB 관리'}else{document.getElementById('list-head').innerHTML='<tr><th>접수일</th><th>업체명</th><th>통화유무</th><th>미팅일</th><th>연락처</th><th>지역</th><th>출처</th><th>진행상태</th></tr>';document.getElementById('page-title').innerText='나의 DB 관리'}currentPage=1;renderList()}if(page==='analysis')renderAnalysisData();if(page==='dashboard')renderAdminDashboard();if(page==='history'){setupHistoryTabs();renderHistory()}if(page==='calendar')renderCalendar()}
-window.addEventListener('popstate',function(e){if(e.state&&e.state.page){var page=e.state.page;document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active')});var map={'list':'nav-list','analysis':'nav-analysis','history':'nav-history','calendar':'nav-calendar','dashboard':'nav-dashboard'};if(document.getElementById(map[page]))document.getElementById(map[page]).classList.add('active');document.querySelectorAll('.page-content').forEach(function(el){el.style.display='none'});document.getElementById('view-'+page).style.display='block';if(page==='list'){currentPage=1;renderList()}if(page==='analysis')renderAnalysisData();if(page==='dashboard')renderAdminDashboard();if(page==='history'){setupHistoryTabs();renderHistory()}if(page==='calendar')renderCalendar()}else{if(currentUser){history.pushState({page:'list'},'list','#list')}}});
+function navTo(page){if(page==='dashboard'&&currentUser.role!=='admin')return showToast("관리자 권한 필요",'error');document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active')});var map={'list':'nav-list','analysis':'nav-analysis','history':'nav-history','calendar':'nav-calendar','message':'nav-message','dashboard':'nav-dashboard'};if(document.getElementById(map[page]))document.getElementById(map[page]).classList.add('active');document.querySelectorAll('.page-content').forEach(function(el){el.style.display='none'});document.getElementById('view-'+page).style.display='block';history.pushState({page:page},page,'#'+page);if(page==='list'){renderFilters();if(currentUser.role==='admin'){document.getElementById('list-head').innerHTML='<tr><th>접수일</th><th>담당자</th><th>업체명</th><th>통화유무</th><th>미팅일</th><th>연락처</th><th>지역</th><th>출처</th><th>진행상태</th></tr>';document.getElementById('page-title').innerText='팀원 DB 관리'}else{document.getElementById('list-head').innerHTML='<tr><th>접수일</th><th>업체명</th><th>통화유무</th><th>미팅일</th><th>연락처</th><th>지역</th><th>출처</th><th>진행상태</th></tr>';document.getElementById('page-title').innerText='나의 DB 관리'}currentPage=1;renderList()}if(page==='analysis')renderAnalysisData();if(page==='dashboard')renderAdminDashboard();if(page==='history'){setupHistoryTabs();renderHistory()}if(page==='calendar')renderCalendar();if(page==='message')initMessageView()}
+window.addEventListener('popstate',function(e){if(e.state&&e.state.page){var page=e.state.page;document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active')});var map={'list':'nav-list','analysis':'nav-analysis','history':'nav-history','calendar':'nav-calendar','message':'nav-message','dashboard':'nav-dashboard'};if(document.getElementById(map[page]))document.getElementById(map[page]).classList.add('active');document.querySelectorAll('.page-content').forEach(function(el){el.style.display='none'});document.getElementById('view-'+page).style.display='block';if(page==='list'){currentPage=1;renderList()}if(page==='analysis')renderAnalysisData();if(page==='dashboard')renderAdminDashboard();if(page==='history'){setupHistoryTabs();renderHistory()}if(page==='calendar')renderCalendar();if(page==='message')initMessageView()}else{if(currentUser){history.pushState({page:'list'},'list','#list')}}});
 function changePage(dir){var totalPages=Math.ceil(totalFilteredData.length/pageSize);currentPage+=dir;if(currentPage<1)currentPage=1;if(currentPage>totalPages)currentPage=totalPages;renderListPage()}
 // ★ renderList with pagination
 function renderList(){
@@ -626,7 +655,7 @@ function renderListPage(){
     var pgCtrl=document.getElementById('pagination-controls');
     if(totalPages>1){pgCtrl.style.display='block';document.getElementById('page-info').innerText=currentPage+' / '+totalPages+' 페이지 (총 '+totalFilteredData.length+'건)';document.getElementById('btn-prev-page').disabled=(currentPage<=1);document.getElementById('btn-next-page').disabled=(currentPage>=totalPages)}else{pgCtrl.style.display='none'}
 }
-function renderAnalysisData(){renderYoYSummaryTable();renderYoYDetail();renderMonthlyKPI();if(currentUser.role!=='admin')renderMemberPerformance()}
+function renderAnalysisData(){renderYoYSummaryTable();try{renderYoYDetail()}catch(e){console.error('YoY Detail error:',e)}try{renderMonthlyKPI()}catch(e){console.error('KPI error:',e)}if(currentUser.role!=='admin'){try{renderMemberPerformance()}catch(e){console.error('MemberPerf error:',e)}}}
 
 // ★ 연간 총실적 순위 - 왕관 아이콘 + SM 순위 포함
 function renderYoYSummaryTable(){
@@ -686,8 +715,10 @@ function renderYoYDetail(){
 
 // ★★ Chart.js 매출 차트 ★★
 function renderRevenueChart(lastData,thisData,lastY,thisY){
+    try{
     var canvas=document.getElementById('revenue-chart');if(!canvas)return;
     if(revenueChartInstance){revenueChartInstance.destroy()}
+    if(typeof Chart==='undefined'){console.warn('Chart.js not loaded');return}
     var ctx=canvas.getContext('2d');
     revenueChartInstance=new Chart(ctx,{
         type:'bar',
@@ -699,7 +730,7 @@ function renderRevenueChart(lastData,thisData,lastY,thisY){
             ]
         },
         options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:12,weight:'bold'}}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+ctx.parsed.y.toLocaleString()+'원'}}}},scales:{y:{beginAtZero:true,ticks:{callback:function(v){return(v/10000).toLocaleString()+'만'}}},x:{grid:{display:false}}}}
-    })
+    })}catch(e){console.error('Chart render error:',e)}
 }
 function renderMonthlyKPI() {
     var ty = new Date().getFullYear();
@@ -993,7 +1024,7 @@ function renderCalendar(){
         html+='<div style="font-weight:'+(isToday?'800':'600')+'; font-size:13px; color:'+(isToday?'#2563eb':'#334155')+'; margin-bottom:2px;">'+day+'</div>';
         meetings.forEach(function(m){
             var diffDays=Math.ceil((new Date(m.meetDate)-today)/(1000*60*60*24));
-            var tagColor=diffDays<0?'#ef4444':diffDays===0?'#f59e0b':'#3b82f6';
+            var tagColor=diffDays<0?'#94a3b8':diffDays===0?'#f59e0b':'#3b82f6';
             html+='<div onclick="openModal(\''+m.id+'\')" style="font-size:10px; background:'+tagColor+'; color:white; padding:2px 4px; border-radius:4px; margin-bottom:1px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="'+m.company+' ('+m.member+')">'+m.company+' <span style="opacity:0.8; font-size:9px;">'+m.member+'</span></div>'
         });
         html+='</div>';
@@ -1038,6 +1069,199 @@ function goToMemberDB(memberName){
         var memberEl=document.getElementById('filter-member');
         if(memberEl){memberEl.value=memberName;currentPage=1;renderList();showToast(memberName+' DB 필터 적용됨')}
     },100)
+}
+
+// ★★★ 1:1 메시지 시스템 (카카오톡 스타일) ★★★
+var messageList = [];
+var selectedChatPartner = null;
+var msgPollingTimer = null;
+
+function initMessageView() {
+    loadMessages(function() {
+        renderMsgContacts();
+        if (currentUser.role !== 'admin') {
+            selectedChatPartner = '관리자';
+            openChat('관리자');
+            document.getElementById('msg-member-list').style.display = 'none';
+        } else {
+            document.getElementById('msg-member-list').style.display = 'block';
+            if (selectedChatPartner) openChat(selectedChatPartner);
+        }
+    });
+    clearInterval(msgPollingTimer);
+    msgPollingTimer = setInterval(function() {
+        if (document.getElementById('view-message').style.display !== 'none') {
+            loadMessages(function() {
+                renderMsgContacts();
+                if (selectedChatPartner) renderChatMessages();
+                updateMsgBadge();
+            });
+        }
+    }, 30000);
+}
+
+function loadMessages(callback) {
+    fetch(GAS_URL + '?action=get_messages&user=' + encodeURIComponent(currentUser.name))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.messages) messageList = d.messages;
+            updateMsgBadge();
+            if (callback) callback();
+        })
+        .catch(function(e) {
+            console.error('Message load error:', e);
+            if (callback) callback();
+        });
+}
+
+function updateMsgBadge() {
+    var myName = currentUser.name;
+    var unread = messageList.filter(function(m) {
+        return m.to === myName && !m.isRead;
+    }).length;
+    var badge = document.getElementById('msg-badge');
+    if (unread > 0) { badge.style.display = 'inline'; badge.innerText = unread; }
+    else { badge.style.display = 'none'; }
+}
+
+function renderMsgContacts() {
+    var contacts = document.getElementById('msg-contacts');
+    if (!contacts) return;
+    contacts.innerHTML = '';
+    var myName = currentUser.name;
+    if (currentUser.role === 'admin') {
+        members.filter(function(m) { return m.role !== 'admin'; }).forEach(function(m) {
+            var partnerMsgs = messageList.filter(function(msg) {
+                return (msg.from === m.name && msg.to === myName) || (msg.from === myName && msg.to === m.name);
+            });
+            var unread = messageList.filter(function(msg) {
+                return msg.from === m.name && msg.to === myName && !msg.isRead;
+            }).length;
+            var lastMsg = partnerMsgs.length > 0 ? partnerMsgs[partnerMsgs.length - 1] : null;
+            var isSelected = selectedChatPartner === m.name;
+            contacts.innerHTML += '<div onclick="openChat(\'' + m.name + '\')" style="padding:12px 14px; cursor:pointer; background:' + (isSelected ? '#dbeafe' : 'white') + '; border-left:3px solid ' + (isSelected ? '#2563eb' : 'transparent') + '; border-bottom:1px solid #f1f5f9;">' +
+                '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                '<span style="font-weight:' + (isSelected ? '800' : '600') + '; font-size:13px;">' + m.name + ' 팀장</span>' +
+                (unread > 0 ? '<span style="background:#ef4444; color:white; font-size:10px; padding:1px 6px; border-radius:10px;">' + unread + '</span>' : '') +
+                '</div>' +
+                (lastMsg ? '<div style="font-size:11px; color:#94a3b8; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">' + escapeHtml(lastMsg.text) + '</div>' : '<div style="font-size:11px; color:#cbd5e1; margin-top:4px;">대화 없음</div>') +
+                '</div>';
+        });
+    } else {
+        var unreadAdmin = messageList.filter(function(msg) { return msg.from === '관리자' && msg.to === myName && !msg.isRead; }).length;
+        contacts.innerHTML = '<div style="padding:14px; background:#dbeafe; border-left:3px solid #2563eb; font-weight:800; font-size:13px; color:#1e3a8a;">' +
+            '<i class="fa-solid fa-shield-halved"></i> 관리자' +
+            (unreadAdmin > 0 ? ' <span style="background:#ef4444; color:white; font-size:10px; padding:1px 6px; border-radius:10px;">' + unreadAdmin + '</span>' : '') +
+            '</div>';
+    }
+}
+
+function openChat(partnerName) {
+    selectedChatPartner = partnerName;
+    document.getElementById('msg-chat-name').innerText = currentUser.role === 'admin' ? partnerName + ' 팀장' : '관리자';
+    document.getElementById('msg-input-area').style.display = 'block';
+    renderMsgContacts();
+    renderChatMessages();
+    markMessagesRead(partnerName);
+}
+
+function renderChatMessages() {
+    var body = document.getElementById('msg-chat-body');
+    if (!selectedChatPartner) return;
+    var myName = currentUser.name;
+    var partner = selectedChatPartner;
+    var chatMsgs = messageList.filter(function(m) {
+        return (m.from === myName && m.to === partner) || (m.from === partner && m.to === myName);
+    });
+    chatMsgs.sort(function(a, b) { return (a.timestamp || 0) - (b.timestamp || 0); });
+    if (chatMsgs.length === 0) {
+        body.innerHTML = '<div style="text-align:center; color:#94a3b8; margin-top:40px;"><i class="fa-solid fa-comment-dots" style="font-size:30px; opacity:0.3;"></i><br><br>첫 메시지를 보내보세요!</div>';
+        return;
+    }
+    var html = '';
+    var lastDate = '';
+    chatMsgs.forEach(function(m) {
+        var msgDate = m.time ? m.time.split(' ')[0] : '';
+        var msgTime = m.time ? m.time.split(' ').slice(1).join(' ') : '';
+        if (msgDate && msgDate !== lastDate) {
+            html += '<div style="text-align:center; margin:16px 0 10px;"><span style="background:#cbd5e1; color:white; font-size:11px; padding:3px 12px; border-radius:10px;">' + msgDate + '</span></div>';
+            lastDate = msgDate;
+        }
+        var isMine = m.from === myName;
+        if (isMine) {
+            html += '<div style="display:flex; justify-content:flex-end; margin-bottom:8px; align-items:flex-end; gap:4px;">' +
+                '<span style="font-size:10px; color:#94a3b8;">' + msgTime + '</span>' +
+                '<div style="max-width:70%; background:#3b82f6; color:white; padding:10px 14px; border-radius:16px 16px 4px 16px; font-size:13px; line-height:1.5; word-break:break-word;">' + escapeHtml(m.text) + '</div></div>';
+        } else {
+            html += '<div style="display:flex; justify-content:flex-start; margin-bottom:8px; align-items:flex-start; gap:6px;">' +
+                '<div style="width:32px; height:32px; background:#1e3a8a; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; flex-shrink:0; margin-top:2px;">' + m.from.charAt(0) + '</div>' +
+                '<div><div style="font-size:10px; color:#64748b; margin-bottom:2px; font-weight:600;">' + m.from + '</div>' +
+                '<div style="display:flex; align-items:flex-end; gap:4px;">' +
+                '<div style="max-width:250px; background:white; color:#1e293b; padding:10px 14px; border-radius:4px 16px 16px 16px; font-size:13px; line-height:1.5; word-break:break-word; box-shadow:0 1px 2px rgba(0,0,0,0.06);">' + escapeHtml(m.text) + '</div>' +
+                '<span style="font-size:10px; color:#94a3b8;">' + msgTime + '</span></div></div></div>';
+        }
+    });
+    body.innerHTML = html;
+    body.scrollTop = body.scrollHeight;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function sendMessage() {
+    var input = document.getElementById('msg-input');
+    var text = input.value.trim();
+    if (!text || !selectedChatPartner) return;
+    input.value = '';
+    var targetName = selectedChatPartner;
+    // 팀원→관리자: to를 실제 관리자 이름으로 매핑
+    var adminUser = members.find(function(m) { return m.role === 'admin'; });
+    var toName = targetName;
+    var fromName = currentUser.name;
+    if (currentUser.role !== 'admin') {
+        toName = adminUser ? adminUser.name : '관리자';
+    }
+    var msg = {
+        id: Date.now(),
+        from: fromName,
+        to: toName,
+        text: text,
+        time: new Date().toLocaleString(),
+        timestamp: Date.now(),
+        isRead: false
+    };
+    messageList.push(msg);
+    renderChatMessages();
+    renderMsgContacts();
+    fetch(GAS_URL, {
+        method: 'POST', mode: 'cors', redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'send_message', data: msg })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.result !== 'success') showToast('전송 실패', 'warning');
+    }).catch(function(e) { showToast('서버 전송 오류', 'warning'); });
+}
+
+function markMessagesRead(partnerName) {
+    var myName = currentUser.name;
+    var unreadIds = [];
+    messageList.forEach(function(m) {
+        if (m.from === partnerName && m.to === myName && !m.isRead) {
+            m.isRead = true;
+            unreadIds.push(m.id);
+        }
+    });
+    updateMsgBadge();
+    renderMsgContacts();
+    if (unreadIds.length > 0) {
+        fetch(GAS_URL, {
+            method: 'POST', mode: 'cors', redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'mark_messages_read', ids: unreadIds })
+        }).catch(function(e) { console.error('Read mark error:', e); });
+    }
 }
 </script>
 
