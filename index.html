@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<!-- saved from url=(0063)file:///C:/Users/user/Downloads/db_pro_master_v24.25_final.html -->
+<!-- saved from url=(0065)file:///C:/Users/user/Downloads/db_pro_master_v24.25_final_1.html -->
 <html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DB Pro Master v24.25</title>
-    <link href="./DB Pro Master v24.25_files/all.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="./DB Pro Master v24.25(260212최종)_files/all.min.css" rel="stylesheet">
+    <script src="./DB Pro Master v24.25(260212최종)_files/xlsx.full.min.js.다운로드"></script>
     <style>
         :root { --primary: #2563eb; --primary-dark: #1e40af; --bg-light: #f1f5f9; --border: #e2e8f0; --text: #334155; --danger: #ef4444; --success: #10b981; --prospect: #8b5cf6; --warning: #f59e0b; }
         * { box-sizing: border-box; outline: none; }
@@ -290,7 +290,7 @@
     <div class="page-content" id="view-history" style="display:none;">
         <div class="card" style="display:flex; align-items:center; gap:15px; background:#f8fafc;">
             <h3 style="margin:0; font-size:16px;">📅 조회 기간 :</h3>
-            <select id="hist-year" style="padding:8px; border-radius:6px;"><option value="2026">전체 연도</option><option value="2027">2027년</option><option value="2026" selected="">2026년</option><option value="2025">2025년</option><option value="2024">2024년</option><option value="2023">2023년</option></select>
+            <select id="hist-year" style="padding:8px; border-radius:6px;"><option value="all">전체 연도</option><option value="2027">2027년</option><option value="2026" selected="">2026년</option><option value="2025">2025년</option><option value="2024">2024년</option><option value="2023">2023년</option></select>
             <select id="hist-month" style="padding:8px; border-radius:6px;"><option value="all">전체 (1년치)</option><option></option><option value="1">1월</option><option value="2">2월</option><option value="3">3월</option><option value="4">4월</option><option value="5">5월</option><option value="6">6월</option><option value="7">7월</option><option value="8">8월</option><option value="9">9월</option><option value="10">10월</option><option value="11">11월</option><option value="12">12월</option></select>
             <button class="btn btn-primary" onclick="renderHistory()">조회하기</button>
         </div>
@@ -301,7 +301,7 @@
     <div class="page-content" id="view-dashboard" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
             <h3 style="margin:0; font-weight:800;"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑 <span style="font-size:12px; color:#64748b; font-weight:normal;">(계약일 기준)</span></h3>
-            <select id="admin-stat-month" style="padding:8px; border-radius:6px; font-weight:bold;" onchange="renderAdminDashboard()"><option value="all" selected="">전체 월</option><option value="1">1월</option><option value="2">2월</option><option value="3">3월</option><option value="4">4월</option><option value="5">5월</option><option value="6">6월</option><option value="7">7월</option><option value="8">8월</option><option value="9">9월</option><option value="10">10월</option><option value="11">11월</option><option value="12">12월</option></select>
+            <select id="admin-stat-month" style="padding:8px; border-radius:6px; font-weight:bold;" onchange="renderAdminDashboard()"><option value="all">전체 월</option><option value="1">1월</option><option value="2">2월</option><option value="3">3월</option><option value="4">4월</option><option value="5">5월</option><option value="6">6월</option><option value="7">7월</option><option value="8">8월</option><option value="9">9월</option><option value="10">10월</option><option value="11">11월</option><option value="12">12월</option></select>
         </div>
         <div class="dashboard-grid">
             <div class="stat-card"><div class="stat-label">이번달 총 매출</div><div class="stat-value" id="ad-total-rev">0</div></div>
@@ -490,14 +490,15 @@ function sha256(ascii) {
 let members = [], dbList = [], currentUser = null, tempLogs = [], currentId = null, historyTab = 'prospect';
 let isAdminLogAdded = false, tempRoadmap = [], editIndex = -1, dragSrcEl = null, dragSrcIndex = null, isDragging = false;
 let isModalDirty = false, requestList = [];
+let isDataLoaded = false; // ★ 수정1: 데이터 로딩 완료 플래그 추가
 const roadmapItems = ["신보", "기보", "신용보증재단", "소진공", "중진공", "법인설립(전환)", "특허", "벤처인증", "연구전담부서설립", "재무등급관리"];
 const colorPalette = ['#0f172a', '#1e3a8a', '#1d4ed8', '#3b82f6', '#60a5fa', '#93c5fd'];
 
-window.onload = function() { fetchDB(() => { const lastId = localStorage.getItem('last_login_id'); const lastPw = localStorage.getItem('last_login_pw'); if(lastId && lastPw) { document.getElementById('login-user-name').value = lastId; document.getElementById('login-remember').checked = true; const user = members.find(m => m.name === lastId); if(user && user.pw === lastPw) processLoginSuccess(user); } }); initDateSelects(); };
+window.onload = function() { fetchDB(() => { isDataLoaded = true; const lastId = localStorage.getItem('last_login_id'); const lastPw = localStorage.getItem('last_login_pw'); if(lastId && lastPw) { document.getElementById('login-user-name').value = lastId; document.getElementById('login-remember').checked = true; const user = members.find(m => m.name === lastId); if(user && user.pw === lastPw) processLoginSuccess(user); } }); initDateSelects(); };
 
 function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
 function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
-function showToast(msg, type='success') { const c = document.getElementById('toast-container'); const t = document.createElement('div'); t.className = 'toast ' + type; t.innerHTML = '<i class="fa-solid ' + (type==='success'?'fa-circle-check':'fa-circle-exclamation') + '" style="color:' + (type==='success'?'var(--success)':'var(--danger)') + '"></i> ' + msg; c.appendChild(t); setTimeout(() => { t.style.animation='fadeOut 0.3s forwards'; setTimeout(()=>t.remove(),300); }, 3000); }
+function showToast(msg, type='success') { const c = document.getElementById('toast-container'); const t = document.createElement('div'); t.className = 'toast ' + type; t.innerHTML = '<i class="fa-solid ' + (type==='success'?'fa-circle-check': type==='warning'?'fa-triangle-exclamation':'fa-circle-exclamation') + '" style="color:' + (type==='success'?'var(--success)': type==='warning'?'var(--warning)':'var(--danger)') + '"></i> ' + msg; c.appendChild(t); setTimeout(() => { t.style.animation='fadeOut 0.3s forwards'; setTimeout(()=>t.remove(),300); }, 3000); }
 function toggleMobileMenu() { if(window.innerWidth > 768) return; const sidebar = document.getElementById('app-sidebar'); const overlay = document.getElementById('mobile-sidebar-overlay'); if (sidebar.classList.contains('active')) { sidebar.classList.remove('active'); overlay.style.display = 'none'; } else { sidebar.classList.add('active'); overlay.style.display = 'block'; } }
 function parseDBDate(dateStr) { if(!dateStr) return { year: 0, month: 0 }; try { let dateObj = new Date(dateStr); if(!isNaN(dateObj.getTime())) return { year: dateObj.getFullYear(), month: dateObj.getMonth() + 1 }; const parts = dateStr.match(/(\d{4})[\.\-\/]\s?(\d{1,2})[\.\-\/]\s?(\d{1,2})/); if(parts) return { year: parseInt(parts[1]), month: parseInt(parts[2]) }; } catch(e) {} return { year: 0, month: 0 }; }
 function getContractDate(d) { return d.contractDate || d.date; }
@@ -507,7 +508,22 @@ function checkMeetingAlerts() { if(!currentUser) return; const today = new Date(
 function showMeetingList() { const badge = document.getElementById('meeting-alert-badge'); const details = JSON.parse(badge.dataset.details || '[]'); if(details.length === 0) return; let msg = '📅 미팅 일정 알림\n\n'; details.forEach(m => { if(m.type === 'today') msg += '🔴 오늘: ' + m.company + '\n'; else if(m.type === 'upcoming') msg += '🔵 ' + m.days + '일 후: ' + m.company + ' (' + m.date + ')\n'; else if(m.type === 'overdue') msg += '⚠️ ' + m.days + '일 전: ' + m.company + ' (' + m.date + ')\n'; }); alert(msg); }
 function fetchDB(callback) { if(!GAS_URL) return showToast('URL 설정 필요', 'error'); document.getElementById('login-loading').style.display = 'block'; fetch(GAS_URL).then(res => res.json()).then(data => { document.getElementById('login-loading').style.display = 'none'; if (data.db) dbList = data.db; else dbList = []; if (data.members) members = data.members; if (data.requests) requestList = data.requests; else requestList = []; dbList.sort((a, b) => { const dateA = new Date(a.date).getTime() || 0; const dateB = new Date(b.date).getTime() || 0; if (dateB !== dateA) return dateB - dateA; return (Number(b.id)||0) - (Number(a.id)||0); }); if(callback) callback(); checkMeetingAlerts(); updateRequestBadge(); }).catch(err => { document.getElementById('login-loading').style.display = 'none'; console.error(err); showToast('서버 연결 실패', 'error'); }); }
 function updateRequestBadge() { if(!currentUser || currentUser.role !== 'admin') return; const unreadCount = requestList.filter(r => !r.isRead).length; const badge = document.getElementById('request-badge'); if(unreadCount > 0) { badge.style.display = 'inline'; badge.innerText = unreadCount; } else { badge.style.display = 'none'; } }
-function attemptLogin(type) { const inputName = document.getElementById('login-user-name').value.trim(); const inputPw = document.getElementById('login-pw').value; if(!inputName) return showToast("이름을 입력하세요.", 'error'); if(!inputPw) return showToast("비밀번호를 입력하세요.", 'error'); const user = members.find(m => m.name === inputName); if (!user) return showToast("등록되지 않은 사용자입니다.", 'error'); const hashedInput = sha256(inputPw); if (user.pw !== hashedInput) return showToast("비밀번호가 틀렸습니다.", 'error'); if (type === 'admin' && user.role !== 'admin') return showToast("관리자 권한이 없습니다.", 'error'); processLoginSuccess(user); }
+function attemptLogin(type) { 
+    const inputName = document.getElementById('login-user-name').value.trim(); 
+    const inputPw = document.getElementById('login-pw').value; 
+    if(!inputName) return showToast("이름을 입력하세요.", 'error'); 
+    if(!inputPw) return showToast("비밀번호를 입력하세요.", 'error'); 
+    // ★ 수정2: 데이터 로딩 완료 전이면 경고 후 중단
+    if(!isDataLoaded) { 
+        return showToast("데이터 로딩 중입니다. 잠시 후 다시 시도하세요.", 'warning'); 
+    } 
+    const user = members.find(m => m.name === inputName); 
+    if (!user) return showToast("등록되지 않은 사용자입니다.", 'error'); 
+    const hashedInput = sha256(inputPw); 
+    if (user.pw !== hashedInput) return showToast("비밀번호가 틀렸습니다.", 'error'); 
+    if (type === 'admin' && user.role !== 'admin') return showToast("관리자 권한이 없습니다.", 'error'); 
+    processLoginSuccess(user); 
+}
 function processLoginSuccess(user) { currentUser = user; const isRemember = document.getElementById('login-remember').checked; if(isRemember) { localStorage.setItem('last_login_id', user.name); localStorage.setItem('last_login_pw', user.pw); } else { localStorage.removeItem('last_login_id'); localStorage.removeItem('last_login_pw'); } document.getElementById('login-screen').style.display='none'; document.getElementById('app-sidebar').style.display='flex'; document.getElementById('app-main').style.display='flex'; document.getElementById('profile-name').innerText = user.name; document.getElementById('profile-role').innerText = user.role === 'admin' ? 'Admin Master' : 'Team Leader'; if(user.role === 'admin') { document.getElementById('app-sidebar').classList.add('admin-mode'); document.getElementById('admin-menu').style.display='block'; document.getElementById('admin-yoy-summary').style.display='block'; document.getElementById('menu-list-text').innerText = '팀원 DB 관리'; document.getElementById('page-title').innerText = '팀원 DB 관리'; document.getElementById('nav-member-request').style.display='none'; document.getElementById('member-perf-section').style.display='none'; } else { document.getElementById('app-sidebar').classList.remove('admin-mode'); document.getElementById('admin-menu').style.display='none'; document.getElementById('admin-yoy-summary').style.display='none'; document.getElementById('menu-list-text').innerText = '나의 DB 관리'; document.getElementById('page-title').innerText = '나의 DB 관리'; document.getElementById('nav-member-request').style.display='flex'; document.getElementById('member-perf-section').style.display='block'; } setupHistoryTabs(); checkMeetingAlerts(); updateRequestBadge(); navTo('list'); }
 function openMemberModal() { document.getElementById('member-modal').style.display = 'flex'; renderMemberList(); }
 function closeMemberModal() { document.getElementById('member-modal').style.display = 'none'; document.getElementById('new-member-name').value = ''; }
@@ -519,7 +535,6 @@ function submitMemberRequest() {
     const content = document.getElementById('member-request-input').value.trim(); 
     if(!content) return showToast('내용을 입력하세요.', 'error'); 
 
-    // 전송할 데이터 구조 정의
     const newRequest = { 
         id: Date.now(), 
         member: currentUser.name, 
@@ -534,7 +549,7 @@ function submitMemberRequest() {
     fetch(GAS_URL, { 
         method: 'POST', 
         mode: 'cors',
-        redirect: 'follow', // 구글 앱스 스크립트 통신 필수 옵션
+        redirect: 'follow',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({action: 'add_request', data: newRequest}) 
     })
@@ -544,8 +559,6 @@ function submitMemberRequest() {
         if(d.result === 'success') { 
             showToast('전송 완료!'); 
             document.getElementById('member-request-input').value = ''; 
-            
-            // 화면 목록에 즉시 반영
             requestList.unshift(newRequest); 
             renderMyRequests(); 
         } else { 
@@ -675,11 +688,5 @@ document.addEventListener('DOMContentLoaded', function() { document.querySelecto
 </script>
 
 
+
 </body></html>
-
-
-
-
-
-
-
