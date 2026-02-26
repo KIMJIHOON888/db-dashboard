@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- saved from url=(0062)file:///C:/Users/user/Downloads/db_pro_master_v24.25_v3_3.html -->
 <html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -187,6 +186,21 @@
             .panel-left, .panel-right { width: 100%; padding: 15px; border: none; flex: none; }
             .panel-right { border-top: 4px solid #f1f5f9; padding-bottom: 100px; }
         }
+
+        /* ★ 스페셜 메뉴 버튼 스타일 (캘린더, 메시지, 요청글) ★ */
+        .nav-special-calendar { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; color: #1d4ed8 !important; font-weight: 800 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 15px; }
+        .nav-special-calendar:hover { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); transform: translateY(-2px); }
+        
+        .nav-special-message { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #bbf7d0; color: #15803d !important; font-weight: 800 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 6px;}
+        .nav-special-message:hover { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); transform: translateY(-2px); }
+        
+        .nav-special-request { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a; color: #b45309 !important; font-weight: 800 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 6px;}
+        .nav-special-request:hover { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); transform: translateY(-2px); }
+        
+        /* 관리자 모드일 때 스페셜 버튼 색상 자동 반전 */
+        .sidebar.admin-mode .nav-special-calendar { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); border: 1px solid #3b82f6; color: #eff6ff !important; }
+        .sidebar.admin-mode .nav-special-message { background: linear-gradient(135deg, #14532d 0%, #166534 100%); border: 1px solid #22c55e; color: #f0fdf4 !important; }
+        .sidebar.admin-mode .nav-special-request { background: linear-gradient(135deg, #78350f 0%, #92400e 100%); border: 1px solid #f59e0b; color: #fffbeb !important; }
     </style>
 </head>
 <body>
@@ -198,16 +212,16 @@
         <h2 style="color:var(--primary); margin-bottom:10px;"><i class="fa-solid fa-server"></i> DB Pro Master</h2>
         <div style="font-size:14px; color:#64748b; margin-bottom:20px; font-weight:600;">v24.25</div>
         <div id="login-loading" style="display: none; text-align: center; margin-bottom: 15px; color: var(--primary);"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i><br><span style="font-size:12px; font-weight:600;">접속 중...</span></div>
-        <input type="text" id="login-user-name" class="login-input" placeholder="성함 입력 (예: 홍길동)" onkeypress="if(event.keyCode==13) document.getElementById(&#39;login-pw&#39;).focus()">
-        <input type="password" id="login-pw" class="login-input" placeholder="비밀번호" onkeypress="if(event.keyCode==13) attemptLogin(&#39;member&#39;)">
+        <input type="text" id="login-user-name" class="login-input" placeholder="성함 입력 (예: 홍길동)" onkeypress="if(event.keyCode==13) document.getElementById('login-pw').focus()">
+        <input type="password" id="login-pw" class="login-input" placeholder="비밀번호" onkeypress="if(event.keyCode==13) attemptLogin('member')">
         <div style="text-align: left; margin-bottom: 20px; padding-left: 5px;">
             <label style="font-size: 14px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                 <input type="checkbox" id="login-remember" style="width: 18px; height: 18px; cursor: pointer;"> 로그인 정보 저장
             </label>
         </div>
         <div style="display:flex; flex-direction:column; gap:10px;">
-            <button class="btn btn-primary" style="padding:15px; font-size:16px;" onclick="attemptLogin(&#39;member&#39;)">팀원 접속하기</button>
-            <button class="btn btn-dark" style="padding:15px; font-size:16px;" onclick="attemptLogin(&#39;admin&#39;)">관리자 접속하기</button>
+            <button class="btn btn-primary" style="padding:15px; font-size:16px;" onclick="attemptLogin('member')">팀원 접속하기</button>
+            <button class="btn btn-dark" style="padding:15px; font-size:16px;" onclick="attemptLogin('admin')">관리자 접속하기</button>
         </div>
         <p style="margin-top:25px; font-size:12px; color:#94a3b8; line-height:1.5;">* 초기 비번 : 1234<br><span style="color:#ef4444; font-weight:bold;">⚠️ 최초 로그인 후 반드시 비밀번호를 변경하세요!</span></p>
     </div>
@@ -221,17 +235,19 @@
         <div style="font-size:12px; opacity:0.7; margin-top:4px; color:#64748b;" id="profile-role"></div>
         <button onclick="changePassword()" style="margin-top:10px; font-size:11px; padding:4px 10px; border:1px solid #cbd5e1; background:white; border-radius:6px; cursor:pointer; color:#333;">비번변경</button>
     </div>
-    <div id="nav-list" class="nav-item active" onclick="navTo(&#39;list&#39;); toggleMobileMenu();"><i class="fa-solid fa-folder-open"></i> <span id="menu-list-text">나의 DB 관리</span></div>
-    <div id="nav-analysis" class="nav-item" onclick="navTo(&#39;analysis&#39;); toggleMobileMenu();"><i class="fa-solid fa-chart-column"></i> 실적 상세 분석</div>
-    <div id="nav-history" class="nav-item" onclick="navTo(&#39;history&#39;); toggleMobileMenu();"><i class="fa-solid fa-calendar-days"></i> 월별 히스토리</div>
-    <div id="nav-calendar" class="nav-item" onclick="navTo(&#39;calendar&#39;); toggleMobileMenu();"><i class="fa-solid fa-calendar-check"></i> 미팅 캘린더</div>
-    <div id="nav-message" class="nav-item" onclick="navTo(&#39;message&#39;); toggleMobileMenu();"><i class="fa-solid fa-comments"></i> 메시지 <span id="msg-badge" style="display:none; background:#ef4444; color:white; font-size:10px; padding:2px 6px; border-radius:10px; margin-left:5px;"></span></div>
-    <div id="nav-member-request" class="nav-item" style="display:none; background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #f59e0b;" onclick="openMemberRequestModal(); toggleMobileMenu();"><i class="fa-solid fa-comment-dots"></i> 건의사항/질문</div>
+    <div id="nav-list" class="nav-item active" onclick="navTo('list'); toggleMobileMenu();"><i class="fa-solid fa-folder-open"></i> <span id="menu-list-text">나의 DB 관리</span></div>
+    <div id="nav-analysis" class="nav-item" onclick="navTo('analysis'); toggleMobileMenu();"><i class="fa-solid fa-chart-column"></i> 실적 상세 분석</div>
+    <div id="nav-history" class="nav-item" onclick="navTo('history'); toggleMobileMenu();"><i class="fa-solid fa-calendar-days"></i> 월별 히스토리</div>
+    
+    <div id="nav-calendar" class="nav-item nav-special-calendar" onclick="navTo('calendar'); toggleMobileMenu();"><i class="fa-solid fa-calendar-check"></i> 미팅 캘린더</div>
+    <div id="nav-message" class="nav-item nav-special-message" onclick="navTo('message'); toggleMobileMenu();"><i class="fa-solid fa-comments"></i> 1:1 메시지 <span id="msg-badge" style="display:none; background:#ef4444; color:white; font-size:10px; padding:2px 6px; border-radius:10px; margin-left:5px;"></span></div>
+    <div id="nav-member-request" class="nav-item nav-special-request" style="display:none;" onclick="openMemberRequestModal(); toggleMobileMenu();"><i class="fa-solid fa-comment-dots"></i> 건의사항/질문</div>
+    
     <div id="admin-menu" style="display:none; margin-top:20px;">
         <div style="font-size:11px; opacity:0.7; font-weight:bold; padding-left:10px; margin-bottom:5px;">관리자 전용</div>
-        <div id="nav-dashboard" class="nav-item" onclick="navTo(&#39;dashboard&#39;); toggleMobileMenu();"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑</div>
+        <div id="nav-dashboard" class="nav-item" onclick="navTo('dashboard'); toggleMobileMenu();"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑</div>
         <div id="nav-members" class="nav-item" onclick="openMemberModal(); toggleMobileMenu();"><i class="fa-solid fa-users-gear"></i> 팀원 관리</div>
-        <div id="nav-admin-request" class="nav-item" onclick="openAdminRequestModal(); toggleMobileMenu();"><i class="fa-solid fa-envelope-open-text"></i> 팀원 요청글 <span id="request-badge" style="display:none; background:#ef4444; color:white; padding:2px 6px; border-radius:10px; font-size:11px; margin-left:5px; animation: pulse 1.5s infinite;">0</span></div>
+        <div id="nav-admin-request" class="nav-item nav-special-request" onclick="openAdminRequestModal(); toggleMobileMenu();"><i class="fa-solid fa-envelope-open-text"></i> 팀원 요청글 <span id="request-badge" style="display:none; background:#ef4444; color:white; padding:2px 6px; border-radius:10px; font-size:11px; margin-left:5px; animation: pulse 1.5s infinite;">0</span></div>
     </div>
     <button onclick="logout()" style="margin-top:auto; background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px;"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
 </div>
@@ -306,7 +322,6 @@
         <div class="table-container"><table><thead id="history-head"></thead><tbody id="history-body"></tbody></table></div>
     </div>
 
-    <!-- 미팅 캘린더 -->
     <div class="page-content" id="view-calendar" style="display:none;">
         <div class="card" style="display:flex; align-items:center; gap:15px; background:#f8fafc;">
             <h3 style="margin:0; font-size:16px;">📅 미팅 캘린더</h3>
@@ -317,17 +332,14 @@
         <div id="calendar-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-top:10px;"></div>
     </div>
 
-    <!-- ★★★ 1:1 메시지 (카카오톡 스타일) ★★★ -->
     <div class="page-content" id="view-message" style="display:none;">
         <div style="display:flex; height:calc(100vh - 140px); gap:0; border-radius:12px; overflow:hidden; border:1px solid #e2e8f0;">
-            <!-- 좌측: 대화 상대 목록 (관리자만 다중) -->
             <div id="msg-member-list" style="width:200px; background:#f8fafc; border-right:1px solid #e2e8f0; overflow-y:auto; flex-shrink:0;">
                 <div style="padding:12px; font-weight:800; font-size:14px; background:#1e3a8a; color:white; text-align:center;">
                     <i class="fa-solid fa-comments"></i> 대화 목록
                 </div>
                 <div id="msg-contacts"></div>
             </div>
-            <!-- 우측: 채팅 영역 -->
             <div style="flex:1; display:flex; flex-direction:column; background:white;">
                 <div id="msg-chat-header" style="padding:12px 16px; background:#f1f5f9; border-bottom:1px solid #e2e8f0; font-weight:800; font-size:15px;">
                     <i class="fa-solid fa-user-circle" style="color:#3b82f6;"></i> <span id="msg-chat-name">대화 상대를 선택하세요</span>
@@ -337,7 +349,7 @@
                 </div>
                 <div id="msg-input-area" style="display:none; padding:10px; border-top:1px solid #e2e8f0; background:#f8fafc;">
                     <div style="display:flex; gap:8px;">
-                        <input type="text" id="msg-input" placeholder="메시지 입력..." style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; border-radius:20px; outline:none; font-size:14px;" onkeypress="if(event.key===&#39;Enter&#39;)sendMessage()">
+                        <input type="text" id="msg-input" placeholder="메시지 입력..." style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; border-radius:20px; outline:none; font-size:14px;" onkeypress="if(event.key==='Enter')sendMessage()">
                         <button onclick="sendMessage()" style="background:#3b82f6; color:white; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; font-size:16px;"><i class="fa-solid fa-paper-plane"></i></button>
                     </div>
                 </div>
@@ -367,7 +379,6 @@
     </div>
 </div>
 
-<!-- 팀원 관리 모달 -->
 <div class="modal-overlay" id="member-modal">
     <div class="modal-window">
         <div class="modal-header"><h3><i class="fa-solid fa-users-gear"></i> 팀원 관리</h3><button onclick="closeMemberModal()" style="border:none; background:none; font-size:24px; cursor:pointer;">×</button></div>
@@ -379,7 +390,6 @@
     </div>
 </div>
 
-<!-- 팀원 건의사항 모달 -->
 <div class="modal-overlay" id="member-request-modal">
     <div class="modal-window" style="width:600px; height:auto; max-height:85vh;">
         <div class="modal-header" style="background:linear-gradient(135deg, #fef3c7, #fde68a);"><h3><i class="fa-solid fa-comment-dots"></i> 건의사항/질문</h3><button onclick="closeMemberRequestModal()" style="border:none; background:none; font-size:24px; cursor:pointer;">×</button></div>
@@ -397,7 +407,6 @@
     </div>
 </div>
 
-<!-- 관리자 요청글 모달 -->
 <div class="modal-overlay" id="admin-request-modal">
     <div class="modal-window" style="width:800px; height:auto; max-height:90vh;">
         <div class="modal-header" style="background:#1e293b; color:white;"><h3><i class="fa-solid fa-envelope-open-text"></i> 팀원 요청글 관리</h3><button onclick="closeAdminRequestModal()" style="border:none; background:none; font-size:24px; cursor:pointer; color:white;">×</button></div>
@@ -407,14 +416,12 @@
     </div>
 </div>
 
-<!-- 메인 모달 -->
 <div class="modal-overlay" id="modal">
     <div class="modal-window">
         <div class="modal-header"><h3>📝 DB 정보 상세</h3><button onclick="closeModal()" style="border:none; background:none; font-size:24px; cursor:pointer;">×</button></div>
         <div class="modal-body">
             <div class="panel-left">
                 <input type="hidden" id="edit-id">
-                <!-- 계약 요약 카드 -->
                 <div id="modal-summary-card" style="display:none; background:linear-gradient(135deg,#1e3a8a,#3b82f6); color:white; padding:16px 20px; border-radius:12px; margin-bottom:15px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                         <div><div style="font-size:11px; opacity:0.7;">업체명</div><div id="sum-company" style="font-size:18px; font-weight:800;"></div></div>
@@ -492,7 +499,6 @@
     </div>
 </div>
 
-<!-- 로드맵 모달 -->
 <div class="modal-overlay" id="roadmap-modal">
     <div class="modal-window">
         <div class="modal-header"><h3><i class="fa-solid fa-diagram-project"></i> 컨설팅 로드맵</h3><button onclick="closeRoadmapPopup()" style="border:none; background:none; font-size:24px; cursor:pointer;">×</button></div>
@@ -573,11 +579,44 @@ function addTeamMember(){var nameInput=document.getElementById('new-member-name'
 function deleteTeamMember(targetName){if(targetName==='관리자')return showToast("관리자는 삭제할 수 없습니다.",'error');if(!confirm('정말 \''+targetName+'\' 팀원을 삭제하시겠습니까?'))return;showLoading();fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'del_member',name:targetName})}).then(function(res){return res.json()}).then(function(data){hideLoading();if(data.result==='success'){showToast("삭제되었습니다.");fetchDB(function(){renderMemberList()})}else{showToast("존재하지 않는 팀원입니다.",'error')}}).catch(function(err){hideLoading();showToast("서버 오류",'error')})}
 function changePassword(){var newPw=prompt("새로운 비밀번호를 입력하세요:");if(!newPw)return;if(newPw.length<4)return showToast("비밀번호는 4자 이상이어야 합니다.",'error');showLoading();fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'change_pw',name:currentUser.name,newPw:newPw})}).then(function(res){return res.json()}).then(function(data){hideLoading();if(data.result==='success'){showToast("변경되었습니다.");var hashedNewPw=sha256(newPw);if(localStorage.getItem('last_login_id')===currentUser.name)localStorage.setItem('last_login_pw',hashedNewPw);currentUser.pw=hashedNewPw}else{showToast("변경 실패",'error')}})}
 function toggleGradeField(){document.getElementById('group-grade-prov').style.display=(document.getElementById('input-source').value==='회사DB')?'block':'none'}
-function toggleStatusFields(){var s=document.getElementById('input-status').value;document.querySelectorAll('.dynamic-section').forEach(function(el){el.classList.remove('active')});if(s==='대기')document.getElementById('box-wait').classList.add('active');if(s==='진행중')document.getElementById('box-ing').classList.add('active');if(s==='가망고객')document.getElementById('box-prospect').classList.add('active');if(s==='계약'){document.getElementById('box-contract').classList.add('active');updateShareFields();calculateShare()}if(s==='종료')document.getElementById('box-end').classList.add('active');document.getElementById('btn-roadmap-area').style.display=(s==='진행중'||s==='계약')?'block':'none'}
-function copyPhone(phone){navigator.clipboard.writeText(phone).then(function(){showToast('📞 '+phone+' 복사됨!')}).catch(function(){window.location.href='tel:'+phone})}
-function formatCurrency(input){var val=input.value.replace(/,/g,'');if(!val){input.value='';return}var num=parseInt(val);if(isNaN(num)){input.value='';return}input.value=num.toLocaleString()}
 
-// ★★ 엑셀 다운로드 - 클린 데이터로 재구축 ★★
+// ★ [수정] 강제 초기화 방지 로직이 포함된 토글
+function toggleStatusFields(isInit) {
+    var s = document.getElementById('input-status').value;
+    document.querySelectorAll('.dynamic-section').forEach(function(el){ el.classList.remove('active') });
+    
+    if(s === '대기') document.getElementById('box-wait').classList.add('active');
+    if(s === '진행중') document.getElementById('box-ing').classList.add('active');
+    if(s === '가망고객') document.getElementById('box-prospect').classList.add('active');
+    if(s === '계약') {
+        document.getElementById('box-contract').classList.add('active');
+        if (isInit !== true) {
+            updateShareFields();
+            calculateShare();
+        }
+    }
+    if(s === '종료') document.getElementById('box-end').classList.add('active');
+    document.getElementById('btn-roadmap-area').style.display = (s === '진행중' || s === '계약') ? 'block' : 'none';
+}
+
+function copyPhone(phone){navigator.clipboard.writeText(phone).then(function(){showToast('📞 '+phone+' 복사됨!')}).catch(function(){window.location.href='tel:'+phone})}
+
+// ★ [수정] 금액 입력 시 커서 튕김 현상 수정
+function formatCurrency(input) {
+    var selectionStart = input.selectionStart;
+    var oldLength = input.value.length;
+    var val = input.value.replace(/,/g, '');
+    if (!val) { input.value = ''; return; }
+    var num = parseInt(val);
+    if (isNaN(num)) { input.value = ''; return; }
+    
+    input.value = num.toLocaleString();
+    
+    var newLength = input.value.length;
+    var newPos = selectionStart + (newLength - oldLength);
+    input.setSelectionRange(newPos, newPos);
+}
+
 function exportToExcel(){
     try{
         if(typeof XLSX==='undefined') throw new Error('XLSX not loaded');
@@ -619,31 +658,116 @@ function exportToCSV(){
 function sortMemberNames(memberList,currentMember){var specialItems=[];var koreanItems=[];memberList.forEach(function(m){if(m.role!=='admin'&&m.name!==currentMember){var firstChar=m.name.charAt(0);if(/[가-힣]/.test(firstChar)){koreanItems.push(m)}else{specialItems.push(m)}}});koreanItems.sort(function(a,b){return a.name.localeCompare(b.name,'ko')});specialItems.sort(function(a,b){return a.name.localeCompare(b.name,'ko')});return specialItems.concat(koreanItems)}
 function updateShareFields(){var source=document.getElementById('input-source').value;var currentMember=document.getElementById('display-member').innerText;var selectors=[1,2,3].map(function(i){return document.getElementById('share-partner-'+i)});var inputs=[1,2,3].map(function(i){return document.getElementById('share-percent-'+i)});var sortedMembers=sortMemberNames(members,currentMember);var commonOptions='<option value="">선택</option>';sortedMembers.forEach(function(m){commonOptions+='<option value="'+m.name+'">'+m.name+' 팀장</option>'});selectors.forEach(function(sel,idx){var finalOptions=commonOptions;if(idx===0){if(source==='회사DB')finalOptions='<option value="회사">🏢 회사</option>';else if(source==='팀DB')finalOptions='<option value="SM">🗣️ SM</option>';else if(source==='추장호DB')finalOptions='<option value="추장호">🎯 추장호</option>'}else{if(source==='회사DB')finalOptions='<option value="">선택</option><option value="회사">🏢 회사</option>'+commonOptions.replace('<option value="">선택</option>','');else if(source==='팀DB')finalOptions='<option value="">선택</option><option value="SM">🗣️ SM</option>'+commonOptions.replace('<option value="">선택</option>','');else if(source==='추장호DB')finalOptions='<option value="">선택</option><option value="추장호">🎯 추장호</option>'+commonOptions.replace('<option value="">선택</option>','')}sel.innerHTML=finalOptions});if(source==='회사DB'){selectors[0].value='회사';selectors[0].disabled=true;inputs[0].value=10}else if(source==='팀DB'){selectors[0].value='SM';selectors[0].disabled=true;inputs[0].value=40}else if(source==='추장호DB'){selectors[0].value='추장호';selectors[0].disabled=true;inputs[0].value=50}else{selectors[0].value='';selectors[0].disabled=false;inputs[0].value='';selectors[1].value='';inputs[1].value='';selectors[2].value='';inputs[2].value=''}}
 function calculateShare(){var totalRaw=document.getElementById('input-amount').value.replace(/,/g,'');var total=totalRaw===''?0:(parseInt(totalRaw)||0);var totalDeduction=0;for(var i=1;i<=3;i++){var partnerSel=document.getElementById('share-partner-'+i);var percentIn=document.getElementById('share-percent-'+i);var valSpan=document.getElementById('share-val-'+i);var pct=parseInt(percentIn.value)||0;var shareAmt=0;if(pct>0&&partnerSel.value)shareAmt=Math.floor(total*(pct/100));valSpan.innerText=shareAmt.toLocaleString();valSpan.style.color=shareAmt>0?'#ef4444':'#ccc';totalDeduction+=shareAmt}document.getElementById('disp-total').innerText=total.toLocaleString();document.getElementById('disp-net').innerText=(total-totalDeduction).toLocaleString()}
-function renderFilters(){var container=document.getElementById('list-filter-container');if(!container)return;if(currentUser.role==='admin'){container.innerHTML='<select id="filter-year" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"></select><select id="filter-month" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"></select><select id="filter-source" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option></select><select id="filter-call" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select><select id="filter-status" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option></select><select id="filter-member" style="padding:10px; border:1px solid #2563eb; color:#2563eb; font-weight:bold; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 팀원 보기</option></select>';var memSel=document.getElementById('filter-member');members.forEach(function(m){if(m.role!=='admin')memSel.innerHTML+='<option value="'+m.name+'">'+m.name+'</option>'})}else{container.innerHTML='<input type="text" id="search-keyword" placeholder="업체명 검색" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px;" onkeyup="currentPage=1;renderList()"><select id="filter-year" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"></select><select id="filter-month" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"></select><select id="filter-source" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option></select><select id="filter-call" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select><select id="filter-status" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option></select>'}initDateSelects()}
+
+// ★ [수정] 관리자 검색창 추가 및 필터 레이아웃
+function renderFilters() {
+    var container = document.getElementById('list-filter-container');
+    if (!container) return;
+    
+    var searchHtml = '<input type="text" id="search-keyword" placeholder="업체명 검색" style="flex:1; min-width:200px; padding:10px; border:1px solid #ddd; border-radius:8px;" onkeyup="currentPage=1;renderList()">';
+    
+    if (currentUser.role === 'admin') {
+        container.innerHTML = searchHtml + 
+            '<select id="filter-year" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"></select>' +
+            '<select id="filter-month" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"></select>' +
+            '<select id="filter-source" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()">' +
+                '<option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option>' +
+            '</select>' +
+            '<select id="filter-call" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()">' +
+                '<option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option>' +
+            '</select>' +
+            '<select id="filter-status" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()">' +
+                '<option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option>' +
+            '</select>' +
+            '<select id="filter-member" style="padding:10px; border:1px solid #2563eb; color:#2563eb; font-weight:bold; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 팀원 보기</option></select>';
+        
+        var memSel = document.getElementById('filter-member');
+        members.forEach(function(m) { if (m.role !== 'admin') memSel.innerHTML += '<option value="' + m.name + '">' + m.name + '</option>'; });
+    } else {
+        container.innerHTML = searchHtml + 
+            '<select id="filter-year" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"></select>' +
+            '<select id="filter-month" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"></select>' +
+            '<select id="filter-source" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()">' +
+                '<option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option>' +
+            '</select>' +
+            '<select id="filter-status" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="currentPage=1;renderList()"><option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option></select>';
+    }
+    initDateSelects();
+}
+
 function initDateSelects(){var yearSel=document.getElementById('filter-year');var monthSel=document.getElementById('filter-month');var histYearSel=document.getElementById('hist-year');var histMonthSel=document.getElementById('hist-month');var adminMonthSel=document.getElementById('admin-stat-month');var currentYear=new Date().getFullYear();var currentMonth=new Date().getMonth()+1;var opts='<option value="all">전체 연도</option>';for(var y=currentYear+1;y>=2023;y--)opts+='<option value="'+y+'" '+(y===currentYear?'selected':'')+'>'+y+'년</option>';if(yearSel)yearSel.innerHTML=opts;if(histYearSel)histYearSel.innerHTML=opts;var mOpts='<option value="all">전체 월</option>';for(var m=1;m<=12;m++)mOpts+='<option value="'+m+'"'+(m===currentMonth?' selected':'')+'>'+m+'월</option>';if(monthSel)monthSel.innerHTML=mOpts;if(histMonthSel)histMonthSel.innerHTML='<option value="all">전체 (1년치)</option>'+mOpts.replace('value="all"','').replace('전체 월','');var adminOpts='<option value="all">전체 월</option>';for(var am=1;am<=12;am++)adminOpts+='<option value="'+am+'"'+(am===currentMonth?' selected':'')+'>'+am+'월</option>';if(adminMonthSel)adminMonthSel.innerHTML=adminOpts}
 function setupHistoryTabs(){var tabsDiv=document.getElementById('history-tabs');if(!tabsDiv)return;var btnClass=function(tab){return'btn '+(historyTab===tab?'btn-primary':'btn-secondary')};if(currentUser.role==='admin'){tabsDiv.innerHTML='<button class="'+btnClass('admin-prospect')+'" onclick="switchHistoryTab(\'admin-prospect\')">🌟 가망고객</button><button class="'+btnClass('contract')+'" onclick="switchHistoryTab(\'contract\')">🤝 계약 고객</button>'}else{tabsDiv.innerHTML='<button class="'+btnClass('prospect')+'" onclick="switchHistoryTab(\'prospect\')">🌟 가망고객</button><button class="'+btnClass('contract')+'" onclick="switchHistoryTab(\'contract\')">🤝 계약 고객</button>'}}
 function switchHistoryTab(t){historyTab=t;setupHistoryTabs();renderHistory()}
 function navTo(page){if(page==='dashboard'&&currentUser.role!=='admin')return showToast("관리자 권한 필요",'error');document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active')});var map={'list':'nav-list','analysis':'nav-analysis','history':'nav-history','calendar':'nav-calendar','message':'nav-message','dashboard':'nav-dashboard'};if(document.getElementById(map[page]))document.getElementById(map[page]).classList.add('active');document.querySelectorAll('.page-content').forEach(function(el){el.style.display='none'});document.getElementById('view-'+page).style.display='block';history.pushState({page:page},page,'#'+page);if(page==='list'){renderFilters();if(currentUser.role==='admin'){document.getElementById('list-head').innerHTML='<tr><th>접수일</th><th>담당자</th><th>업체명</th><th>통화유무</th><th>미팅일</th><th>연락처</th><th>지역</th><th>출처</th><th>진행상태</th></tr>';document.getElementById('page-title').innerText='팀원 DB 관리'}else{document.getElementById('list-head').innerHTML='<tr><th>접수일</th><th>업체명</th><th>통화유무</th><th>미팅일</th><th>연락처</th><th>지역</th><th>출처</th><th>진행상태</th></tr>';document.getElementById('page-title').innerText='나의 DB 관리'}currentPage=1;renderList()}if(page==='analysis')renderAnalysisData();if(page==='dashboard')renderAdminDashboard();if(page==='history'){setupHistoryTabs();renderHistory()}if(page==='calendar')renderCalendar();if(page==='message')initMessageView()}
 window.addEventListener('popstate',function(e){if(e.state&&e.state.page){var page=e.state.page;document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active')});var map={'list':'nav-list','analysis':'nav-analysis','history':'nav-history','calendar':'nav-calendar','message':'nav-message','dashboard':'nav-dashboard'};if(document.getElementById(map[page]))document.getElementById(map[page]).classList.add('active');document.querySelectorAll('.page-content').forEach(function(el){el.style.display='none'});document.getElementById('view-'+page).style.display='block';if(page==='list'){currentPage=1;renderList()}if(page==='analysis')renderAnalysisData();if(page==='dashboard')renderAdminDashboard();if(page==='history'){setupHistoryTabs();renderHistory()}if(page==='calendar')renderCalendar();if(page==='message')initMessageView()}else{if(currentUser){history.pushState({page:'list'},'list','#list')}}});
 function changePage(dir){var totalPages=Math.ceil(totalFilteredData.length/pageSize);currentPage+=dir;if(currentPage<1)currentPage=1;if(currentPage>totalPages)currentPage=totalPages;renderListPage()}
-// ★ renderList with pagination
-function renderList(){
-    var tbody=document.getElementById('list-body');if(!tbody)return;
-    var yearEl=document.getElementById('filter-year'),monthEl=document.getElementById('filter-month'),sourceEl=document.getElementById('filter-source'),statusEl=document.getElementById('filter-status'),callEl=document.getElementById('filter-call');
-    if(!yearEl||!monthEl||!sourceEl)return;tbody.innerHTML='';
-    var year=yearEl.value,month=monthEl.value,source=sourceEl.value;
-    var statusFilter=statusEl?statusEl.value:'all';var callFilter=callEl?callEl.value:'all';
-    var kw='',targetMem=currentUser.name;
-    if(currentUser.role==='admin'){var memberEl=document.getElementById('filter-member');targetMem=memberEl?memberEl.value:'all'}
-    else{var searchEl=document.getElementById('search-keyword');kw=searchEl?searchEl.value.toLowerCase():''}
-    var filtered=dbList.filter(function(d){if(!d)return false;var parsed=parseDBDate(d.date);if(year!=='all'&&parsed.year!=year)return false;if(month!=='all'&&parsed.month!=month)return false;var dSource=d.source||"";if(source==='쉐어받음'){if(!dSource.includes('쉐어'))return false}else if(source!=='all'&&dSource!==source){return false}if(statusFilter!=='all'&&d.status!==statusFilter)return false;if(callFilter!=='all'){if(callFilter===''&&d.callStatus)return false;if(callFilter!==''&&d.callStatus!==callFilter)return false}if(currentUser.role==='admin'){if(targetMem!=='all'&&d.member!==targetMem)return false}else{if(d.member!==currentUser.name)return false;if(kw&&!(d.company||"").toLowerCase().includes(kw))return false}return true});
-    if(source!=='all'&&source!=='쉐어받음'){}
-    else{var shareTarget=(currentUser.role==='admin')?targetMem:currentUser.name;if(shareTarget&&shareTarget!=='all'){var virtualEntries=getVirtualShareEntries(shareTarget);virtualEntries.forEach(function(ve){var parsed=parseDBDate(ve.contractDate);if(year!=='all'&&parsed.year!=year)return;if(month!=='all'&&parsed.month!=month)return;if(source==='쉐어받음'||source==='all'){if(statusFilter!=='all'&&ve.status!==statusFilter)return;filtered.push(ve)}})}}
-    filtered.sort(function(a,b){var cleanDate=function(str){if(!str)return 0;var parts=str.match(/(\d{4})[\.\-\/]\s?(\d{1,2})[\.\-\/]\s?(\d{1,2})/);if(parts)return new Date(parts[1]+'-'+parts[2]+'-'+parts[3]).getTime();return new Date(str).getTime()};var dateA=cleanDate(a.date)||0,dateB=cleanDate(b.date)||0;if(dateB!==dateA)return dateB-dateA;return(Number(b.id)||0)-(Number(a.id)||0)});
-    totalFilteredData=filtered;
-    if(filtered.length===0){document.getElementById('empty-message').style.display='block';document.getElementById('pagination-controls').style.display='none'}
-    else{document.getElementById('empty-message').style.display='none';renderListPage()}
+
+// ★ [수정] 관리자 검색 및 중복 표시 방지
+function renderList() {
+    var tbody = document.getElementById('list-body'); if (!tbody) return;
+    var year = document.getElementById('filter-year').value;
+    var month = document.getElementById('filter-month').value;
+    var source = document.getElementById('filter-source').value;
+    var statusFilter = document.getElementById('filter-status').value;
+    var callFilter = document.getElementById('filter-call') ? document.getElementById('filter-call').value : 'all';
+    var kw = document.getElementById('search-keyword').value.toLowerCase();
+    
+    var targetMem = 'all';
+    if (currentUser.role === 'admin') targetMem = document.getElementById('filter-member').value;
+
+    var filtered = dbList.filter(function(d) {
+        if (!d) return false;
+        var parsed = parseDBDate(d.date);
+        
+        var matchKw = !kw || (d.company || "").toLowerCase().includes(kw) || (d.member || "").toLowerCase().includes(kw);
+        if (!matchKw) return false;
+
+        if (year !== 'all' && parsed.year != year) return false;
+        if (month !== 'all' && parsed.month != month) return false;
+        if (source !== 'all' && source !== '쉐어받음' && d.source !== source) return false;
+        if (statusFilter !== 'all' && d.status !== statusFilter) return false;
+        if (callFilter !== 'all' && (d.callStatus || "") !== callFilter) return false;
+
+        if (currentUser.role === 'admin') {
+            if (targetMem !== 'all' && d.member !== targetMem) return false;
+        } else {
+            if (d.member !== currentUser.name) return false;
+        }
+        return true;
+    });
+
+    if (source === 'all' || source === '쉐어받음') {
+        var shareSearchName = (currentUser.role === 'admin') ? targetMem : currentUser.name;
+        if (shareSearchName !== 'all') {
+            var virtualEntries = getVirtualShareEntries(shareSearchName);
+            virtualEntries.forEach(function(ve) {
+                var vp = parseDBDate(ve.contractDate);
+                if (year !== 'all' && vp.year != year) return;
+                if (month !== 'all' && vp.month != month) return;
+                if (kw && !ve.company.toLowerCase().includes(kw)) return;
+                if (statusFilter !== 'all' && ve.status !== statusFilter) return;
+                filtered.push(ve);
+            });
+        }
+    }
+
+    filtered.sort(function(a,b){
+        var dateA = new Date(a.contractDate || a.date).getTime() || 0;
+        var dateB = new Date(b.contractDate || b.date).getTime() || 0;
+        return dateB - dateA;
+    });
+
+    totalFilteredData = filtered;
+    if (filtered.length === 0) {
+        document.getElementById('empty-message').style.display = 'block';
+        document.getElementById('pagination-controls').style.display = 'none';
+        tbody.innerHTML = '';
+    } else {
+        document.getElementById('empty-message').style.display = 'none';
+        renderListPage();
+    }
 }
+
 function renderListPage(){
     var tbody=document.getElementById('list-body');tbody.innerHTML='';
     var totalPages=Math.ceil(totalFilteredData.length/pageSize);
@@ -651,13 +775,11 @@ function renderListPage(){
     var start=(currentPage-1)*pageSize;var end=Math.min(start+pageSize,totalFilteredData.length);
     var pageData=totalFilteredData.slice(start,end);
     pageData.forEach(function(d){var badge='status-wait';if(d.status==='진행중')badge='status-ing';if(d.status==='가망고객')badge='status-prospect';if(d.status==='계약')badge='status-done';if(d.status==='종료')badge='status-end';if((d.source||"").includes('쉐어'))badge='status-share';var alertIcon='';if(currentUser.role!=='admin'&&d.hasAdminAlert)alertIcon=' <i class="fa-solid fa-comment-dots admin-alert-icon" title="관리자 코멘트 확인!"></i>';var ddayBadge=getDdayText(d.meetDate);var phoneDisplay=d.phone?'<span class="phone-link" onclick="event.stopPropagation(); copyPhone(\''+d.phone+'\')" title="클릭하여 복사">'+d.phone+'</span>':'<span style="color:#ccc">-</span>';var callBadge=getCallStatusBadge(d.callStatus);var companyDisplay=d.isVirtualShare?'['+d.originalMember+'쉐어] '+d.company:d.company;var amountDisplay=d.isVirtualShare?' <span style="font-size:11px; color:#c2410c;">('+((d.amount||0).toLocaleString())+'원)</span>':'';var clickAction=d.isVirtualShare?'openModal(\''+d.originalId+'\')':'openModal(\''+d.id+'\')';var row='<td>'+(d.contractDate||d.date)+'</td>';if(currentUser.role==='admin')row+='<td>'+d.member+'</td>';row+='<td style="font-weight:bold">'+companyDisplay+amountDisplay+alertIcon+'</td>';row+='<td>'+callBadge+'</td>';row+='<td style="color:'+(d.meetDate?'#2563eb':'#cbd5e1')+'">'+(d.meetDate||'-')+ddayBadge+'</td>';row+='<td>'+phoneDisplay+'</td>';row+='<td>'+(d.region||'-')+'</td>';row+='<td>'+d.source+'</td>';row+='<td><span class="badge '+badge+'">'+d.status+'</span></td>';tbody.innerHTML+='<tr onclick="'+clickAction+'">'+row+'</tr>'});
-    // Pagination controls
     var pgCtrl=document.getElementById('pagination-controls');
     if(totalPages>1){pgCtrl.style.display='block';document.getElementById('page-info').innerText=currentPage+' / '+totalPages+' 페이지 (총 '+totalFilteredData.length+'건)';document.getElementById('btn-prev-page').disabled=(currentPage<=1);document.getElementById('btn-next-page').disabled=(currentPage>=totalPages)}else{pgCtrl.style.display='none'}
 }
 function renderAnalysisData(){renderYoYSummaryTable();try{renderYoYDetail()}catch(e){console.error('YoY Detail error:',e)}try{renderMonthlyKPI()}catch(e){console.error('KPI error:',e)}if(currentUser.role!=='admin'){try{renderMemberPerformance()}catch(e){console.error('MemberPerf error:',e)}}}
 
-// ★ 연간 총실적 순위 - 왕관 아이콘 + SM 순위 포함
 function renderYoYSummaryTable(){
     var tbody=document.querySelector('#yoy-summary-table tbody');tbody.innerHTML='';
     var thisY=new Date().getFullYear();
@@ -678,7 +800,6 @@ function renderYoYSummaryTable(){
         var bgStyle=d.isSpecial?' style="background:#fffbeb;"':'';
         if(!d.isSpecial)normalRank++;
         var rank=d.isSpecial?'-':normalRank;
-        // ★ 왕관 아이콘
         var crownHtml='';
         if(!d.isSpecial&&normalRank===1)crownHtml='<span style="font-size:22px; filter:drop-shadow(0 2px 4px rgba(234,179,8,0.5));">👑</span> ';
         else if(!d.isSpecial&&normalRank===2)crownHtml='<span style="font-size:18px; filter:grayscale(0.3) brightness(1.3);">👑</span> ';
@@ -693,7 +814,6 @@ function renderYoYSummaryTable(){
     })
 }
 
-// ★ YoY 상세 + 차트 렌더링
 function renderYoYDetail(){
     var thisY=new Date().getFullYear();var lastY=thisY-1;
     var thisData=Array(12).fill(0);var lastData=Array(12).fill(0);
@@ -709,11 +829,9 @@ function renderYoYDetail(){
     var html='<tr><td>'+lastY+'년</td>';lastData.forEach(function(v){html+='<td>'+v.toLocaleString()+'</td>'});html+='<td style="font-weight:bold">'+lastTotal.toLocaleString()+'</td></tr>';
     html+='<tr style="background:#eff6ff"><td>'+thisY+'년</td>';thisData.forEach(function(v){html+='<td>'+v.toLocaleString()+'</td>'});html+='<td style="font-weight:bold; color:blue">'+thisTotal.toLocaleString()+'</td></tr>';
     document.getElementById('yoy-detail-body').innerHTML=html;
-    // ★ 차트 렌더링
     renderRevenueChart(lastData,thisData,lastY,thisY)
 }
 
-// ★★ Chart.js 매출 차트 ★★
 function renderRevenueChart(lastData,thisData,lastY,thisY){
     try{
     var canvas=document.getElementById('revenue-chart');if(!canvas)return;
@@ -736,7 +854,6 @@ function renderMonthlyKPI() {
     var ty = new Date().getFullYear();
     var d = (currentUser.role === 'admin') ? dbList : dbList.filter(function(x){return x.member === currentUser.name;});
     d = d.filter(function(x) { var contractDate = getContractDate(x); return parseDBDate(contractDate).year === ty && x.status === '계약'; });
-    // ★ 비관리자: 쉐어 수령 가상 엔트리 추가
     if(currentUser.role !== 'admin') {
         var virtualShares = getVirtualShareEntries(currentUser.name).filter(function(ve) {
             return parseDBDate(ve.contractDate).year === ty;
@@ -768,7 +885,6 @@ function renderMonthlyKPI() {
     });
 }
 
-// ★ 팀원 성과표 (개인 뷰) - 쉐어 수령 포함
 function renderMemberPerformance() {
     var tbody = document.getElementById('member-perf-body'); if(!tbody) return; tbody.innerHTML = '';
     var now = new Date(); var thisYear = now.getFullYear(); var thisMonth = now.getMonth() + 1;
@@ -795,7 +911,6 @@ function renderMemberPerformance() {
     tbody.innerHTML += '<tr style="background:#eff6ff;"><td class="row-label">📆 1년 누적 (' + thisYear + '년)</td><td>' + yearlyDB.length + '</td><td>' + yearlyMeet + '</td><td style="color:#7c3aed; font-weight:bold;">' + yearlyProspect + '</td><td style="color:#16a34a; font-weight:bold;">' + yearlyContractCnt + '</td><td>' + yearlyRate + '%</td><td style="color:#2563eb; font-weight:bold;">' + yearlyRev.toLocaleString() + '</td></tr>';
 }
 
-// ★ 월별히스토리 - 쉐어받은 계약 포함
 function renderHistory() {
     var y = document.getElementById('hist-year').value, m = document.getElementById('hist-month').value;
     var tbody = document.getElementById('history-body'), thead = document.getElementById('history-head');
@@ -811,17 +926,15 @@ function renderHistory() {
     list.forEach(function(d) { var row = ''; var companyDisplay = d.isVirtualShare ? '[' + d.originalMember + '쉐어] ' + d.company : d.company; var clickId = d.isVirtualShare ? d.originalId : d.id; if(historyTab === 'admin-prospect' || historyTab === 'prospect') { row = '<td>' + d.date + '</td><td>' + d.member + '</td><td style="font-weight:bold">' + companyDisplay + '</td><td style="color:blue">' + d.source + '</td><td><span class="badge status-prospect">' + d.status + '</span></td>'; } else { row = '<td>' + (d.contractDate || d.date) + '</td><td>' + d.member + '</td><td style="font-weight:bold">' + companyDisplay + '</td><td style="color:blue">' + d.source + '</td><td>' + (d.product||'-') + '</td><td style="color:blue">' + (d.amount||0).toLocaleString() + '</td>'; } tbody.innerHTML += '<tr onclick="openModal(\'' + clickId + '\')">' + row + '</tr>'; });
 }
 
-// ★★★ [수정1,5] 통합관제탑 - 전체월 버그 수정 + 팀총매출 = totalAmount - 회사쉐어 ★★★
 function renderAdminDashboard() {
     var now = new Date();
     var selectedMonth = document.getElementById('admin-stat-month').value;
     var targetYear = now.getFullYear();
     var isAllMonths = (selectedMonth === 'all');
 
-    // ★ [수정6] 전체 DB 카운트: 해당 연도의 모든 출처 DB 포함 (날짜 누락도 포함)
     var monthlyDBByDate = dbList.filter(function(d) {
         var parsed = parseDBDate(d.date);
-        if(parsed.year === 0) return isAllMonths; // 날짜 없는 DB는 전체월일 때 포함
+        if(parsed.year === 0) return isAllMonths; 
         if(parsed.year !== targetYear) return false;
         if(!isAllMonths && parsed.month !== parseInt(selectedMonth)) return false;
         return true;
@@ -837,7 +950,6 @@ function renderAdminDashboard() {
         return true;
     });
 
-    // ★ [수정5] 팀 총매출 = totalAmount - 회사쉐어만 제외
     var totalRevenue = getTeamRevenue(contracts);
     var convRate = totalDB > 0 ? ((contracts.length / totalDB) * 100).toFixed(1) : 0;
 
@@ -846,7 +958,6 @@ function renderAdminDashboard() {
     document.getElementById('ad-total-db').innerText = totalDB + "개";
     document.getElementById('ad-conv-rate').innerText = convRate + "%";
 
-    // ★ 명예의 전당: 개인실적(net) + 쉐어수령
     var stats = {};
     var targetMonth = isAllMonths ? null : parseInt(selectedMonth);
     members.filter(function(m){return m.role !== 'admin';}).forEach(function(m) {
@@ -862,7 +973,6 @@ function renderAdminDashboard() {
     function fillList(id, arr) { var el = document.getElementById(id); el.innerHTML = ''; if(arr.length === 0) el.innerHTML = '<li style="padding:10px; color:#999; text-align:center;">달성자 없음</li>'; arr.forEach(function(x) { el.innerHTML += '<li class="rank-item"><span>' + x[0] + '</span> <span class="rank-val">' + x[1].toLocaleString() + '</span></li>'; }); }
     fillList('rank-500', r500); fillList('rank-300', r300); fillList('rank-60', r60);
 
-    // ★★★ [수정6] 팀원별 성과 현황표 - 순수 개인실적 + 쉐어수령, SM하단 ★★★
     var tbody = document.getElementById('team-status-body');
     tbody.innerHTML = '';
 
@@ -882,16 +992,14 @@ function renderAdminDashboard() {
         return { name: m.name, db: dbCount, meet: meetCount, prospect: prospectCount, cont: contCount, rev: rev, rate: rate, isSpecial: false };
     });
 
-    // ★ SM/추장호 실적 행 추가 (하단)
     ['SM', '추장호'].forEach(function(sp) {
         var spRev = getSpecialPartnerRevenue(sp, targetYear, targetMonth);
-        if(spRev > 0 || true) { // 항상 표시
+        if(spRev > 0 || true) { 
             var icon = sp === 'SM' ? '🗣️' : '🎯';
             teamStats.push({ name: icon + ' ' + sp, db: '-', meet: '-', prospect: '-', cont: '-', rev: spRev, rate: '-', isSpecial: true });
         }
     });
 
-    // 정렬: 일반 팀원 매출순 → 특수항목 하단
     teamStats.sort(function(a,b) {
         if(a.isSpecial !== b.isSpecial) return a.isSpecial ? 1 : -1;
         return b.rev - a.rev;
@@ -911,6 +1019,8 @@ function renderAdminDashboard() {
         }
     });
 }
+
+// ★ [수정] 쉐어 리셋 방지 로직 (openModal 내부)
 function openModal(id) {
     document.getElementById('modal').style.display='flex'; currentId=id||null; isAdminLogAdded=false; isModalDirty = false;
     var consult=document.getElementById('input-consulting'); var phoneIssue=document.getElementById('input-phone-issue');
@@ -931,8 +1041,16 @@ function openModal(id) {
         document.getElementById('input-contract-date').value=d.contractDate||''; document.getElementById('input-product').value=d.product||'';
         document.getElementById('input-amount').value=d.totalAmount?d.totalAmount.toLocaleString():'';
         consult.value=d.consulting||''; phoneIssue.value=d.phoneIssue||'';
+        
         updateShareFields();
-        if(d.shareList && Array.isArray(d.shareList)) { d.shareList.forEach(function(s, i) { if(i<3) { document.getElementById('share-partner-' + (i+1)).value = s.partner; document.getElementById('share-percent-' + (i+1)).value = s.percent; } }); }
+        if(d.shareList && Array.isArray(d.shareList)) { 
+            d.shareList.forEach(function(s, i) { 
+                if(i<3) { 
+                    document.getElementById('share-partner-' + (i+1)).value = s.partner; 
+                    document.getElementById('share-percent-' + (i+1)).value = s.percent; 
+                } 
+            }); 
+        }
         calculateShare();
         tempLogs=d.logs||[]; tempRoadmap=d.roadmap||[];
     } else {
@@ -952,22 +1070,31 @@ function openModal(id) {
         [1,2,3].forEach(function(i){ document.getElementById('share-partner-' + i).value=''; document.getElementById('share-percent-' + i).value=''; document.getElementById('share-val-' + i).innerText='0'; });
         updateShareFields(); calculateShare(); tempLogs=[]; tempRoadmap=[];
     }
-    toggleGradeField(); toggleStatusFields(); renderLogs();
-    if(currentId) { var dd=dbList.find(function(x){return x.id==currentId}); updateModalSummaryCard(dd); } else { updateModalSummaryCard(null); }
+    
+    toggleGradeField(); 
+    toggleStatusFields(true); // ★ 여기에 true를 전달하여 강제 초기화 막음
+    renderLogs();
+    
+    if(currentId) { var dd=dbList.find(function(x){return x.id==currentId}); updateModalSummaryCard(dd); } 
+    else { updateModalSummaryCard(null); }
     setTimeout(function() { isModalDirty = false; }, 100);
 }
+
 function closeModal() { if(isModalDirty) { if(!confirm('저장하지 않은 내용이 있습니다.\n저장하시겠습니까?')) { document.getElementById('modal').style.display='none'; isModalDirty = false; return; } else { saveData(); return; } } document.getElementById('modal').style.display='none'; }
 function logout() { localStorage.removeItem('last_login_id'); localStorage.removeItem('last_login_pw'); location.reload(); }
 function addLog() { var t=document.getElementById('hist-input').value; if(t) { tempLogs.unshift({time:new Date().toLocaleString(), text:t, writer:currentUser.name}); renderLogs(); document.getElementById('hist-input').value=''; if(currentUser.role==='admin') isAdminLogAdded=true; isModalDirty = true; } }
 function renderLogs() { document.getElementById('log-list').innerHTML=tempLogs.map(function(l){return '<div style="font-size:12px;border-bottom:1px solid #eee;padding:5px;">[' + l.time + '] <b>' + l.writer + '</b>: ' + l.text + '</div>';}).join(''); }
 
+// ★ [수정] 자동 로그 생성 추가
 function saveData() {
     if(!GAS_URL) return alert('URL 오류');
     var companyVal = document.getElementById('input-company').value.trim();
     if(!companyVal) return showToast('업체명을 입력하세요.', 'error');
+    
     var id = document.getElementById('edit-id').value || Date.now();
     var total = parseInt(document.getElementById('input-amount').value.replace(/,/g,'')) || 0;
     var shareList = [], ded = 0;
+    
     for(var i=1; i<=3; i++) {
         var partnerSel = document.getElementById('share-partner-' + i);
         var pctInput = document.getElementById('share-percent-' + i);
@@ -975,12 +1102,29 @@ function saveData() {
         var pct = parseInt(pctInput.value) || 0;
         if(p && pct > 0) { var amt = Math.floor(total * (pct / 100)); shareList.push({partner: p, percent: pct, amount: amt, step: i}); ded += amt; }
     }
+    
     var ex = dbList.find(function(x){return x.id==id;}) || {};
+    var newMeetDate = document.getElementById('input-meet-date').value;
+    var newStatus = document.getElementById('input-status').value;
+    var autoLog = '';
+    
+    if ((ex.meetDate || '') !== newMeetDate) {
+        autoLog += "미팅일정[" + (newMeetDate ? newMeetDate : '취소됨') + "] ";
+    }
+    if (ex.id && (ex.status || '대기') !== newStatus) {
+        autoLog += "진행상태[" + newStatus + "] ";
+    }
+    if (autoLog !== '') {
+        tempLogs.unshift({time: new Date().toLocaleString(), text: "🤖 (시스템 자동기록) " + autoLog + "변경됨", writer: currentUser.name});
+    }
+
     var consult = document.getElementById('input-consulting');
-    var obj = { id:id, member:document.getElementById('display-member').innerText, date:document.getElementById('input-date').value, source:document.getElementById('input-source').value, gradeProv:document.getElementById('input-grade-prov').value, company:companyVal, ceo:document.getElementById('input-ceo').value, phone:document.getElementById('input-phone').value, industry:document.getElementById('input-industry').value, revenue:document.getElementById('input-revenue').value, callStatus:document.getElementById('input-call-status').value, credit:document.getElementById('input-credit').value, annualRev:parseInt(document.getElementById('input-annual-rev').value.replace(/,/g,''))||0, tax:document.getElementById('input-tax').value, region:document.getElementById('input-region').value, meetDate:document.getElementById('input-meet-date').value, status:document.getElementById('input-status').value, waitReason:document.getElementById('input-wait-reason').value, ingDetail:document.getElementById('input-ing-detail').value, prospectDetail:document.getElementById('input-prospect-detail').value, endReason:document.getElementById('input-end-reason').value, contractDate:document.getElementById('input-contract-date').value, product:document.getElementById('input-product').value, totalAmount:total, amount:total-ded, shareList:shareList, consulting:consult.value, phoneIssue:document.getElementById('input-phone-issue').value, logs:tempLogs, roadmap:tempRoadmap, hasAdminAlert:(currentUser.role==='admin'&&isAdminLogAdded)?true:(ex.hasAdminAlert||false) };
+    var obj = { id:id, member:document.getElementById('display-member').innerText, date:document.getElementById('input-date').value, source:document.getElementById('input-source').value, gradeProv:document.getElementById('input-grade-prov').value, company:companyVal, ceo:document.getElementById('input-ceo').value, phone:document.getElementById('input-phone').value, industry:document.getElementById('input-industry').value, revenue:document.getElementById('input-revenue').value, callStatus:document.getElementById('input-call-status').value, credit:document.getElementById('input-credit').value, annualRev:parseInt(document.getElementById('input-annual-rev').value.replace(/,/g,''))||0, tax:document.getElementById('input-tax').value, region:document.getElementById('input-region').value, meetDate:newMeetDate, status:newStatus, waitReason:document.getElementById('input-wait-reason').value, ingDetail:document.getElementById('input-ing-detail').value, prospectDetail:document.getElementById('input-prospect-detail').value, endReason:document.getElementById('input-end-reason').value, contractDate:document.getElementById('input-contract-date').value, product:document.getElementById('input-product').value, totalAmount:total, amount:total-ded, shareList:shareList, consulting:consult.value, phoneIssue:document.getElementById('input-phone-issue').value, logs:tempLogs, roadmap:tempRoadmap, hasAdminAlert:(currentUser.role==='admin'&&isAdminLogAdded)?true:(ex.hasAdminAlert||false) };
+    
     showLoading();
     fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'save', data:obj}) }).then(function(r){return r.json();}).then(function(d) { hideLoading(); showToast('저장 완료'); isModalDirty = false; document.getElementById('edit-id').value = id; fetchDB(function() { if(currentUser.role==='admin'&&document.getElementById('view-dashboard').style.display==='block') renderAdminDashboard(); else renderList(); checkMeetingAlerts(); }); }).catch(function(e) { hideLoading(); showToast('저장 실패', 'error'); });
 }
+
 function deleteData() { if(!confirm('삭제하시겠습니까?')) return; var id=document.getElementById('edit-id').value; showLoading(); fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'delete', id:id}) }).then(function(r){return r.json();}).then(function(d){ hideLoading(); showToast('삭제 완료'); document.getElementById('modal').style.display='none'; fetchDB(function(){renderList();}); }).catch(function(e){ hideLoading(); showToast('실패', 'error'); }); }
 function printRoadmap() { var printArea = document.getElementById('roadmap-print-area'); var printWindow = window.open('', '_blank', 'width=1200,height=800'); var styleContent = '* { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: -apple-system, sans-serif; margin: 30px; background: white; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .rm-title-edit { font-size: 32px; font-weight: 900; text-align: center; margin-bottom: 40px; color: #1e293b; } .rm-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; } .rm-header { background: #1e3a8a !important; color: white !important; padding: 12px 0; border: 1px solid #94a3b8; font-weight: bold; text-align: center; } .rm-subheader { background: #3b82f6 !important; color: white !important; padding: 6px 0; border: 1px solid #94a3b8; font-size: 11px; text-align: center; } .rm-cell { border: 1px solid #cbd5e1; height: 55px; position: relative; background: white; } .rm-cat-col { width: 120px; text-align: center; font-weight: 800; border: 1px solid #94a3b8; color: white !important; padding: 5px; } .rm-bar-container { position: absolute; top: 10px; bottom: 10px; border-radius: 15px; display: flex; align-items: center; color: white; font-size: 12px; font-weight: bold; } @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }'; printWindow.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>컨설팅 로드맵</title><style>' + styleContent + '</style></head><body>' + printArea.innerHTML + '</body></html>'); printWindow.document.close(); setTimeout(function() { printWindow.focus(); printWindow.print(); }, 500); }
 function openRoadmapPopup() { document.getElementById('roadmap-modal').style.display = 'flex'; resetRoadmapInput(); var comp = document.getElementById('input-company').value.trim(); document.getElementById('print-company-name').innerText = comp ? comp + " Project Schedule" : "Project Schedule"; var mem = document.getElementById('display-member').innerText || "담당자"; document.getElementById('print-member-name').innerText = '오너스경영연구소 - ' + mem + ' 팀장'; renderRoadmapView(); }
@@ -1000,7 +1144,6 @@ function handleDragEnd(e) { document.querySelectorAll('.rm-item-chip').forEach(f
 function renderRoadmapView() { var tbody = document.getElementById('rm-body'); var listDiv = document.getElementById('rm-list'); var h1 = document.getElementById('rm-header-row-1'); var h2 = document.getElementById('rm-header-row-2'); tbody.innerHTML=''; listDiv.innerHTML=''; var maxMonth=12; tempRoadmap.forEach(function(i){if(i.start+i.duration-1>maxMonth) maxMonth=i.start+i.duration-1;}); var years=Math.ceil(maxMonth/12); var baseYear=new Date().getFullYear(); var hh1='<th class="rm-header rm-diagonal" style="width:120px;" rowspan="2"><span class="rm-diagonal-text rm-text-bottom-left">항목</span><span class="rm-diagonal-text rm-text-top-right">일정</span></th>'; var hh2=''; for(var y=0; y<years; y++) { hh1+='<th class="rm-header" colspan="12">' + (baseYear+y) + '</th>'; for(var m=1; m<=12; m++) hh2+='<th class="rm-subheader">' + m + '</th>'; } h1.innerHTML=hh1; h2.innerHTML=hh2; if(tempRoadmap.length===0) listDiv.innerHTML='<div style="text-align:center;color:#94a3b8;font-size:12px;">항목 없음</div>'; else tempRoadmap.forEach(function(item,idx){ var chip=document.createElement('div'); chip.className='rm-item-chip'; chip.draggable=true; chip.innerHTML='<i class="fa-solid fa-grip-vertical" style="color:#94a3b8;margin-right:5px;"></i><span style="font-weight:bold;color:#334155;">' + item.name + '</span><i class="fa-solid fa-xmark" style="color:#ef4444;margin-left:8px;cursor:pointer;"></i>'; chip.addEventListener('dragstart',function(e){handleDragStart(e,idx);}); chip.addEventListener('dragover',handleDragOver); chip.addEventListener('dragleave',handleDragLeave); chip.addEventListener('drop',function(e){handleDrop(e,idx);}); chip.addEventListener('dragend',handleDragEnd); chip.onclick=function(){loadRoadmapItemForEdit(idx);}; chip.querySelector('.fa-xmark').onclick=function(e){e.stopPropagation(); removeRoadmapItem(idx);}; listDiv.appendChild(chip); }); if(tempRoadmap.length===0) { tbody.innerHTML='<tr><td colspan="' + (1+(years*12)) + '" style="text-align:center;padding:20px;color:#cbd5e1;">비어있음</td></tr>'; return; } tempRoadmap.forEach(function(item,idx){ var tr='<tr>'; var cHex=colorPalette[Math.min(idx,5)]; var tCol=(Math.min(idx,5)>=5)?'#1e293b':'white'; tr+='<td class="rm-cat-col" onclick="loadRoadmapItemForEdit(' + idx + ')" style="background:' + cHex + ';color:' + tCol + ';cursor:pointer;">' + item.name + '</td>'; var cols=years*12; for(var i=1; i<=cols; i++) { if(i===item.start) { var desc=item.desc?item.desc.replace(/\/\//g,'<br>'):''; var align=item.align||'center'; var cont=''; if(align==='out') { cont='<div class="rm-bar-container" style="width:100%;background:' + cHex + ';"></div><div class="rm-bar-outer-text">' + desc + '</div>'; } else { cont='<div class="rm-bar-container rm-align-' + align + '" style="width:100%;background:' + cHex + ';color:' + tCol + ';">' + desc + '</div>'; } tr+='<td class="rm-cell" colspan="' + item.duration + '" onclick="loadRoadmapItemForEdit(' + idx + ')">' + cont + '</td>'; i+=(item.duration-1); } else { tr+='<td class="rm-cell"></td>'; } } tr+='</tr>'; tbody.innerHTML+=tr; }); }
 document.addEventListener('DOMContentLoaded', function() { document.querySelectorAll('#modal input, #modal select, #modal textarea').forEach(function(el) { el.addEventListener('change', function() { isModalDirty = true; }); el.addEventListener('input', function() { isModalDirty = true; }); }); });
 
-// ★★★ 신규 기능 1: 미팅 캘린더 ★★★
 function changeCalMonth(dir){calMonth+=dir;if(calMonth<0){calMonth=11;calYear--}if(calMonth>11){calMonth=0;calYear++}renderCalendar()}
 function renderCalendar(){
     document.getElementById('cal-month-label').innerText=calYear+'년 '+(calMonth+1)+'월';
@@ -1032,7 +1175,6 @@ function renderCalendar(){
     }
 }
 
-// ★★★ 신규 기능 2: 모달 요약 카드 ★★★
 function updateModalSummaryCard(data){
     var card=document.getElementById('modal-summary-card');
     if(!data||!data.company){card.style.display='none';return}
@@ -1062,7 +1204,6 @@ function updateModalSummaryCard(data){
     }else{shareBar.style.display='none'}
 }
 
-// ★★★ 신규 기능 3: 관제탑 팀원 클릭 → DB 이동 ★★★
 function goToMemberDB(memberName){
     navTo('list');
     setTimeout(function(){
@@ -1071,7 +1212,6 @@ function goToMemberDB(memberName){
     },100)
 }
 
-// ★★★ 1:1 메시지 시스템 (카카오톡 스타일) ★★★
 var messageList = [];
 var selectedChatPartner = null;
 var msgPollingTimer = null;
@@ -1102,7 +1242,6 @@ function initMessageView() {
     }, 30000);
 }
 
-// ★ 로컬 저장소 백업 (GAS 미설정 시에도 동작)
 function saveMsgLocal() {
     try { localStorage.setItem(MSG_STORAGE_KEY, JSON.stringify(messageList)); } catch(e) {}
 }
@@ -1111,17 +1250,13 @@ function loadMsgLocal() {
 }
 
 function loadMessages(callback) {
-    // 먼저 로컬에서 로드 (즉시 표시용)
     loadMsgLocal();
-    // 서버에서 동기화 시도
     fetch(GAS_URL + '?action=get_messages&user=' + encodeURIComponent(currentUser.name))
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.messages && Array.isArray(d.messages) && d.messages.length > 0) {
-                // 서버 데이터가 있으면 머지 (로컬에만 있는 것 + 서버 데이터)
                 var serverIds = {};
                 d.messages.forEach(function(m) { serverIds[String(m.id)] = true; });
-                // 서버에 없는 로컬 메시지 (아직 동기화 안된 것) 유지
                 var localOnly = messageList.filter(function(m) { return !serverIds[String(m.id)] && m._localPending; });
                 messageList = d.messages.concat(localOnly);
                 saveMsgLocal();
@@ -1215,7 +1350,6 @@ function renderChatMessages() {
             lastDate = msgDate;
         }
         var isMine = m.from === myName;
-        // ★ 삭제 버튼 (관리자 또는 본인 메시지)
         var delBtn = (isAdmin || isMine) ? '<span onclick="event.stopPropagation();deleteMessage(' + m.id + ')" style="cursor:pointer; font-size:10px; color:#94a3b8; margin:0 3px; opacity:0.4;" title="삭제" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">✕</span>' : '';
         if (isMine) {
             html += '<div style="display:flex; justify-content:flex-end; margin-bottom:8px; align-items:flex-end; gap:4px;">' +
@@ -1272,17 +1406,14 @@ function sendMessage() {
     }).catch(function(e) { console.log('Msg saved locally, server sync pending'); });
 }
 
-// ★★ 메시지 삭제 (관리자가 지우면 양쪽 다 삭제) ★★
 function deleteMessage(msgId) {
     if (!confirm('이 메시지를 삭제하시겠습니까?')) return;
-    // 로컬에서 즉시 삭제 표시
     messageList.forEach(function(m) {
         if (m.id === msgId) m._deleted = true;
     });
     saveMsgLocal();
     renderChatMessages();
     renderMsgContacts();
-    // 서버에서도 삭제
     fetch(GAS_URL, {
         method: 'POST', mode: 'cors', redirect: 'follow',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1316,6 +1447,5 @@ function markMessagesRead(partnerName) {
     }
 }
 </script>
-
 
 </body></html>
