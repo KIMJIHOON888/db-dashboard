@@ -441,7 +441,10 @@
                         <div class="form-group"><label>접수일</label><input type="date" id="input-date" onclick="this.showPicker()"></div>
                         <div class="form-group"><label>DB 출처</label><select id="input-source" onchange="updateShareFields(); toggleGradeField(); calculateShare();"><option value="회사DB">🏢 회사 DB</option><option value="개인DB">👤 개인 DB</option><option value="팀DB">👥 팀 DB</option><option value="추장호DB">🎯 추장호 DB</option><option value="기타DB">🎸 기타 DB</option></select></div>
                         <div class="form-group" id="group-grade-prov"><label>제공 등급</label><select id="input-grade-prov"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
-                        <div class="form-group"><label>업체명 <span style="color:red">*</span></label><input type="text" id="input-company" placeholder="필수 입력"></div>
+                        <div class="form-group">
+                            <label>업체명 <span style="color:red">*</span></label>
+                            <input type="text" id="input-company" placeholder="필수 입력" onkeydown="if(event.key === 'Enter') event.preventDefault();">
+                        </div>
                         <div class="form-group"><label>대표자</label><input type="text" id="input-ceo"></div>
                         <div class="form-group"><label>연락처</label><input type="text" id="input-phone"></div>
                         <div class="form-group"><label>업종</label><select id="input-industry"><option value="">선택</option><option value="제조">제조</option><option value="건설">건설</option><option value="도소매">도소매</option><option value="서비스">서비스</option><option value="IT">IT</option><option value="음식점">음식점</option><option value="기타">기타</option></select></div>
@@ -580,7 +583,6 @@ function deleteTeamMember(targetName){if(targetName==='관리자')return showToa
 function changePassword(){var newPw=prompt("새로운 비밀번호를 입력하세요:");if(!newPw)return;if(newPw.length<4)return showToast("비밀번호는 4자 이상이어야 합니다.",'error');showLoading();fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'change_pw',name:currentUser.name,newPw:newPw})}).then(function(res){return res.json()}).then(function(data){hideLoading();if(data.result==='success'){showToast("변경되었습니다.");var hashedNewPw=sha256(newPw);if(localStorage.getItem('last_login_id')===currentUser.name)localStorage.setItem('last_login_pw',hashedNewPw);currentUser.pw=hashedNewPw}else{showToast("변경 실패",'error')}})}
 function toggleGradeField(){document.getElementById('group-grade-prov').style.display=(document.getElementById('input-source').value==='회사DB')?'block':'none'}
 
-// ★ [수정] 강제 초기화 방지 로직이 포함된 토글
 function toggleStatusFields(isInit) {
     var s = document.getElementById('input-status').value;
     document.querySelectorAll('.dynamic-section').forEach(function(el){ el.classList.remove('active') });
@@ -601,7 +603,6 @@ function toggleStatusFields(isInit) {
 
 function copyPhone(phone){navigator.clipboard.writeText(phone).then(function(){showToast('📞 '+phone+' 복사됨!')}).catch(function(){window.location.href='tel:'+phone})}
 
-// ★ [수정] 금액 입력 시 커서 튕김 현상 수정
 function formatCurrency(input) {
     var selectionStart = input.selectionStart;
     var oldLength = input.value.length;
@@ -659,7 +660,6 @@ function sortMemberNames(memberList,currentMember){var specialItems=[];var korea
 function updateShareFields(){var source=document.getElementById('input-source').value;var currentMember=document.getElementById('display-member').innerText;var selectors=[1,2,3].map(function(i){return document.getElementById('share-partner-'+i)});var inputs=[1,2,3].map(function(i){return document.getElementById('share-percent-'+i)});var sortedMembers=sortMemberNames(members,currentMember);var commonOptions='<option value="">선택</option>';sortedMembers.forEach(function(m){commonOptions+='<option value="'+m.name+'">'+m.name+' 팀장</option>'});selectors.forEach(function(sel,idx){var finalOptions=commonOptions;if(idx===0){if(source==='회사DB')finalOptions='<option value="회사">🏢 회사</option>';else if(source==='팀DB')finalOptions='<option value="SM">🗣️ SM</option>';else if(source==='추장호DB')finalOptions='<option value="추장호">🎯 추장호</option>'}else{if(source==='회사DB')finalOptions='<option value="">선택</option><option value="회사">🏢 회사</option>'+commonOptions.replace('<option value="">선택</option>','');else if(source==='팀DB')finalOptions='<option value="">선택</option><option value="SM">🗣️ SM</option>'+commonOptions.replace('<option value="">선택</option>','');else if(source==='추장호DB')finalOptions='<option value="">선택</option><option value="추장호">🎯 추장호</option>'+commonOptions.replace('<option value="">선택</option>','')}sel.innerHTML=finalOptions});if(source==='회사DB'){selectors[0].value='회사';selectors[0].disabled=true;inputs[0].value=10}else if(source==='팀DB'){selectors[0].value='SM';selectors[0].disabled=true;inputs[0].value=40}else if(source==='추장호DB'){selectors[0].value='추장호';selectors[0].disabled=true;inputs[0].value=50}else{selectors[0].value='';selectors[0].disabled=false;inputs[0].value='';selectors[1].value='';inputs[1].value='';selectors[2].value='';inputs[2].value=''}}
 function calculateShare(){var totalRaw=document.getElementById('input-amount').value.replace(/,/g,'');var total=totalRaw===''?0:(parseInt(totalRaw)||0);var totalDeduction=0;for(var i=1;i<=3;i++){var partnerSel=document.getElementById('share-partner-'+i);var percentIn=document.getElementById('share-percent-'+i);var valSpan=document.getElementById('share-val-'+i);var pct=parseInt(percentIn.value)||0;var shareAmt=0;if(pct>0&&partnerSel.value)shareAmt=Math.floor(total*(pct/100));valSpan.innerText=shareAmt.toLocaleString();valSpan.style.color=shareAmt>0?'#ef4444':'#ccc';totalDeduction+=shareAmt}document.getElementById('disp-total').innerText=total.toLocaleString();document.getElementById('disp-net').innerText=(total-totalDeduction).toLocaleString()}
 
-// ★ [수정] 관리자 검색창 추가 및 필터 레이아웃
 function renderFilters() {
     var container = document.getElementById('list-filter-container');
     if (!container) return;
@@ -702,7 +702,6 @@ function navTo(page){if(page==='dashboard'&&currentUser.role!=='admin')return sh
 window.addEventListener('popstate',function(e){if(e.state&&e.state.page){var page=e.state.page;document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active')});var map={'list':'nav-list','analysis':'nav-analysis','history':'nav-history','calendar':'nav-calendar','message':'nav-message','dashboard':'nav-dashboard'};if(document.getElementById(map[page]))document.getElementById(map[page]).classList.add('active');document.querySelectorAll('.page-content').forEach(function(el){el.style.display='none'});document.getElementById('view-'+page).style.display='block';if(page==='list'){currentPage=1;renderList()}if(page==='analysis')renderAnalysisData();if(page==='dashboard')renderAdminDashboard();if(page==='history'){setupHistoryTabs();renderHistory()}if(page==='calendar')renderCalendar();if(page==='message')initMessageView()}else{if(currentUser){history.pushState({page:'list'},'list','#list')}}});
 function changePage(dir){var totalPages=Math.ceil(totalFilteredData.length/pageSize);currentPage+=dir;if(currentPage<1)currentPage=1;if(currentPage>totalPages)currentPage=totalPages;renderListPage()}
 
-// ★ [수정] 관리자 검색 및 중복 표시 방지
 function renderList() {
     var tbody = document.getElementById('list-body'); if (!tbody) return;
     var year = document.getElementById('filter-year').value;
@@ -780,6 +779,38 @@ function renderListPage(){
 }
 function renderAnalysisData(){renderYoYSummaryTable();try{renderYoYDetail()}catch(e){console.error('YoY Detail error:',e)}try{renderMonthlyKPI()}catch(e){console.error('KPI error:',e)}if(currentUser.role!=='admin'){try{renderMemberPerformance()}catch(e){console.error('MemberPerf error:',e)}}}
 
+// ★ [수정] 연간 총실적 순위 클릭 시 리스트 연동 함수 추가
+function goToMemberYearlyContracts(memberName) {
+    navTo('list');
+    setTimeout(function() {
+        var yearEl = document.getElementById('filter-year');
+        var monthEl = document.getElementById('filter-month');
+        var statusEl = document.getElementById('filter-status');
+        var sourceEl = document.getElementById('filter-source');
+        var memberEl = document.getElementById('filter-member');
+        
+        if (yearEl) yearEl.value = new Date().getFullYear();
+        if (monthEl) monthEl.value = 'all';
+        if (statusEl) statusEl.value = '계약';
+        
+        if (memberName === 'SM') {
+            if (sourceEl) sourceEl.value = '팀DB';
+            if (memberEl) memberEl.value = 'all';
+        } else if (memberName === '추장호') {
+            if (sourceEl) sourceEl.value = '추장호DB';
+            if (memberEl) memberEl.value = 'all';
+        } else {
+            if (sourceEl) sourceEl.value = 'all';
+            if (memberEl) memberEl.value = memberName;
+        }
+        
+        currentPage = 1;
+        renderList();
+        showToast(memberName + '의 올해 계약 리스트입니다.');
+    }, 100);
+}
+
+// ★ [수정] 팀원명에 클릭 기능(goToMemberYearlyContracts) 연결
 function renderYoYSummaryTable(){
     var tbody=document.querySelector('#yoy-summary-table tbody');tbody.innerHTML='';
     var thisY=new Date().getFullYear();
@@ -791,10 +822,11 @@ function renderYoYSummaryTable(){
         return{name:m.name,last:l,this:t,isSpecial:false}
     });
     var smL=getSpecialPartnerRevenue('SM',thisY-1,null);var smT=getSpecialPartnerRevenue('SM',thisY,null);
-    if(smL>0||smT>0)list.push({name:'🗣️ SM',last:smL,this:smT,isSpecial:false});
+    if(smL>0||smT>0)list.push({name:'🗣️ SM',last:smL,this:smT,isSpecial:true});
     var cjL=getSpecialPartnerRevenue('추장호',thisY-1,null);var cjT=getSpecialPartnerRevenue('추장호',thisY,null);
     if(cjL>0||cjT>0)list.push({name:'🎯 추장호',last:cjL,this:cjT,isSpecial:true});
     list.sort(function(a,b){if(a.isSpecial!==b.isSpecial)return a.isSpecial?1:-1;return b.this-a.this});
+    
     var normalRank=0;
     list.forEach(function(d){
         var bgStyle=d.isSpecial?' style="background:#fffbeb;"':'';
@@ -810,7 +842,11 @@ function renderYoYSummaryTable(){
         else if(!d.isSpecial&&normalRank===2)rowBg=' style="background:linear-gradient(90deg,#f1f5f9,#e2e8f0,white);"';
         else if(!d.isSpecial&&normalRank===3)rowBg=' style="background:linear-gradient(90deg,#fff7ed,#fed7aa,white);"';
         if(d.isSpecial)rowBg=bgStyle;
-        tbody.innerHTML+='<tr'+rowBg+'><td>'+rank+'</td><td'+nameStyle+'>'+crownHtml+d.name+'</td><td>'+d.last.toLocaleString()+'</td><td style="font-weight:bold; color:#2563eb;">'+d.this.toLocaleString()+'</td><td>'+(d.this-d.last).toLocaleString()+'</td><td>'+(d.last>0?Math.round((d.this-d.last)/d.last*100):0)+'%</td></tr>'
+        
+        var cleanName = d.name.replace(/[^\w\s가-힣]/gi, '').trim(); 
+        var nameHtml = '<span style="cursor:pointer; text-decoration:underline;" onclick="goToMemberYearlyContracts(\'' + cleanName + '\')" title="' + cleanName + ' 계약 내역 보기">' + crownHtml + d.name + '</span>';
+        
+        tbody.innerHTML+='<tr'+rowBg+'><td>'+rank+'</td><td'+nameStyle+'>'+nameHtml+'</td><td>'+d.last.toLocaleString()+'</td><td style="font-weight:bold; color:#2563eb;">'+d.this.toLocaleString()+'</td><td>'+(d.this-d.last).toLocaleString()+'</td><td>'+(d.last>0?Math.round((d.this-d.last)/d.last*100):0)+'%</td></tr>'
     })
 }
 
@@ -1020,7 +1056,6 @@ function renderAdminDashboard() {
     });
 }
 
-// ★ [수정] 쉐어 리셋 방지 로직 (openModal 내부)
 function openModal(id) {
     document.getElementById('modal').style.display='flex'; currentId=id||null; isAdminLogAdded=false; isModalDirty = false;
     var consult=document.getElementById('input-consulting'); var phoneIssue=document.getElementById('input-phone-issue');
@@ -1072,7 +1107,7 @@ function openModal(id) {
     }
     
     toggleGradeField(); 
-    toggleStatusFields(true); // ★ 여기에 true를 전달하여 강제 초기화 막음
+    toggleStatusFields(true); 
     renderLogs();
     
     if(currentId) { var dd=dbList.find(function(x){return x.id==currentId}); updateModalSummaryCard(dd); } 
@@ -1080,16 +1115,36 @@ function openModal(id) {
     setTimeout(function() { isModalDirty = false; }, 100);
 }
 
-function closeModal() { if(isModalDirty) { if(!confirm('저장하지 않은 내용이 있습니다.\n저장하시겠습니까?')) { document.getElementById('modal').style.display='none'; isModalDirty = false; return; } else { saveData(); return; } } document.getElementById('modal').style.display='none'; }
+// ★ [수정] 모달창 닫기 버튼(X) 로직 변경 (저장 후 확실히 닫히도록)
+function closeModal() { 
+    if(isModalDirty) { 
+        if(!confirm('저장하지 않은 내용이 있습니다.\n저장하시겠습니까?')) { 
+            document.getElementById('modal').style.display='none'; 
+            isModalDirty = false; 
+            return;
+        } else { 
+            saveData(true); // true 신호를 보내서 저장 후 창을 닫게 함
+            return; 
+        } 
+    } 
+    document.getElementById('modal').style.display='none'; 
+}
+
 function logout() { localStorage.removeItem('last_login_id'); localStorage.removeItem('last_login_pw'); location.reload(); }
 function addLog() { var t=document.getElementById('hist-input').value; if(t) { tempLogs.unshift({time:new Date().toLocaleString(), text:t, writer:currentUser.name}); renderLogs(); document.getElementById('hist-input').value=''; if(currentUser.role==='admin') isAdminLogAdded=true; isModalDirty = true; } }
 function renderLogs() { document.getElementById('log-list').innerHTML=tempLogs.map(function(l){return '<div style="font-size:12px;border-bottom:1px solid #eee;padding:5px;">[' + l.time + '] <b>' + l.writer + '</b>: ' + l.text + '</div>';}).join(''); }
 
-// ★ [수정] 자동 로그 생성 추가
-function saveData() {
+// ★ [수정] 업체명 필수 검증 추가 및 모달 닫기 옵션 연동
+function saveData(shouldCloseModal) {
     if(!GAS_URL) return alert('URL 오류');
     var companyVal = document.getElementById('input-company').value.trim();
-    if(!companyVal) return showToast('업체명을 입력하세요.', 'error');
+    
+    // 업체명 강제 입력 알림
+    if(!companyVal) {
+        alert('업체명 필수 기입\n(없을 시 대표자명 기입)');
+        document.getElementById('input-company').focus();
+        return; 
+    }
     
     var id = document.getElementById('edit-id').value || Date.now();
     var total = parseInt(document.getElementById('input-amount').value.replace(/,/g,'')) || 0;
@@ -1122,7 +1177,23 @@ function saveData() {
     var obj = { id:id, member:document.getElementById('display-member').innerText, date:document.getElementById('input-date').value, source:document.getElementById('input-source').value, gradeProv:document.getElementById('input-grade-prov').value, company:companyVal, ceo:document.getElementById('input-ceo').value, phone:document.getElementById('input-phone').value, industry:document.getElementById('input-industry').value, revenue:document.getElementById('input-revenue').value, callStatus:document.getElementById('input-call-status').value, credit:document.getElementById('input-credit').value, annualRev:parseInt(document.getElementById('input-annual-rev').value.replace(/,/g,''))||0, tax:document.getElementById('input-tax').value, region:document.getElementById('input-region').value, meetDate:newMeetDate, status:newStatus, waitReason:document.getElementById('input-wait-reason').value, ingDetail:document.getElementById('input-ing-detail').value, prospectDetail:document.getElementById('input-prospect-detail').value, endReason:document.getElementById('input-end-reason').value, contractDate:document.getElementById('input-contract-date').value, product:document.getElementById('input-product').value, totalAmount:total, amount:total-ded, shareList:shareList, consulting:consult.value, phoneIssue:document.getElementById('input-phone-issue').value, logs:tempLogs, roadmap:tempRoadmap, hasAdminAlert:(currentUser.role==='admin'&&isAdminLogAdded)?true:(ex.hasAdminAlert||false) };
     
     showLoading();
-    fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'save', data:obj}) }).then(function(r){return r.json();}).then(function(d) { hideLoading(); showToast('저장 완료'); isModalDirty = false; document.getElementById('edit-id').value = id; fetchDB(function() { if(currentUser.role==='admin'&&document.getElementById('view-dashboard').style.display==='block') renderAdminDashboard(); else renderList(); checkMeetingAlerts(); }); }).catch(function(e) { hideLoading(); showToast('저장 실패', 'error'); });
+    fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'save', data:obj}) }).then(function(r){return r.json();}).then(function(d) { 
+        hideLoading(); 
+        showToast('저장 완료'); 
+        isModalDirty = false; 
+        document.getElementById('edit-id').value = id; 
+        
+        // X버튼으로 저장한 경우 창 닫기
+        if (shouldCloseModal === true) {
+            document.getElementById('modal').style.display='none';
+        }
+        
+        fetchDB(function() { 
+            if(currentUser.role==='admin'&&document.getElementById('view-dashboard').style.display==='block') renderAdminDashboard(); 
+            else renderList(); 
+            checkMeetingAlerts(); 
+        }); 
+    }).catch(function(e) { hideLoading(); showToast('저장 실패', 'error'); });
 }
 
 function deleteData() { if(!confirm('삭제하시겠습니까?')) return; var id=document.getElementById('edit-id').value; showLoading(); fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'delete', id:id}) }).then(function(r){return r.json();}).then(function(d){ hideLoading(); showToast('삭제 완료'); document.getElementById('modal').style.display='none'; fetchDB(function(){renderList();}); }).catch(function(e){ hideLoading(); showToast('실패', 'error'); }); }
