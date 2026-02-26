@@ -559,7 +559,7 @@ const colorPalette=['#0f172a','#1e3a8a','#1d4ed8','#3b82f6','#60a5fa','#93c5fd']
 const shareColors=['#ef4444','#f59e0b','#8b5cf6','#10b981','#3b82f6','#ec4899'];
 
 function sendSystemMessage(toName, text) {
-    var msg = { id: Date.now() + Math.floor(Math.random()*1000), from: currentUser.name, to: toName, text: text, time: new Date().toLocaleString(), timestamp: Date.now(), isRead: false, _localPending: true };
+    var msg = { id: Date.now() + Math.floor(Math.random()*1000), from: currentUser ? currentUser.name : '시스템', to: toName, text: text, time: new Date().toLocaleString(), timestamp: Date.now(), isRead: false, _localPending: true };
     messageList.push(msg);
     saveMsgLocal();
     fetch(GAS_URL, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'send_message', data: msg }) })
@@ -579,12 +579,12 @@ function requestRedistribution() {
 
     document.getElementById('input-status').value = '반납대기';
     var logText = "🤖 (시스템) 재분배 요청됨 (사유: " + reason + ")";
-    tempLogs.unshift({time: new Date().toLocaleString(), text: logText, writer: currentUser.name});
+    tempLogs.unshift({time: new Date().toLocaleString(), text: logText, writer: currentUser ? currentUser.name : '익명'});
     renderLogs();
     
     var adminUser = members.find(function(m) { return m.role === 'admin'; });
     var adminName = adminUser ? adminUser.name : '관리자';
-    var msgText = "🤖 [시스템 알림] " + currentUser.name + " 팀장이 '" + comp + "' 업체의 DB 재분배를 요청했습니다.\n사유: " + reason;
+    var msgText = "🤖 [시스템 알림] " + (currentUser ? currentUser.name : '팀원') + " 팀장이 '" + comp + "' 업체의 DB 재분배를 요청했습니다.\n사유: " + reason;
     sendSystemMessage(adminName, msgText);
     
     isModalDirty = true;
@@ -612,7 +612,7 @@ function executeRedistribution() {
     document.getElementById('input-end-reason').value = endRsn;
     
     var logText1 = "🤖 (시스템) 관리자 직권으로 [" + targetMem + "] 팀장에게 재배정됨";
-    tempLogs.unshift({time: new Date().toLocaleString(), text: logText1, writer: currentUser.name});
+    tempLogs.unshift({time: new Date().toLocaleString(), text: logText1, writer: currentUser ? currentUser.name : '관리자'});
     
     showLoading();
     var total = parseInt(document.getElementById('input-amount').value.replace(/,/g,'')) || 0;
@@ -821,7 +821,6 @@ function addTeamMember(){var nameInput=document.getElementById('new-member-name'
 function deleteTeamMember(targetName){if(targetName==='관리자')return showToast("관리자는 삭제할 수 없습니다.",'error');if(!confirm('정말 \''+targetName+'\' 팀원을 삭제하시겠습니까?'))return;showLoading();fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'del_member',name:targetName})}).then(function(res){return res.json()}).then(function(data){hideLoading();if(data.result==='success'){showToast("삭제되었습니다.");fetchDB(function(){renderMemberList()})}else{showToast("존재하지 않는 팀원입니다.",'error')}}).catch(function(err){hideLoading();showToast("서버 오류",'error')})}
 function changePassword(){var newPw=prompt("새로운 비밀번호를 입력하세요:");if(!newPw)return;if(newPw.length<4)return showToast("비밀번호는 4자 이상이어야 합니다.",'error');showLoading();fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'change_pw',name:currentUser.name,newPw:newPw})}).then(function(res){return res.json()}).then(function(data){hideLoading();if(data.result==='success'){showToast("변경되었습니다.");var hashedNewPw=sha256(newPw);if(localStorage.getItem('last_login_id')===currentUser.name)localStorage.setItem('last_login_pw',hashedNewPw);currentUser.pw=hashedNewPw}else{showToast("변경 실패",'error')}})}
 function toggleGradeField(){document.getElementById('group-grade-prov').style.display=(document.getElementById('input-source').value==='회사DB')?'block':'none'}
-
 function toggleStatusFields(isInit) {
     var s = document.getElementById('input-status').value;
     document.querySelectorAll('.dynamic-section').forEach(function(el){ el.classList.remove('active') });
@@ -884,7 +883,7 @@ function formatCurrency(input) {
 function exportToExcel(){
     try{
         if(typeof XLSX==='undefined') throw new Error('XLSX not loaded');
-        var data=[];var isAdmin=currentUser.role==='admin';
+        var data=[];var isAdmin=currentUser && currentUser.role==='admin';
         var headers=isAdmin?['접수일','담당자','업체명','대표자','연락처','지역','출처','통화상태','미팅일','진행상태','계약일','상품','총금액','순수실적']:['접수일','업체명','대표자','연락처','지역','출처','통화상태','미팅일','진행상태','계약일','상품','총금액','순수실적'];
         data.push(headers);
         totalFilteredData.forEach(function(d){
@@ -901,7 +900,7 @@ function exportToExcel(){
     }catch(e){ console.error('Excel error:',e); exportToCSV(); }
 }
 function exportToCSV(){
-    var isAdmin=currentUser.role==='admin';
+    var isAdmin=currentUser && currentUser.role==='admin';
     var headers=isAdmin?['접수일','담당자','업체명','대표자','연락처','지역','출처','통화상태','미팅일','진행상태','계약일','상품','총금액','순수실적']:['접수일','업체명','대표자','연락처','지역','출처','통화상태','미팅일','진행상태','계약일','상품','총금액','순수실적'];
     var csv='\uFEFF'+headers.join(',')+'\n';
     totalFilteredData.forEach(function(d){
@@ -949,7 +948,7 @@ function setupHistoryTabs(){
     var btnClass=function(tab){return'btn '+(historyTab===tab?'btn-primary':'btn-secondary')};
     
     if(currentUser && currentUser.role==='admin'){
-        var pendingCount = dbList.filter(function(d) { return d.status === '반납대기'; }).length;
+        var pendingCount = dbList.filter(function(d) { return d && d.status === '반납대기'; }).length;
         var newBadge = pendingCount > 0 ? ' <span style="background:#ef4444;color:white;font-size:10px;padding:2px 6px;border-radius:10px;animation:pulse 1s infinite;">'+pendingCount+'</span>' : '';
         tabsDiv.innerHTML=
             '<button class="'+btnClass('admin-prospect')+'" onclick="switchHistoryTab(\'admin-prospect\')">🌟 가망고객</button>'+
@@ -965,7 +964,7 @@ function setupHistoryTabs(){
 function switchHistoryTab(t){historyTab=t;setupHistoryTabs();renderHistory()}
 
 function navTo(page){
-    if(page==='dashboard'&&currentUser.role!=='admin')return showToast("관리자 권한 필요",'error');
+    if(page==='dashboard' && (!currentUser || currentUser.role!=='admin')) return showToast("관리자 권한 필요",'error');
     document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active')});
     var map={'list':'nav-list','analysis':'nav-analysis','history':'nav-history','calendar':'nav-calendar','message':'nav-message','dashboard':'nav-dashboard'};
     if(document.getElementById(map[page]))document.getElementById(map[page]).classList.add('active');
@@ -1140,7 +1139,7 @@ function renderYoYSummaryTable(){
     var tbody=document.querySelector('#yoy-summary-table tbody');tbody.innerHTML='';
     var thisY=new Date().getFullYear();
     var list=members.filter(function(m){return m.role!=='admin'}).map(function(m){
-        var myDB=dbList.filter(function(d){return d.member===m.name&&d.status==='계약'});
+        var myDB=dbList.filter(function(d){return d && d.member===m.name&&d.status==='계약'});
         var l=myDB.filter(function(d){var cd=getContractDate(d);return parseDBDate(cd).year===thisY-1}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);
         var t=myDB.filter(function(d){var cd=getContractDate(d);return parseDBDate(cd).year===thisY}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);
         l+=getShareRevenue(m.name,thisY-1,null);t+=getShareRevenue(m.name,thisY,null);
@@ -1179,10 +1178,10 @@ function renderYoYDetail(){
     var thisY=new Date().getFullYear();var lastY=thisY-1;
     var thisData=Array(12).fill(0);var lastData=Array(12).fill(0);
     if(currentUser && currentUser.role==='admin'){
-        dbList.forEach(function(d){if(d.status!=='계약')return;var contractDate=getContractDate(d);var parsed=parseDBDate(contractDate);var amt=parseInt(String(d.totalAmount||d.amount).toString().replace(/,/g,''))||0;if(d.shareList&&Array.isArray(d.shareList)){d.shareList.forEach(function(s){if(isExternalPartner(s.partner)&&s.amount>0)amt-=s.amount})}if(parsed.year===thisY)thisData[parsed.month-1]+=amt;if(parsed.year===lastY)lastData[parsed.month-1]+=amt})
+        dbList.forEach(function(d){if(!d || d.status!=='계약')return;var contractDate=getContractDate(d);var parsed=parseDBDate(contractDate);var amt=parseInt(String(d.totalAmount||d.amount).toString().replace(/,/g,''))||0;if(d.shareList&&Array.isArray(d.shareList)){d.shareList.forEach(function(s){if(isExternalPartner(s.partner)&&s.amount>0)amt-=s.amount})}if(parsed.year===thisY)thisData[parsed.month-1]+=amt;if(parsed.year===lastY)lastData[parsed.month-1]+=amt})
     }else if(currentUser){
-        var targetDB=dbList.filter(function(d){return d.member===currentUser.name});
-        targetDB.forEach(function(d){if(d.status!=='계약')return;var contractDate=getContractDate(d);var parsed=parseDBDate(contractDate);var amt=parseInt(String(d.amount).replace(/,/g,''))||0;if(parsed.year===thisY)thisData[parsed.month-1]+=amt;if(parsed.year===lastY)lastData[parsed.month-1]+=amt});
+        var targetDB=dbList.filter(function(d){return d && d.member===currentUser.name});
+        targetDB.forEach(function(d){if(!d || d.status!=='계약')return;var contractDate=getContractDate(d);var parsed=parseDBDate(contractDate);var amt=parseInt(String(d.amount).replace(/,/g,''))||0;if(parsed.year===thisY)thisData[parsed.month-1]+=amt;if(parsed.year===lastY)lastData[parsed.month-1]+=amt});
         getVirtualShareEntries(currentUser.name).forEach(function(se){var parsed=parseDBDate(se.contractDate);if(parsed.year===thisY)thisData[parsed.month-1]+=se.amount;if(parsed.year===lastY)lastData[parsed.month-1]+=se.amount})
     }
     var thisTotal=thisData.reduce(function(a,b){return a+b},0);var lastTotal=lastData.reduce(function(a,b){return a+b},0);
@@ -1213,8 +1212,8 @@ function renderRevenueChart(lastData,thisData,lastY,thisY){
 }
 function renderMonthlyKPI() {
     var ty = new Date().getFullYear();
-    var d = (currentUser && currentUser.role === 'admin') ? dbList : dbList.filter(function(x){return currentUser && x.member === currentUser.name;});
-    d = d.filter(function(x) { var contractDate = getContractDate(x); return parseDBDate(contractDate).year === ty && x.status === '계약'; });
+    var d = (currentUser && currentUser.role === 'admin') ? dbList : dbList.filter(function(x){return currentUser && x && x.member === currentUser.name;});
+    d = d.filter(function(x) { if(!x)return false; var contractDate = getContractDate(x); return parseDBDate(contractDate).year === ty && x.status === '계약'; });
     if(currentUser && currentUser.role !== 'admin') {
         var virtualShares = getVirtualShareEntries(currentUser.name).filter(function(ve) {
             return parseDBDate(ve.contractDate).year === ty;
@@ -1225,6 +1224,7 @@ function renderMonthlyKPI() {
     var data = {};
     sources.forEach(function(s) { data[s] = Array(12).fill().map(function(){ return { cnt: 0, amt: 0 }; }); });
     d.forEach(function(x) {
+        if(!x) return;
         var contractDate = getContractDate(x);
         var parsed = parseDBDate(contractDate);
         var src = x.source || "";
@@ -1250,7 +1250,7 @@ function renderMemberPerformance() {
     var tbody = document.getElementById('member-perf-body'); if(!tbody) return; tbody.innerHTML = '';
     if(!currentUser) return;
     var now = new Date(); var thisYear = now.getFullYear(); var thisMonth = now.getMonth() + 1;
-    var myDB = dbList.filter(function(d){return d.member === currentUser.name;});
+    var myDB = dbList.filter(function(d){return d && d.member === currentUser.name;});
     var monthlyDB = myDB.filter(function(d) { var p = parseDBDate(d.date); return p.year === thisYear && p.month === thisMonth; });
     var monthlyMeet = monthlyDB.filter(function(d){return d.meetDate;}).length;
     var monthlyProspect = monthlyDB.filter(function(d){return d.status === '가망고객';}).length;
@@ -1545,7 +1545,7 @@ function saveData(shouldCloseModal) {
     var shareList = [], ded = 0;
     
     for(var i=1; i<=3; i++) {
-        var var partnerSel = document.getElementById('share-partner-' + i);
+        var partnerSel = document.getElementById('share-partner-' + i);
         var pctInput = document.getElementById('share-percent-' + i);
         var p = partnerSel.value || (partnerSel.options[partnerSel.selectedIndex] ? partnerSel.options[partnerSel.selectedIndex].value : '');
         var pct = parseInt(pctInput.value) || 0;
