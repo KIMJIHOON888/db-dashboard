@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<html lang="ko">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DB Pro Master v24.25</title>
     <link href="./DB Pro Master v24.25(260213최종)_files/all.min.css" rel="stylesheet">
@@ -73,7 +75,7 @@
         .status-done { background: #dcfce7; color: #16a34a; }
         .status-end { background: #fee2e2; color: #dc2626; }
         .status-share { background: #ffedd5; color: #c2410c; }
-        .status-pending { background: #fce7f3; color: #e11d48; border: 1px solid #f9a8d4; } /* 반납대기용 뱃지 스타일 */
+        .status-pending { background: #fce7f3; color: #e11d48; border: 1px solid #f9a8d4; }
         .call-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
         .call-none { background: #f1f5f9; color: #94a3b8; }
         .call-absent { background: #fef3c7; color: #d97706; }
@@ -197,7 +199,6 @@
         .sidebar.admin-mode .nav-special-message { background: linear-gradient(135deg, #14532d 0%, #166534 100%); border: 1px solid #22c55e; color: #f0fdf4 !important; }
         .sidebar.admin-mode .nav-special-request { background: linear-gradient(135deg, #78350f 0%, #92400e 100%); border: 1px solid #f59e0b; color: #fffbeb !important; }
         
-        /* 반납대기 시 패널 잠금을 위한 오버레이 */
         #modal-overlay-lock { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.6); z-index: 10; display: none; cursor: not-allowed; }
     </style>
 </head>
@@ -730,7 +731,7 @@ function toggleStatusFields(isInit) {
     var s = document.getElementById('input-status').value;
     document.querySelectorAll('.dynamic-section').forEach(function(el){ el.classList.remove('active') });
     
-    // ★ 반납대기 시 폼 잠금(Lock) 제어 로직
+    // ★ 반납대기 시 폼 잠금(Lock) 제어 로직 추가
     var lockOverlay = document.getElementById('modal-overlay-lock');
     var actionButtons = document.getElementById('modal-action-buttons');
     var reassignArea = document.getElementById('reassign-req-area');
@@ -746,17 +747,17 @@ function toggleStatusFields(isInit) {
     } else {
         lockOverlay.style.display = 'none';
         if(actionButtons) actionButtons.style.display = 'flex';
-        // ★ 수정: '종료' 상태에서도 재배정 요청 버튼 보이기! (계약만 제외)
-        if(reassignArea && currentUser.role !== 'admin' && (s==='대기' || s==='진행중' || s==='가망고객' || s==='종료')) {
+        // 대기, 진행중, 가망고객일 때만 재배정 요청 버튼 보이기
+        if(reassignArea && currentUser.role !== 'admin' && (s==='대기' || s==='진행중' || s==='가망고객')) {
             reassignArea.style.display = 'block';
         } else if(reassignArea) {
             reassignArea.style.display = 'none';
         }
     }
 
-    // ★ 수정: 관리자 패널은 '계약' 건에만 숨기고, '종료' 건에서는 다시 나타나게 함!
+    // 계약/종료 건은 관리자 패널도 숨기기 (계약 완료 건에 굳이 띄울 필요 없음)
     if (currentUser.role === 'admin' && adminPanel) {
-        if (s === '계약') adminPanel.style.display = 'none';
+        if (s === '계약' || s === '종료') adminPanel.style.display = 'none';
         else adminPanel.style.display = 'block';
     }
     
@@ -1492,4 +1493,7 @@ function handleDragOver(e) { if(e.preventDefault) e.preventDefault(); e.dataTran
 function handleDragLeave(e) { var t=e.target.closest('.rm-item-chip'); if(t) t.classList.remove('drag-over'); }
 function handleDrop(e, dropIndex) { if(e.stopPropagation) e.stopPropagation(); if(dragSrcIndex!==dropIndex) { var item=tempRoadmap[dragSrcIndex]; tempRoadmap.splice(dragSrcIndex,1); tempRoadmap.splice(dropIndex,0,item); resetRoadmapInput(); renderRoadmapView(); } return false; }
 function handleDragEnd(e) { document.querySelectorAll('.rm-item-chip').forEach(function(el){el.classList.remove('dragging'); el.classList.remove('drag-over');}); setTimeout(function() { isDragging = false; }, 100); }
-function renderRoadmapView() { var tbody = document.getElementById('rm-body'); var listDiv = document.getElementById('rm-list'); var h1 = document.getElementById('rm-header-row-1'); var h2 = document.getElementById('rm-header-row-2'); tbody.innerHTML=''; listDiv.innerHTML=''; var maxMonth=12; tempRoadmap.forEach(function(i){if(i.start+i.duration-1>maxMonth) maxMonth=i.start+i.duration-1;}); var years=Math.ceil(maxMonth/12); var baseYear=new Date().getFullYear(); var hh1='<th class="rm-header rm-diagonal" style="width:120px;" rowspan="2"><span class="rm-diagonal-text rm-text-bottom-left">항목</span><span class="rm-diagonal-text rm-text-top-right">일정</span></th>'; var hh2=''; for(var y=0; y<years; y++) { hh1+='<th class="rm-header" colspan="12">' + (baseYear+y) + '</th>'; for(var m=1; m<=12; m++) hh2+='<th class="rm-subheader">' + m + '</th>'; } h1.innerHTML=hh1; h2.innerHTML=hh2; if(tempRoadmap.length===0) listDiv.innerHTML='<div style="text-align:center;color:#94a3b8;font-size:12px;">항목 없음</div>'; else tempRoadmap.forEach(function(item,idx){ var chip=document.createElement('div'); chip.className='rm-item-chip'; chip.draggable=true; chip.innerHTML='<i class="fa-solid fa-grip-vertical" style="color:#94a3b8;margin-right:5px;"></i><span style="font-weight:bold;color:#334155;">' + item.name + '</span><i class="fa-solid fa-xmark" style="color:#ef4444;margin-left:8px;cursor:pointer;"></i>'; chip.addEventListener('dragstart',function(e){handleDragStart(e,idx);}); chip.addEventListener('dragover',handleDragOver); chip.addEventListener('dragleave',handleDragLeave); chip.addEventListener('drop',function(e){handleDrop(e,idx);}); chip.addEventListener('dragend',handleDragEnd); chip.onclick=function(){loadRoadmapItemForEdit(idx);}; chip.querySelector('.fa-xmark').onclick=function(e){e.stopPropagation(); removeRoadmapItem(idx);}; listDiv.appendChild(chip); }); if(tempRoadmap.length===0) { tbody.innerHTML='<tr><td colspan="' + (1+(years*12)) + '" style="text-align:center;padding:20px;color:#cbd5e1;">비어있음</td></tr>'; return; } tempRoadmap.forEach(function(item,idx){ var tr='<tr>'; var cHex=colorPalette[Math.min(idx,5)]; var tCol=(Math.min(idx,5)>=5)?'#1e293b':'white'; tr+='<td class="rm-cat-col" onclick="loadRoadmapItemForEdit(' + idx + ')" style="background:' + cHex + ';color:' + tCol + ';cursor:pointer;">' + item.name + '</td>'; var cols=years*12; for(var i=1; i<=cols; i++) { if(i===item.start) { var desc=item.desc?item.desc.replace(/\/\//g,'<br>'):''; var align=item.align||'center'; var cont=''; if(align==='out') { cont='<div class="rm-bar-container" style="width:100%;background:' + cHex + ';"></div><div class="rm-bar-outer-text">' + desc + '</div>'; } else { cont='<div class="rm-bar-container rm-align-' + align + '" style="width:100%;background:' + cHex + ';color:' + tCol + ';">' + desc + '</div>'; } tr+='<td class="rm-cell" colspan="' + item.duration + '" onclick="loadRoadmapItemForEdit(' + idx + ')">' + cont + '</td>'; i+=(item.duration-1); } else { tr+='<td class="rm-cell"></td>'; } } tr+='</tr>'; tbody.innerHTML+=tr; }); }    
+function renderRoadmapView() { var tbody = document.getElementById('rm-body'); var listDiv = document.getElementById('rm-list'); var h1 = document.getElementById('rm-header-row-1'); var h2 = document.getElementById('rm-header-row-2'); tbody.innerHTML=''; listDiv.innerHTML=''; var maxMonth=12; tempRoadmap.forEach(function(i){if(i.start+i.duration-1>maxMonth) maxMonth=i.start+i.duration-1;}); var years=Math.ceil(maxMonth/12); var baseYear=new Date().getFullYear(); var hh1='<th class="rm-header rm-diagonal" style="width:120px;" rowspan="2"><span class="rm-diagonal-text rm-text-bottom-left">항목</span><span class="rm-diagonal-text rm-text-top-right">일정</span></th>'; var hh2=''; for(var y=0; y<years; y++) { hh1+='<th class="rm-header" colspan="12">' + (baseYear+y) + '</th>'; for(var m=1; m<=12; m++) hh2+='<th class="rm-subheader">' + m + '</th>'; } h1.innerHTML=hh1; h2.innerHTML=hh2; if(tempRoadmap.length===0) listDiv.innerHTML='<div style="text-align:center;color:#94a3b8;font-size:12px;">항목 없음</div>'; else tempRoadmap.forEach(function(item,idx){ var chip=document.createElement('div'); chip.className='rm-item-chip'; chip.draggable=true; chip.innerHTML='<i class="fa-solid fa-grip-vertical" style="color:#94a3b8;margin-right:5px;"></i><span style="font-weight:bold;color:#334155;">' + item.name + '</span><i class="fa-solid fa-xmark" style="color:#ef4444;margin-left:8px;cursor:pointer;"></i>'; chip.addEventListener('dragstart',function(e){handleDragStart(e,idx);}); chip.addEventListener('dragover',handleDragOver); chip.addEventListener('dragleave',handleDragLeave); chip.addEventListener('drop',function(e){handleDrop(e,idx);}); chip.addEventListener('dragend',handleDragEnd); chip.onclick=function(){loadRoadmapItemForEdit(idx);}; chip.querySelector('.fa-xmark').onclick=function(e){e.stopPropagation(); removeRoadmapItem(idx);}; listDiv.appendChild(chip); }); if(tempRoadmap.length===0) { tbody.innerHTML='<tr><td colspan="' + (1+(years*12)) + '" style="text-align:center;padding:20px;color:#cbd5e1;">비어있음</td></tr>'; return; } tempRoadmap.forEach(function(item,idx){ var tr='<tr>'; var cHex=colorPalette[Math.min(idx,5)]; var tCol=(Math.min(idx,5)>=5)?'#1e293b':'white'; tr+='<td class="rm-cat-col" onclick="loadRoadmapItemForEdit(' + idx + ')" style="background:' + cHex + ';color:' + tCol + ';cursor:pointer;">' + item.name + '</td>'; var cols=years*12; for(var i=1; i<=cols; i++) { if(i===item.start) { var desc=item.desc?item.desc.replace(/\/\//g,'<br>'):''; var align=item.align||'center'; var cont=''; if(align==='out') { cont='<div class="rm-bar-container" style="width:100%;background:' + cHex + ';"></div><div class="rm-bar-outer-text">' + desc + '</div>'; } else { cont='<div class="rm-bar-container rm-align-' + align + '" style="width:100%;background:' + cHex + ';color:' + tCol + ';">' + desc + '</div>'; } tr+='<td class="rm-cell" colspan="' + item.duration + '" onclick="loadRoadmapItemForEdit(' + idx + ')">' + cont + '</td>'; i+=(item.duration-1); } else { tr+='<td class="rm-cell"></td>'; } } tr+='</tr>'; tbody.innerHTML+=tr; }); }
+</script>
+</body>
+</html>
