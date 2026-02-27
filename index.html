@@ -201,6 +201,12 @@
         .sidebar.admin-mode .nav-special-calendar { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); border: 1px solid #3b82f6; color: #eff6ff !important; }
         .sidebar.admin-mode .nav-special-message { background: linear-gradient(135deg, #14532d 0%, #166534 100%); border: 1px solid #22c55e; color: #f0fdf4 !important; }
         .sidebar.admin-mode .nav-special-request { background: linear-gradient(135deg, #78350f 0%, #92400e 100%); border: 1px solid #f59e0b; color: #fffbeb !important; }
+
+        /* ★ v24.26 재배정/동결 스타일 */
+        .frozen-row td { background: #f1f5f9 !important; color: #94a3b8 !important; }
+        .frozen-row:hover { background: #f1f5f9 !important; cursor: default !important; }
+        .frozen-banner { background: linear-gradient(90deg,#fee2e2,#fecaca); color: #dc2626; padding: 14px 18px; border-radius: 10px; font-weight: 700; margin-bottom: 15px; border: 1px solid #fca5a5; font-size: 14px; }
+        .reassign-queue-item { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -209,8 +215,11 @@
 
 <div id="login-screen">
     <div class="login-box">
-        <h2 style="color:var(--primary); margin-bottom:10px;"><i class="fa-solid fa-server"></i> DB Pro Master</h2>
-        <div style="font-size:14px; color:#64748b; margin-bottom:20px; font-weight:600;">v24.25</div>
+        <div style="text-align:center; margin-bottom:22px;">
+            <img src="logo_final.png" style="width:240px; height:auto; display:block; margin:0 auto;" alt="오너스 경영연구소">
+            <div style="font-size:12px; color:#94a3b8; margin-top:10px; font-weight:500;">개발자 : 김지훈</div>
+        </div>
+        <div style="font-size:14px; color:#64748b; margin-bottom:20px; font-weight:600;">DB Pro Master v24.26</div>
         <div id="login-loading" style="display: none; text-align: center; margin-bottom: 15px; color: var(--primary);"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i><br><span style="font-size:12px; font-weight:600;">접속 중...</span></div>
         <input type="text" id="login-user-name" class="login-input" placeholder="성함 입력 (예: 홍길동)" onkeypress="if(event.keyCode==13) document.getElementById('login-pw').focus()">
         <input type="password" id="login-pw" class="login-input" placeholder="비밀번호" onkeypress="if(event.keyCode==13) attemptLogin('member')">
@@ -248,6 +257,7 @@
         <div id="nav-dashboard" class="nav-item" onclick="navTo('dashboard'); toggleMobileMenu();"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑</div>
         <div id="nav-members" class="nav-item" onclick="openMemberModal(); toggleMobileMenu();"><i class="fa-solid fa-users-gear"></i> 팀원 관리</div>
         <div id="nav-admin-request" class="nav-item nav-special-request" onclick="openAdminRequestModal(); toggleMobileMenu();"><i class="fa-solid fa-envelope-open-text"></i> 팀원 요청글 <span id="request-badge" style="display:none; background:#ef4444; color:white; padding:2px 6px; border-radius:10px; font-size:11px; margin-left:5px; animation: pulse 1.5s infinite;">0</span></div>
+        <div id="nav-reassign-queue" class="nav-item" style="background:linear-gradient(135deg,#fff7ed,#fed7aa); border:1px solid #fdba74; color:#c2410c !important; font-weight:800 !important; margin-top:6px;" onclick="openReassignQueueModal(); toggleMobileMenu();"><i class="fa-solid fa-inbox"></i> 재배정 대기함 <span id="reassign-badge" style="display:none; background:#ef4444; color:white; padding:2px 6px; border-radius:10px; font-size:11px; margin-left:5px; animation: pulse 1.5s infinite;">0</span></div>
     </div>
     <button onclick="logout()" style="margin-top:auto; background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px;"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
 </div>
@@ -570,111 +580,73 @@ function sendSystemMessage(toName, text) {
 // ★ 팀원: SM취합/재분배 요청 기능 (방어 로직 추가 완벽판)
 function requestRedistribution() {
     var comp = document.getElementById('input-company').value.trim();
-    if(!comp) {
-        alert("업체명이 비어있습니다. 업체명을 먼저 기입해주세요.");
-        document.getElementById('input-company').focus();
-        return;
-    }
-
-    var reason = prompt("재분배(SM취합) 요청 사유를 입력해주세요.\n(예: 장기 부재, 가망 없음 등)");
-    if(reason === null) return; 
+    if(!comp) { alert("업체명을 먼저 기입해주세요."); document.getElementById('input-company').focus(); return; }
+    var targetDB = dbList.find(function(x) { return x.id == currentId; });
+    if(!targetDB) return showToast('DB를 찾을 수 없습니다.', 'error');
+    if(targetDB.status === '계약' || targetDB.status === '종료') return showToast('계약/종료 DB는 재배정 불가합니다.', 'error');
+    var reason = prompt("재배정 요청 사유를 입력해주세요.
+(예: 연락두절, 업종불일치, 장기부재)");
+    if(reason === null) return;
     if(reason.trim() === '') return showToast("사유를 입력해야 합니다.", "error");
-
-    var logText = "🤖 (시스템) 재분배 요청됨 (사유: " + reason + ")";
+    targetDB.isFrozen = true;
+    targetDB.frozenReason = "팀원요청: " + reason;
+    targetDB.frozenAt = new Date().toLocaleString();
+    targetDB.frozenBy = currentUser.name;
+    var logText = "🤖 (시스템) 재배정 요청됨 (사유: " + reason + ")";
     tempLogs.unshift({time: new Date().toLocaleString(), text: logText, writer: currentUser.name});
     renderLogs();
-    
     var adminUser = members.find(function(m) { return m.role === 'admin'; });
-    var adminName = adminUser ? adminUser.name : '관리자';
-    var msgText = "🤖 [시스템 알림] " + currentUser.name + " 팀장이 '" + comp + "' 업체의 DB 재분배를 요청했습니다.\n사유: " + reason;
-    sendSystemMessage(adminName, msgText);
-    
+    sendSystemMessage(adminUser ? adminUser.name : '관리자', "🔔 [재배정요청] " + currentUser.name + "님이 '" + comp + "' 업체의 재배정을 요청했습니다.
+사유: " + reason);
     isModalDirty = true;
-    saveData(false); 
-    showToast("재분배 요청이 관리자에게 전송되었습니다.");
-    document.getElementById('reassign-req-area').style.display = 'none';
+    saveSpecificDB(targetDB);
+    renderList();
+    updateReassignBadge();
+    showToast("✅ 재배정 요청 완료! DB가 잠겼습니다.", "success");
+    if(document.getElementById('reassign-req-area')) document.getElementById('reassign-req-area').style.display = 'none';
 }
 
-// ★ 관리자: 강제 재배정 실행 기능 (복제 & 동결 로직)
+
 function executeRedistribution() {
-    var targetMem = document.getElementById('admin-reassign-target').value;
-    if(!targetMem) return showToast('재배정할 팀원을 선택하세요.', 'error');
-    
+    var newMember = document.getElementById('admin-reassign-target').value;
+    if(!newMember) return showToast('새 담당자를 선택하세요!', 'error');
     var originalId = document.getElementById('edit-id').value;
     var originalDB = dbList.find(function(x) { return x.id == originalId; });
     if(!originalDB) return showToast('DB를 찾을 수 없습니다.', 'error');
 
-    if(!confirm('[' + targetMem + '] 팀장에게 이 DB를 재배정 하시겠습니까?\n\n※ 기존 DB는 "종료" 처리되어 보존되며, 새로운 DB가 복제되어 타겟 팀원에게 생성됩니다.')) return;
+    originalDB.isFrozen = true;
+    originalDB.status = '동결완료';
+    originalDB.frozenReason = (originalDB.frozenReason || '') + " → " + newMember + " 재배정됨";
+    originalDB.reassignedTo = newMember;
+    originalDB.reassignedAt = new Date().toLocaleString();
 
-    var compName = document.getElementById('input-company').value.trim() || originalDB.company || '이름없음';
+    var newDB = JSON.parse(JSON.stringify(originalDB));
+    newDB.id = Date.now();
+    newDB.member = newMember;
+    newDB.status = '대기';
+    newDB.amount = 0;
+    newDB.isFrozen = false;
+    newDB.frozenReason = null;
+    newDB.frozenBy = null;
+    newDB.frozenAt = null;
+    newDB.reassignedTo = null;
+    newDB.source = '재배정';
+    newDB.isNewAssigned = true;
+    var baseComp = (originalDB.company || '');
+    newDB.company = baseComp + ' [' + (originalDB.frozenBy || originalDB.member) + '→]';
+    newDB.date = new Date().toISOString().split('T')[0];
 
-    // 1. 원본 DB 동결 세팅
-    document.getElementById('input-status').value = '종료';
-    toggleStatusFields(true);
-    document.getElementById('input-end-reason').value = 'SM취합(재배정)';
-    var logText1 = "🤖 (시스템) 관리자 직권으로 [" + targetMem + "] 팀장에게 재배정됨";
-    tempLogs.unshift({time: new Date().toLocaleString(), text: logText1, writer: currentUser.name});
-    
-    showLoading();
-    
-    var total = parseInt(document.getElementById('input-amount').value.replace(/,/g,'')) || 0;
-    
-    var frozenObj = {
-        id: originalId, member: originalDB.member, date: document.getElementById('input-date').value,
-        source: document.getElementById('input-source').value, gradeProv: document.getElementById('input-grade-prov').value,
-        company: compName, ceo: document.getElementById('input-ceo').value, phone: document.getElementById('input-phone').value,
-        industry: document.getElementById('input-industry').value, revenue: document.getElementById('input-revenue').value,
-        callStatus: document.getElementById('input-call-status').value, credit: document.getElementById('input-credit').value,
-        annualRev: parseInt(document.getElementById('input-annual-rev').value.replace(/,/g,''))||0, tax: document.getElementById('input-tax').value,
-        region: document.getElementById('input-region').value, meetDate: document.getElementById('input-meet-date').value,
-        status: '종료', waitReason: document.getElementById('input-wait-reason').value, ingDetail: document.getElementById('input-ing-detail').value,
-        prospectDetail: document.getElementById('input-prospect-detail').value, endReason: 'SM취합(재배정)',
-        contractDate: document.getElementById('input-contract-date').value, product: document.getElementById('input-product').value,
-        totalAmount: total, amount: total, shareList: originalDB.shareList || [], consulting: document.getElementById('input-consulting').value,
-        phoneIssue: document.getElementById('input-phone-issue').value, logs: tempLogs, roadmap: tempRoadmap, hasAdminAlert: false
-    };
+    dbList.push(newDB);
+    saveSpecificDB(originalDB);
+    saveSpecificDB(newDB);
+    sendSystemMessage(newMember, '🎁 [새 DB 배정] ' + baseComp + ' DB가 새로 배정되었습니다!');
 
-    // 2. 새 복제 DB 생성 세팅
-    var newId = Date.now() + 100; // 고유 ID 보장
-    var clonedLogs = tempLogs.slice();
-    clonedLogs.unshift({time: new Date().toLocaleString(), text: "🤖 (시스템) [" + originalDB.member + "] 팀장으로부터 인계받은 재배정 DB입니다.", writer: "시스템"});
-
-    var newObj = {
-        id: newId, member: targetMem, date: new Date().toISOString().split('T')[0], 
-        source: '팀DB', gradeProv: frozenObj.gradeProv,
-        company: frozenObj.company, ceo: frozenObj.ceo, phone: frozenObj.phone,
-        industry: frozenObj.industry, revenue: frozenObj.revenue,
-        callStatus: frozenObj.callStatus, credit: frozenObj.credit,
-        annualRev: frozenObj.annualRev, tax: frozenObj.tax,
-        region: frozenObj.region, meetDate: '', // 미팅일 초기화
-        status: '대기', waitReason: '재배정 수령', ingDetail: frozenObj.ingDetail,
-        prospectDetail: frozenObj.prospectDetail, endReason: '',
-        contractDate: '', product: '',
-        totalAmount: 0, amount: 0, shareList: [], consulting: frozenObj.consulting,
-        phoneIssue: frozenObj.phoneIssue, logs: clonedLogs, roadmap: frozenObj.roadmap, hasAdminAlert: true 
-    };
-
-    // 통신 시퀀스: 동결본 저장 -> 새 복제본 저장 -> 마무리
-    fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'save', data:frozenObj}) })
-    .then(function(r){ return r.json(); })
-    .then(function(d1) {
-        return fetch(GAS_URL, { method:'POST', body:JSON.stringify({action:'save', data:newObj}) });
-    })
-    .then(function(r2){ return r2.json(); })
-    .then(function(d2) {
-        var msgText = "🤖 [알림] 새로운 재배정 DB가 도착했습니다! (업체명: " + compName + ")";
-        sendSystemMessage(targetMem, msgText);
-        
-        hideLoading();
-        showToast("성공적으로 재배정 되었습니다.");
-        isModalDirty = false;
-        closeModal();
-        fetchDB(function() { renderAdminDashboard(); renderList(); checkMeetingAlerts(); });
-    })
-    .catch(function(e) {
-        hideLoading(); showToast('재배정 처리 중 오류가 발생했습니다.', 'error');
-    });
+    renderList();
+    updateReassignBadge();
+    showToast('✅ ' + newMember + '에게 재배정 완료!', 'success');
+    closeModal();
 }
+
 
 function getVirtualShareEntries(partnerName){var entries=[];dbList.forEach(function(d){if(d.status!=='계약'||!d.shareList||!Array.isArray(d.shareList))return;d.shareList.forEach(function(s){if(s.partner===partnerName&&s.amount>0){entries.push({id:d.id,member:partnerName,date:d.contractDate||d.date,source:d.member+'쉐어',company:d.company,status:'계약',amount:s.amount,totalAmount:s.amount,contractDate:d.contractDate||d.date,product:d.product||'',ceo:d.ceo||'',phone:d.phone||'',region:d.region||'',industry:d.industry||'',meetDate:'',callStatus:'',isVirtualShare:true,originalId:d.id,originalMember:d.member,sharePercent:s.percent})}});});return entries}
 function getShareRevenue(memberName,year,month){var rev=0;getVirtualShareEntries(memberName).forEach(function(e){var p=parseDBDate(e.contractDate);if(year&&p.year!==year)return;if(month&&p.month!==month)return;rev+=e.amount});return rev}
@@ -1665,6 +1637,104 @@ function renderRoadmapView() { var tbody = document.getElementById('rm-body'); v
             }).catch(function(e) { console.log('Read mark sync pending'); });
         }
     }
+
+// =============================================
+// ★ DB Pro Master v24.26 재배정 헬퍼
+// =============================================
+function saveSpecificDB(db) {
+    fetch(GAS_URL, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'save', data: db }) }).catch(function(){});
+}
+function updateReassignBadge() {
+    if(!currentUser || currentUser.role !== 'admin') return;
+    var count = dbList.filter(function(db) {
+        return db.isFrozen && db.frozenReason && db.frozenReason.indexOf('팀원요청') === 0 && db.status !== '동결완료';
+    }).length;
+    var badge = document.getElementById('reassign-badge');
+    if(!badge) return;
+    if(count > 0) { badge.style.display='inline'; badge.innerText=count; }
+    else { badge.style.display='none'; }
+}
+function openReassignQueueModal() {
+    document.getElementById('reassign-queue-modal').style.display='flex';
+    renderReassignQueue();
+}
+function closeReassignQueueModal() {
+    document.getElementById('reassign-queue-modal').style.display='none';
+}
+function renderReassignQueue() {
+    var list = document.getElementById('reassign-queue-list');
+    var pending = dbList.filter(function(db) {
+        return db.isFrozen && db.frozenReason && db.frozenReason.indexOf('팀원요청') === 0 && db.status !== '동결완료';
+    });
+    if(!pending.length) {
+        list.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:40px;"><i class="fa-solid fa-inbox" style="font-size:40px;opacity:0.3;"></i><br><br>재배정 대기 중인 DB가 없습니다.</div>';
+        return;
+    }
+    list.innerHTML = pending.map(function(db) {
+        var opts = members.filter(function(m){ return m.role!=='admin' && m.name!==db.member; })
+          .map(function(m){ return '<option value="'+m.name+'">'+m.name+'</option>'; }).join('');
+        return '<div class="reassign-queue-item">'
+          + '<div style="font-weight:700;font-size:15px;margin-bottom:6px;">'+(db.company||'')+'</div>'
+          + '<div style="font-size:12px;color:#64748b;margin-bottom:4px;">📌 현재 담당: '+(db.member||'')+'</div>'
+          + '<div style="font-size:12px;color:#dc2626;margin-bottom:12px;">⚠️ '+(db.frozenReason||'')+'</div>'
+          + '<div style="display:flex;gap:8px;align-items:center;">'
+          + '<select id="rq-target-'+db.id+'" style="flex:1;padding:8px;border-radius:6px;border:1px solid #cbd5e1;">'+opts+'</select>'
+          + '<button onclick="doQueueReassign(''+db.id+'')" style="background:#059669;color:white;border:none;padding:8px 16px;border-radius:6px;font-weight:700;cursor:pointer;">재배정 실행</button>'
+          + '</div></div>';
+    }).join('');
+}
+function doQueueReassign(dbId) {
+    var newMember = document.getElementById('rq-target-'+dbId).value;
+    if(!newMember) return showToast('담당자를 선택하세요!','error');
+    var orig = dbList.find(function(x){ return String(x.id)===String(dbId); });
+    if(!orig) return showToast('DB를 찾을 수 없습니다.','error');
+
+    orig.isFrozen = true;
+    orig.status = '동결완료';
+    orig.frozenReason = (orig.frozenReason || '') + ' → ' + newMember + ' 재배정됨';
+    orig.reassignedTo = newMember;
+    orig.reassignedAt = new Date().toLocaleString();
+
+    var nd = JSON.parse(JSON.stringify(orig));
+    nd.id = Date.now();
+    nd.member = newMember;
+    nd.status = '대기';
+    nd.amount = 0;
+    nd.isFrozen = false;
+    nd.frozenReason = null;
+    nd.frozenBy = null;
+    nd.frozenAt = null;
+    nd.reassignedTo = null;
+    nd.source = '재배정';
+    nd.isNewAssigned = true;
+    nd.company = (orig.company||'') + ' [' + (orig.frozenBy || orig.member) + '→]';
+    nd.date = new Date().toISOString().split('T')[0];
+
+    dbList.push(nd);
+    saveSpecificDB(orig);
+    saveSpecificDB(nd);
+    sendSystemMessage(newMember, '🎁 [새 DB 배정] ' + (orig.company||'') + ' DB가 새로 배정되었습니다!');
+    showToast('✅ ' + newMember + '에게 재배정 완료!','success');
+    renderReassignQueue();
+    renderList();
+    updateReassignBadge();
+}
+
 </script>
+
+<!-- ★ 재배정 대기함 모달 v24.26 -->
+<div class="modal-overlay" id="reassign-queue-modal">
+  <div class="modal-window" style="width:680px; height:auto; max-height:85vh;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-inbox"></i> 재배정 대기함</h3>
+      <button onclick="closeReassignQueueModal()" style="border:none;background:none;font-size:24px;cursor:pointer;">×</button>
+    </div>
+    <div class="modal-body" style="display:block; padding:20px; overflow-y:auto; max-height:calc(85vh - 80px);">
+      <div id="reassign-queue-list"></div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
