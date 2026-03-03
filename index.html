@@ -694,9 +694,7 @@ function renderFilters(){
     var callF='<select id="filter-call" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select>';
     if(currentUser.role==='admin'){
         c.innerHTML=sh+'<select id="filter-year" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-month" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-source" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option></select>'+callF+'<select id="filter-status" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option><option value="frozen">🔒 재배정(동결)</option></select><select id="filter-member" style="padding:10px;border:1px solid #2563eb;color:#2563eb;font-weight:bold;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 팀원 보기</option></select>';
-        var ms = document.getElementById('filter-member');
-    var sortedMembers = sortMemberNames(members, '');
-    sortedMembers.forEach(function(m){if(m.role!=='admin')ms.innerHTML+='<option value="'+m.name+'">'+m.name+'</option>'});
+        var ms=document.getElementById('filter-member');members.forEach(function(m){if(m.role!=='admin')ms.innerHTML+='<option value="'+m.name+'">'+m.name+'</option>'});
     }else{
         c.innerHTML=sh+'<select id="filter-year" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-month" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-source" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option></select>'+callF+'<select id="filter-status" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option></select>';
     }
@@ -780,15 +778,55 @@ function changePage(dir){var tp=Math.ceil(totalFilteredData.length/pageSize);cur
 function toggleGradeField(){document.getElementById('group-grade-prov').style.display=(document.getElementById('input-source').value==='회사DB')?'block':'none'}
 function toggleStatusFields(isInit){var s=document.getElementById('input-status').value;document.querySelectorAll('.dynamic-section').forEach(function(el){el.classList.remove('active')});if(s==='대기')document.getElementById('box-wait').classList.add('active');if(s==='진행중')document.getElementById('box-ing').classList.add('active');if(s==='가망고객')document.getElementById('box-prospect').classList.add('active');if(s==='계약'){document.getElementById('box-contract').classList.add('active');if(isInit!==true){updateShareFields();calculateShare()}}if(s==='종료')document.getElementById('box-end').classList.add('active');document.getElementById('btn-roadmap-area').style.display=(s==='진행중'||s==='계약')?'block':'none'}
 function sortMemberNames(ml,cm){var s=[],k=[];ml.forEach(function(m){if(m.role!=='admin'&&m.name!==cm){if(/[가-힣]/.test(m.name.charAt(0)))k.push(m);else s.push(m)}});k.sort(function(a,b){return a.name.localeCompare(b.name,'ko')});s.sort(function(a,b){return a.name.localeCompare(b.name,'ko')});return s.concat(k)}
+function updateShareFields(){var src=document.getElementById('input-source').value;var cm=document.getElementById('display-member').innerText;var sels=[1,2,3].map(function(i){return document.getElementById('share-partner-'+i)});var ins=[1,2,3].map(function(i){return document.getElementById('share-percent-'+i)});var sm=sortMemberNames(members,cm);var co='<option value="">선택</option>';sm.forEach(function(m){co+='<option value="'+m.name+'">'+m.name+' 팀장</option>'});sels.forEach(function(sel,idx){var fo=co;if(idx===0){if(src==='회사DB')fo='<option value="회사">🏢 회사</option>';else if(src==='팀DB')fo='<option value="SM">🗣️ SM</option>';else if(src==='추장호DB')fo='<option value="추장호">🎯 추장호</option>'}else{if(src==='회사DB')fo='<option value="">선택</option><option value="회사">🏢 회사</option>'+co.replace('<option value="">선택</option>','');else if(src==='팀DB')fo='<option value="">선택</option><option value="SM">🗣️ SM</option>'+co.replace('<option value="">선택</option>','');else if(src==='추장호DB')fo='<option value="">선택</option><option value="추장호">🎯 추장호</option>'+co.replace('<option value="">선택</option>','')}sel.innerHTML=fo});if(src==='회사DB'){sels[0].value='회사';sels[0].disabled=true;ins[0].value=10}else if(src==='팀DB'){sels[0].value='SM';sels[0].disabled=true;ins[0].value=40}else if(src==='추장호DB'){sels[0].value='추장호';sels[0].disabled=true;ins[0].value=50}else{sels[0].value='';sels[0].disabled=false;ins[0].value='';sels[1].value='';ins[1].value='';sels[2].value='';ins[2].value=''}}
+function calculateShare(){var tr=document.getElementById('input-amount').value.replace(/,/g,'');var total=tr===''?0:(parseInt(tr)||0);var td=0;for(var i=1;i<=3;i++){var ps=document.getElementById('share-partner-'+i);var pi=document.getElementById('share-percent-'+i);var vs=document.getElementById('share-val-'+i);var pct=parseInt(pi.value)||0;var sa=0;if(pct>0&&ps.value)sa=Math.floor(total*(pct/100));vs.innerText=sa.toLocaleString();vs.style.color=sa>0?'#ef4444':'#ccc';td+=sa}document.getElementById('disp-total').innerText=total.toLocaleString();document.getElementById('disp-net').innerText=(total-td).toLocaleString()}
 
-function renderAdminReassignTarget(excludeName){
-  renderAdminReassignTarget(d.member);
+function openModal(id){
+    document.getElementById('modal').style.display='flex';currentId=id||null;isAdminLogAdded=false;isModalDirty=false;
+    var reqArea=document.getElementById('reassign-req-area');
+    var adminPanel=document.getElementById('admin-reassign-panel');
+    var frozenBanner=document.getElementById('frozen-banner-area');
+    var actionBtns=document.getElementById('modal-action-buttons');
+    reqArea.style.display='none';adminPanel.style.display='none';frozenBanner.style.display='none';
+    actionBtns.style.display='flex';
+    // 모든 입력 활성화
+    document.querySelectorAll('#modal .panel-left input,#modal .panel-left select,#modal .panel-left textarea').forEach(function(el){el.disabled=false});
+    document.getElementById('hist-input').disabled=false;
+    document.querySelectorAll('#log-tag-buttons button').forEach(function(b){b.disabled=false});
+
+    if(currentId){
+        var d=dbList.find(function(x){return x.id==id});if(!d){showToast('해당 데이터를 찾을 수 없습니다.','error');document.getElementById('modal').style.display='none';return}
+        if(currentUser.role!=='admin'&&d.hasAdminAlert&&!d.isReassigned){d.hasAdminAlert=false;renderList()}
+        // ★ v25: 새 DB 알림 해제
+        if(d.isReassigned&&d.hasAdminAlert&&d.member===currentUser.name){d.hasAdminAlert=false}
+
+        // ★ v25: 동결 DB 처리
+        if(d.isFrozen){
+            frozenBanner.style.display='flex';
+            var bannerText='⛔ 이 DB는 ';
+            if(d.frozenTo)bannerText+=d.frozenTo+' 팀장에게 재배정되었습니다';
+            else bannerText+='재배정 대기 중입니다 (사유: '+(d.frozenReason||'팀원요청')+')';
+            if(d.frozenDate)bannerText+=' ('+d.frozenDate+')';
+            document.getElementById('frozen-banner-text').innerText=bannerText;
+            // 모든 입력 비활성화
+            document.querySelectorAll('#modal .panel-left input,#modal .panel-left select,#modal .panel-left textarea').forEach(function(el){el.disabled=true});
+            document.getElementById('hist-input').disabled=true;
+            document.querySelectorAll('#log-tag-buttons button').forEach(function(b){b.disabled=true});
+            actionBtns.style.display='none';
+            // 관리자는 재배정 패널만 표시 (frozenTo 없을 때)
+            if(currentUser.role==='admin'&&!d.frozenTo){
+                adminPanel.style.display='block';
+                var ts=document.getElementById('admin-reassign-target');
+                ts.innerHTML='<option value="">재배정할 팀원 선택</option>';
+                members.forEach(function(m){if(m.role!=='admin'&&m.name!==d.member)ts.innerHTML+='<option value="'+m.name+'">'+m.name+' 팀장</option>'});
             }
         }else{
             // 비동결 DB
             if(currentUser.role==='admin'){
                 adminPanel.style.display='block';
-                renderAdminReassignTarget(d.member);
+                var ts2=document.getElementById('admin-reassign-target');
+                ts2.innerHTML='<option value="">재배정할 팀원 선택</option>';
+                members.forEach(function(m){if(m.role!=='admin'&&m.name!==d.member)ts2.innerHTML+='<option value="'+m.name+'">'+m.name+' 팀장</option>'});
             }else if(d.member===currentUser.name&&d.status!=='계약'&&d.status!=='종료'){
                 reqArea.style.display='block';
             }
@@ -901,142 +939,31 @@ function requestRedistribution(){
 
 // ★ v25: 관리자 재배정 실행 (복제 & 동결)
 function executeRedistribution(){
-  var targetMem = document.getElementById('admin-reassign-target').value;
-  if(!targetMem) return showToast('대상을 선택해 주세요.', 'error');
-
-  var originalId = document.getElementById('edit-id').value;
-  var originalDB = dbList.find(function(x){ return x.id == originalId; });
-  if(!originalDB) return showToast('DB를 찾을 수 없습니다.', 'error');
-
-  var compName = (document.getElementById('input-company').value || '').trim() || originalDB.company || '';
-  var isQueue = (targetMem === '__QUEUE__');
-
-  var msg = isQueue
-    ? '이 DB를 "재배정 대기함"으로 이동할까요?'
-    : (targetMem + '님에게 이 DB를 재배정할까요?
-(기존 담당자 DB는 Frozen 처리되고, 새 DB가 생성됩니다.)');
-
-  if(!confirm(msg)) return;
-
-  showLoading();
-
-  var frozenObj = JSON.parse(JSON.stringify(originalDB));
-  frozenObj.isFrozen = true;
-  frozenObj.frozenTo = isQueue ? '' : targetMem;
-  frozenObj.frozenDate = new Date().toISOString().split('T')[0];
-
-  if(isQueue){
-    frozenObj.frozenReason = frozenObj.frozenReason || '관리자 재배정 대기';
-  }
-
-  var frozenLogs = (originalDB.logs || []).slice();
-  frozenLogs.unshift({
-    time: new Date().toLocaleString(),
-    text: isQueue ? '재배정 대기함으로 이동' : (targetMem + '로 재배정 처리'),
-    writer: currentUser.name,
-    type: 'system'
-  });
-  frozenObj.logs = frozenLogs;
-
-  // 1) 대기함이면: Frozen만 저장하고 끝
-  if(isQueue){
-    fetch(GASURL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'save', data: frozenObj })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(){
-      hideLoading();
-      showToast('재배정 대기함으로 이동했습니다.');
-      isModalDirty = false;
-      document.getElementById('modal').style.display = 'none';
-      fetchDB(function(){
-        renderAdminDashboard();
-        renderList();
-        checkMeetingAlerts();
-        updateReassignBadge();
-      });
-    })
-    .catch(function(){
-      hideLoading();
-      showToast('처리 중 오류가 발생했습니다.', 'error');
-    });
-    return;
-  }
-
-  // 2) 특정 팀원에게 재배정이면: Frozen 저장 + 새 DB 생성 저장
-  var newId = Date.now() * 100;
-  var clonedLogs = frozenLogs.slice();
-  clonedLogs.unshift({
-    time: new Date().toLocaleString(),
-    text: originalDB.member + '님 DB에서 재배정됨.',
-    writer: '',
-    type: 'system'
-  });
-
-  var newObj = {
-    id: newId,
-    member: targetMem,
-    date: new Date().toISOString().split('T')[0],
-    source: 'DB',
-    gradeProv: frozenObj.gradeProv,
-    company: compName,
-    ceo: frozenObj.ceo,
-    phone: frozenObj.phone,
-    industry: frozenObj.industry,
-    revenue: frozenObj.revenue,
-    callStatus: frozenObj.callStatus,
-    credit: frozenObj.credit,
-    annualRev: frozenObj.annualRev,
-    tax: frozenObj.tax,
-    region: frozenObj.region,
-    meetDate: '',
-    status: '',
-    waitReason: '',
-    ingDetail: frozenObj.ingDetail,
-    prospectDetail: frozenObj.prospectDetail,
-    endReason: '',
-    contractDate: '',
-    product: '',
-    totalAmount: 0,
-    amount: 0,
-    shareList: [],
-    consulting: frozenObj.consulting,
-    phoneIssue: frozenObj.phoneIssue,
-    logs: clonedLogs,
-    roadmap: frozenObj.roadmap,
-    hasAdminAlert: true,
-    isReassigned: true,
-    reassignedFrom: originalDB.member,
-    isFrozen: false,
-    frozenTo: '',
-    frozenDate: '',
-    frozenReason: ''
-  };
-
-  fetch(GASURL, { method:'POST', body: JSON.stringify({ action:'save', data: frozenObj }) })
-    .then(function(r){ return r.json(); })
-    .then(function(){
-      return fetch(GASURL, { method:'POST', body: JSON.stringify({ action:'save', data: newObj }) });
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(){
-      sendSystemMessage(targetMem, '새 DB가 재배정되었습니다! : ' + compName);
-      hideLoading();
-      showToast('재배정 완료!');
-      isModalDirty = false;
-      document.getElementById('modal').style.display = 'none';
-      fetchDB(function(){
-        renderAdminDashboard();
-        renderList();
-        checkMeetingAlerts();
-        updateReassignBadge();
-      });
-    })
-    .catch(function(){
-      hideLoading();
-      showToast('재배정 중 오류가 발생했습니다.', 'error');
-    });
+    var targetMem=document.getElementById('admin-reassign-target').value;
+    if(!targetMem)return showToast('재배정할 팀원을 선택하세요.','error');
+    var originalId=document.getElementById('edit-id').value;
+    var originalDB=dbList.find(function(x){return x.id==originalId});
+    if(!originalDB)return showToast('DB를 찾을 수 없습니다.','error');
+    var compName=document.getElementById('input-company').value.trim()||originalDB.company||'이름없음';
+    if(!confirm('['+targetMem+'] 팀장에게 이 DB를 재배정 하시겠습니까?\n\n※ 기존 DB는 동결 보존되며, 새 DB가 대상 팀원에게 생성됩니다.'))return;
+    showLoading();
+    // 원본 동결 완료
+    var frozenObj=JSON.parse(JSON.stringify(originalDB));
+    frozenObj.isFrozen=true;frozenObj.frozenTo=targetMem;frozenObj.frozenDate=new Date().toISOString().split('T')[0];
+    var frozenLogs=originalDB.logs||[];
+    frozenLogs.unshift({time:new Date().toLocaleString(),text:"🤖 (시스템) 관리자 직권으로 ["+targetMem+"] 팀장에게 재배정됨",writer:currentUser.name,type:'system'});
+    frozenObj.logs=frozenLogs;
+    // 새 복제 DB
+    var newId=Date.now()+100;
+    var clonedLogs=frozenLogs.slice();
+    clonedLogs.unshift({time:new Date().toLocaleString(),text:"🤖 (시스템) ["+originalDB.member+"] 팀장으로부터 인계받은 재배정 DB입니다.",writer:"시스템",type:'system'});
+    var newObj={id:newId,member:targetMem,date:new Date().toISOString().split('T')[0],source:'팀DB',gradeProv:frozenObj.gradeProv,company:compName,ceo:frozenObj.ceo,phone:frozenObj.phone,industry:frozenObj.industry,revenue:frozenObj.revenue,callStatus:frozenObj.callStatus,credit:frozenObj.credit,annualRev:frozenObj.annualRev,tax:frozenObj.tax,region:frozenObj.region,meetDate:'',status:'대기',waitReason:'재배정 수령',ingDetail:frozenObj.ingDetail,prospectDetail:frozenObj.prospectDetail,endReason:'',contractDate:'',product:'',totalAmount:0,amount:0,shareList:[],consulting:frozenObj.consulting,phoneIssue:frozenObj.phoneIssue,logs:clonedLogs,roadmap:frozenObj.roadmap||[],hasAdminAlert:true,isReassigned:true,reassignedFrom:originalDB.member,isFrozen:false,frozenTo:'',frozenDate:'',frozenReason:''};
+    fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save',data:frozenObj})}).then(function(r){return r.json()}).then(function(){return fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save',data:newObj})})}).then(function(r){return r.json()}).then(function(){
+        sendSystemMessage(targetMem,"🤖 [알림] 새로운 재배정 DB가 도착했습니다! (업체명: "+compName+")");
+        hideLoading();showToast("성공적으로 재배정 되었습니다.");isModalDirty=false;
+        document.getElementById('modal').style.display='none';
+        fetchDB(function(){renderAdminDashboard();renderList();checkMeetingAlerts();updateReassignBadge()});
+    }).catch(function(){hideLoading();showToast('재배정 처리 중 오류가 발생했습니다.','error')});
 }
 
 // ★ v25: 재배정 대기함 렌더링
@@ -1049,8 +976,7 @@ function renderReassignQueue(){
     frozenDBs.forEach(function(d){
         var selId='reassign-sel-'+d.id;
         var opts='<option value="">팀원 선택</option>';
-        var sortedMembers = sortMemberNames(members, d.member);
-      sortedMembers.forEach(function(m){if(m.role!=='admin'&&m.name!==d.member)opts+='<option value="'+m.name+'">'+m.name+'</option>'});
+        members.forEach(function(m){if(m.role!=='admin'&&m.name!==d.member)opts+='<option value="'+m.name+'">'+m.name+'</option>'});
         tbody.innerHTML+='<tr><td>'+(d.frozenDate||d.date)+'</td><td style="font-weight:bold">'+d.member+'</td><td style="cursor:pointer;color:#2563eb;text-decoration:underline" onclick="openModal(\''+d.id+'\')">'+d.company+'</td><td>'+(d.frozenReason||'-')+'</td><td><span class="badge status-'+d.status.replace('고객','').toLowerCase()+'">'+d.status+'</span></td><td><div style="display:flex;gap:6px;justify-content:center"><select id="'+selId+'" style="padding:6px;border-radius:6px;border:1px solid #cbd5e1">'+opts+'</select><button class="btn btn-dark" style="padding:6px 12px;font-size:12px" onclick="quickReassign(\''+d.id+'\',\''+selId+'\')"><i class="fa-solid fa-shuffle"></i> 실행</button></div></td></tr>';
     });
 }
