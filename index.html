@@ -279,14 +279,7 @@ body{flex-direction:column;overflow:auto}
             <h2 id="page-title" style="font-size:18px;font-weight:800;margin:0">나의 DB 관리</h2>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-            <div id="my-alert-panel" style="display:none;margin-bottom:20px">
-            <div style="display:flex;gap:15px;flex-wrap:wrap" id="my-alert-cards"></div>
-            <div id="my-funnel-area" style="display:none;margin-top:15px" class="card">
-                <h4 style="margin-bottom:10px">📊 나의 영업 퍼널</h4>
-                <div id="my-funnel-chart"></div>
-            </div>
-        </div>
-        <div id="meeting-alert-badge" style="display:none" onclick="showMeetingList()"></div>
+            <div id="meeting-alert-badge" style="display:none" onclick="showMeetingList()"></div>
             <!-- ★ v25: 헤더 재배정 알림 배지 -->
             <div id="header-reassign-alert" style="display:none;cursor:pointer" onclick="navTo('reassign')"></div>
             <div style="font-size:12px;color:#64748b;font-weight:bold;background:#f1f5f9;padding:6px 12px;border-radius:20px">v26.0</div>
@@ -295,6 +288,13 @@ body{flex-direction:column;overflow:auto}
 
     <!-- ═══ DB 리스트 뷰 ═══ -->
     <div class="page-content" id="view-list">
+        <div id="my-alert-panel" style="display:none;margin-bottom:20px">
+            <div style="display:flex;gap:15px;flex-wrap:wrap" id="my-alert-cards"></div>
+            <div id="my-funnel-area" style="display:none;margin-top:15px" class="card">
+                <h4 style="margin-bottom:10px">📊 나의 영업 퍼널</h4>
+                <div id="my-funnel-chart"></div>
+            </div>
+        </div>
         <div class="card" style="padding:20px">
             <div id="list-filter-container" style="display:flex;gap:10px;margin-bottom:15px;flex-wrap:wrap"></div>
             <div style="display:flex;justify-content:space-between;align-items:center">
@@ -824,7 +824,7 @@ function renderListPage(){
         var clickAction=d.isVirtualShare?'openModal(\''+d.originalId+'\','+(idx+1)+')':'openModal(\''+d.id+'\','+(idx+1)+')';
         // ★ v25: 동결 상태 표시
         var statusDisplay=d.isFrozen?'<span class="badge status-frozen">🔒 동결'+(d.frozenTo?' →'+d.frozenTo:'')+'</span>':'<span class="badge '+badge+'">'+d.status+'</span>';
-        var row='<td style="text-align:center;color:#94a3b8;font-size:12px;width:45px">'+(idx+1)+'</td><td>'+(d.contractDate)+'</td>';
+        var row='<td style="text-align:center;color:#94a3b8;font-size:12px;width:45px">'+(idx+1)+'</td><td>'+(d.contractDate||d.date)+'</td>';
         if(currentUser.role==='admin')row+='<td>'+d.member+'</td>';
         row+='<td style="font-weight:bold">'+companyDisplay+amountDisplay+alertIcon+'</td>';
         row+='<td>'+callBadge+'</td>';
