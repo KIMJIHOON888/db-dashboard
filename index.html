@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>DB Pro Master v29.0</title>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -964,7 +967,15 @@ function renderFilters(){
     var callF='<select id="filter-call" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select>';
     if(currentUser.role==='admin'){
         c.innerHTML=sh+'<select id="filter-year" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-month" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-source" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option></select>'+callF+'<select id="filter-status" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option></select><select id="filter-member" style="padding:10px;border:1px solid #2563eb;color:#2563eb;font-weight:bold;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 팀원 보기</option></select>';
-        var ms=document.getElementById('filter-member');sortMemberNames(members,'').forEach(function(m){ms.innerHTML+='<option value="'+m.name+'">'+m.name+'</option>'});
+        // ★ 수정: 재직자 + 퇴사자(DB에 이름이 남은 사람) 모두 필터 옵션에 렌더링
+        var ms=document.getElementById('filter-member');
+        var allNames = members.map(function(m){return m.name;});
+        dbList.forEach(function(d){if(d.member && allNames.indexOf(d.member)===-1 && d.member!=='관리자') allNames.push(d.member);});
+        var sortedNames = allNames.filter(function(n){return n!=='관리자'}).sort(function(a,b){return a.localeCompare(b,'ko')});
+        sortedNames.forEach(function(n){
+            var isResigned = !members.some(function(m){return m.name===n});
+            ms.innerHTML+='<option value="'+n+'">'+n+(isResigned?' (퇴사자)':'')+'</option>';
+        });
     }else{
         c.innerHTML=sh+'<select id="filter-year" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-month" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-source" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option></select>'+callF+'<select id="filter-status" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option></select>';
     }
@@ -1635,7 +1646,7 @@ function renderDashboardRace(sorted){
     el.innerHTML=html;
 }
 
-// ═══ v28: 주간 영업 브리핑 ═══
+// ═══ v28 & v29: 주간 영업 브리핑 (통계 엔진 고도화 및 객단가 추가) ═══
 var briefingTrendChart=null;
 function isCallAttempted(cs){return cs==='부재중'||cs==='연속부재 문자전송'||cs==='재통화요청'||cs==='통화완료'}
 function fmtNR(n,r){return n+'('+r+')'}
@@ -1643,17 +1654,19 @@ function showDBListPopup(title,list){if(!list||list.length===0){alert(title+': �
 
 function getGoldenTime(memberName,year,month,isAll){
     var myDB=dbList.filter(function(d){return d.member===memberName&&!d.isFrozen});
-    var periodDB=myDB.filter(function(d){var p=parseDBDate(d.reassignedDate||d.date);if(p.year!==ty)return false;if(!isAll&&p.month!==tm)return false;return true});
+    var periodDB=myDB.filter(function(d){var p=parseDBDate(d.reassignedDate||d.date);if(p.year!==year)return false;if(!isAll&&p.month!==month)return false;return true});
     var totalHours=0;var cnt=0;
     periodDB.forEach(function(d){
         if(!isCallAttempted(d.callStatus))return;
-        var regDate=new Date(d.date);if(isNaN(regDate.getTime()))return;
+        var regDate=new Date(d.reassignedDate||d.date); 
+        if(isNaN(regDate.getTime()))return;
         var firstCallDate=null;
         if(d.logs&&d.logs.length>0){
             for(var i=d.logs.length-1;i>=0;i--){
                 var log=d.logs[i];
                 if((log.text||'').indexOf('통화')>=0||(log.text||'').indexOf('부재')>=0||(log.type==='call')){
-                    firstCallDate=new Date(log.time);break;
+                    var ld=new Date(log.time);
+                    if(!isNaN(ld.getTime())){firstCallDate=ld;break;}
                 }
             }
         }
@@ -1668,10 +1681,11 @@ function getContractLeadTime(memberName,year,month,isAll){
     var filtered=myDB.filter(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);if(p.year!==year)return false;if(!isAll&&p.month!==month)return false;return true});
     var totalDays=0;var cnt=0;
     filtered.forEach(function(d){
-        var reg=new Date(d.date);var cont=new Date(getContractDate(d));
+        var reg=new Date(d.reassignedDate||d.date);
+        var cont=new Date(getContractDate(d));
         if(isNaN(reg.getTime())||isNaN(cont.getTime()))return;
         var diff=Math.ceil((cont-reg)/(1000*60*60*24));
-        totalDays+=diff;cnt++;
+        if(diff>=0){totalDays+=diff;cnt++;}
     });
     return cnt>0?Math.round(totalDays/cnt):null;
 }
@@ -1694,7 +1708,13 @@ function getCPRContracts(memberName,year,month,isAll){
     filtered.forEach(function(d){
         var isCPR=false;
         if(d.isReassigned)isCPR=true;
-        else{var reg=new Date(d.date);var cont=new Date(getContractDate(d));var diff=Math.ceil((cont-reg)/(1000*60*60*24));if(diff>=365)isCPR=true}
+        else{
+            var reg=new Date(d.date);var cont=new Date(getContractDate(d));
+            if(!isNaN(reg.getTime())&&!isNaN(cont.getTime())){
+                var diff=Math.ceil((cont-reg)/(1000*60*60*24));
+                if(diff>=365)isCPR=true;
+            }
+        }
         if(isCPR)cprList.push({company:d.company,amount:parseInt(String(d.amount).replace(/,/g,''))||0,isReassigned:d.isReassigned});
     });
     return cprList;
@@ -1708,7 +1728,9 @@ function renderBriefing(){
     var teamMembers=members.filter(function(m){return m.role!=='admin'});
     var stats=teamMembers.map(function(m){
         var myDB=dbList.filter(function(d){return d.member===m.name&&!d.isFrozen});
-        var periodDB=myDB.filter(function(d){var p=parseDBDate(d.date);if(p.year!==ty)return false;if(!isAll&&p.month!==tm)return false;return true});
+        // 날짜 기준: 재배정일 우선
+        var periodDB=myDB.filter(function(d){var p=parseDBDate(d.reassignedDate||d.date);if(p.year!==ty)return false;if(!isAll&&p.month!==tm)return false;return true});
+        
         var dbCnt=periodDB.length;
         var dbNewCnt=periodDB.filter(function(d){return!d.isReassigned}).length;
         var dbReCnt=periodDB.filter(function(d){return d.isReassigned}).length;
@@ -1725,87 +1747,87 @@ function renderBriefing(){
         var meetRate=callDoneCnt>0?Math.round(meetCnt/callDoneCnt*100):0;
         var prospDB=periodDB.filter(function(d){return d.status==='가망고객'});
         var prospCnt=prospDB.length;var prospNew=prospDB.filter(function(d){return!d.isReassigned}).length;var prospRe=prospDB.filter(function(d){return d.isReassigned}).length;
+        
         var contDB=myDB.filter(function(d){if(d.status!=='계약')return false;var cd=getContractDate(d);var p=parseDBDate(cd);if(p.year!==ty)return false;if(!isAll&&p.month!==tm)return false;return true});
-        var contCnt=contDB.length;var contNew=contDB.filter(function(d){return!d.isReassigned}).length;var contRe=contDB.filter(function(d){return d.isReassigned}).length;
-        var rev=contDB.reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);
-        var shareRev=getShareRevenue(m.name,ty,isAll?null:tm);var shareCnt=getShareContractCount(m.name,ty,isAll?null:tm); // ★ 수정: isAll 처리 추가
-        rev+=shareRev;contCnt+=shareCnt; // 쉐어 합산
-        var callAttemptRate=dbCnt>0?Math.round(callAttemptCnt/dbCnt*100):0;
-        var totalBaseForRate = (dbCnt + dbReCnt); // ★ 수정: 전환율 분모를 (신규+재배정) 총합으로 고정
-        var contRate=totalBaseForRate>0?Math.round(contCnt/totalBaseForRate*100):0;
-        // 누적 계약율
-        var yearDB=myDB.filter(function(d){var p=parseDBDate(d.date);return p.year===ty});
+        var contCnt=contDB.length;var contNew=contDB.filter(function(d){return!d.isReassigned}).length;var contRe=contDB.filter(function(d){return d.isReassigned}).length;
+        
+        var rev=contDB.reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);
+        var shareRev=getShareRevenue(m.name,ty,isAll?null:tm);
+        var shareCnt=getShareContractCount(m.name,ty,isAll?null:tm);
+        rev+=shareRev;contCnt+=shareCnt;
+        
+        // ★ 객단가 (Average Deal Size)
+        var avgDealSize=contCnt>0?Math.round(rev/contCnt):0;
+        
+        // ★ 수정: dbCnt는 이미 신규+재배정 총합이므로 분모로 바로 사용 (1000% 에러 원천 차단)
+        var callAttemptRate=dbCnt>0?Math.round(callAttemptCnt/dbCnt*100):0;
+        var contRate=dbCnt>0?Math.round(contCnt/dbCnt*100):0;
+        
+        var yearDB=myDB.filter(function(d){var p=parseDBDate(d.reassignedDate||d.date);return p.year===ty});
         var yearCont=myDB.filter(function(d){if(d.status!=='계약')return false;var cd=getContractDate(d);return parseDBDate(cd).year===ty}).length+getShareContractCount(m.name,ty,null);
         var yearContRate=yearDB.length>0?Math.round(yearCont/yearDB.length*100):0;
+        
         var noContactCnt=periodDB.filter(function(d){return!isCallAttempted(d.callStatus)&&d.callStatus!=='장난DB'}).length;
         var noContactNew=periodDB.filter(function(d){return!isCallAttempted(d.callStatus)&&d.callStatus!=='장난DB'&&!d.isReassigned}).length;
         var noContactRe=periodDB.filter(function(d){return!isCallAttempted(d.callStatus)&&d.callStatus!=='장난DB'&&d.isReassigned}).length;
-        var staleCount=myDB.filter(function(d){if(d.status!=='대기'&&d.status!=='진행중'&&d.status!=='선택')return false;var refDate=d.logs&&d.logs.length>0?new Date(d.logs[0].time):new Date(d.date);return Math.ceil((new Date()-refDate)/(1000*60*60*24))>=14}).length;
+        var staleCount=myDB.filter(function(d){if(d.status!=='대기'&&d.status!=='진행중'&&d.status!=='선택')return false;var refDate=d.logs&&d.logs.length>0?new Date(d.logs[0].time):new Date(d.date);if(isNaN(refDate.getTime()))refDate=new Date();return Math.ceil((new Date()-refDate)/(1000*60*60*24))>=14}).length;
         var reDB=periodDB.filter(function(d){return d.isReassigned});
         var reProgressed=reDB.filter(function(d){return d.status==='대기'||d.status==='진행중'||d.status==='가망고객'||d.status==='계약'}).length;
         var reProgressRate=reDB.length>0?Math.round(reProgressed/reDB.length*100):0;
         var noContactList=periodDB.filter(function(d){return!isCallAttempted(d.callStatus)&&d.callStatus!=='장난DB'}).map(function(d){return{id:d.id,company:d.company}});
         var callDoneList=callDoneDB.map(function(d){return{id:d.id,company:d.company}});
+        
         var goldenTime=getGoldenTime(m.name,ty,isAll?null:tm,isAll);
         var leadTime=getContractLeadTime(m.name,ty,isAll?null:tm,isAll);
         var cpr=getCPRContracts(m.name,ty,isAll?null:tm,isAll);
         var cprRev=cpr.reduce(function(a,c){return a+c.amount},0);
         var streak=getConsecutiveContractMonths(m.name);
-        // 3개월 이상 미계약 여부
         var hasRecentContract=false;
         var now=new Date();var thisY=now.getFullYear();var thisM=now.getMonth()+1;
-        myDB.forEach(function(d){if(d.status==='계약'){var cd=getContractDate(d);var pd=parseDBDate(cd);var cDate=new Date(pd.year,pd.month-1,1);var threeAgo=new Date(thisY,thisM-4,1);if(cDate>=threeAgo)hasRecentContract=true}});
-        // 목표 달성률
+        myDB.forEach(function(d){if(d.status==='계약'){var cd=getContractDate(d);var pd=parseDBDate(cd);if(pd.year>0){var cDate=new Date(pd.year,pd.month-1,1);var threeAgo=new Date(thisY,thisM-4,1);if(cDate>=threeAgo)hasRecentContract=true;}}});
+        
         var goalAmount=getMonthlyGoal(m.name,ty,isAll?thisM:tm);
         var goalPct=goalAmount>0?Math.round(rev/goalAmount*100):0;
-        return{name:m.name,db:dbCnt,dbNew:dbNewCnt,dbRe:dbReCnt,
-            callAttempt:callAttemptCnt,callAttemptNew:callAttemptNew,callAttemptRe:callAttemptRe,
-            callDone:callDoneCnt,callDoneNew:callDoneNew,callDoneRe:callDoneRe,
-            meet:meetCnt,meetNew:meetNew,meetRe:meetRe,meetRate:meetRate,
-            prospect:prospCnt,prospNew:prospNew,prospRe:prospRe,
-            contract:contCnt,contNew:contNew,contRe:contRe,
-            rev:rev,callAttemptRate:callAttemptRate,contRate:contRate,yearContRate:yearContRate,
-            stale:staleCount,noContact:noContactCnt,noContactNew:noContactNew,noContactRe:noContactRe,
-            noContactList:noContactList,callDoneList:callDoneList,
-            reProgressRate:reProgressRate,goldenTime:goldenTime,leadTime:leadTime,
-            cprCount:cpr.length,cprRev:cprRev,streak:streak,hasRecentContract:hasRecentContract,
-            goalAmount:goalAmount,goalPct:goalPct};
+        
+        return{name:m.name,db:dbCnt,dbNew:dbNewCnt,dbRe:dbReCnt,callAttempt:callAttemptCnt,callAttemptNew:callAttemptNew,callAttemptRe:callAttemptRe,callDone:callDoneCnt,callDoneNew:callDoneNew,callDoneRe:callDoneRe,meet:meetCnt,meetNew:meetNew,meetRe:meetRe,meetRate:meetRate,prospect:prospCnt,prospNew:prospNew,prospRe:prospRe,contract:contCnt,contNew:contNew,contRe:contRe,rev:rev,avgDealSize:avgDealSize,callAttemptRate:callAttemptRate,contRate:contRate,yearContRate:yearContRate,stale:staleCount,noContact:noContactCnt,noContactNew:noContactNew,noContactRe:noContactRe,noContactList:noContactList,callDoneList:callDoneList,reProgressRate:reProgressRate,goldenTime:goldenTime,leadTime:leadTime,cprCount:cpr.length,cprRev:cprRev,streak:streak,hasRecentContract:hasRecentContract,goalAmount:goalAmount,goalPct:goalPct};
     });
+    
     stats.sort(function(a,b){return b.rev-a.rev});
-    // MVP 선정 (통화시도+미팅 최다)
+    
     var mvpEl=document.getElementById('briefing-mvp');
     if(mvpEl&&stats.length>0){
         var mvpSorted=stats.slice().sort(function(a,b){return(b.callAttempt+b.meet)-(a.callAttempt+a.meet)});
         var mvp=mvpSorted[0];
         mvpEl.innerHTML='<div style="font-size:28px">🏆</div><div style="font-weight:900;font-size:18px;color:#92400e">'+(isAll?'올해':'이번달')+' MVP: '+mvp.name+' 팀장</div><div style="font-size:12px;color:#78350f;margin-top:4px">통화시도 '+mvp.callAttempt+'건 + 미팅 '+mvp.meet+'건 = 총 '+(mvp.callAttempt+mvp.meet)+'건 행동력!</div>';
     }
-    // 실적 레이스
+    
     var maxRev=stats.length>0?stats[0].rev:1;if(maxRev<1)maxRev=1;
     var raceColors=['#f59e0b','#a3a3a3','#c2410c','#3b82f6','#6366f1','#8b5cf6','#64748b','#94a3b8'];
     var raceHtml='';
     stats.forEach(function(s,i){
         var pct=Math.max(8,Math.round(s.rev/maxRev*100));var bg=raceColors[Math.min(i,raceColors.length-1)];
         var medal=i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':'';
-        var streakIcon='';
         raceHtml+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
-        raceHtml+='<div style="width:100px;text-align:right;font-weight:800;font-size:14px">'+medal+s.name+streakIcon+'</div>';
+        raceHtml+='<div style="width:100px;text-align:right;font-weight:800;font-size:14px">'+medal+s.name+'</div>';
         raceHtml+='<div style="flex:1"><div class="briefing-race-bar" style="width:'+pct+'%;background:'+bg+'"><span>'+s.rev.toLocaleString()+'원 ('+fmtNR(s.contNew,s.contRe)+'건)</span></div></div>';
         raceHtml+='</div>';
     });
     document.getElementById('briefing-race').innerHTML=raceHtml;
-    // 히트맵 (골든타임+리드타임 추가)
+    
     var thead=document.getElementById('briefing-heatmap-head');
     var tbody=document.getElementById('briefing-heatmap-body');
-    thead.innerHTML='<tr><th>팀원</th><th>DB배정</th><th>통화시도</th><th>통화완료</th><th>미팅</th><th>미팅전환</th><th>가망</th><th>계약</th><th>매출</th><th>미접촉⚠️</th><th>📊리드타임</th></tr>';
+    // ★ 객단가 컬럼 추가
+    thead.innerHTML='<tr><th>팀원</th><th>DB배정</th><th>통화시도</th><th>통화완료</th><th>미팅</th><th>미팅전환</th><th>가망</th><th>계약</th><th>매출</th><th>🎯객단가</th><th>미접촉⚠️</th><th>📊리드타임</th></tr>';
     tbody.innerHTML='';
     stats.forEach(function(s){
         var avgCAtR=stats.reduce(function(a,c){return a+c.callAttemptRate},0)/stats.length;
         var avgMR=stats.reduce(function(a,c){return a+c.meetRate},0)/stats.length;
         function hm(val,avg,higher){if(higher){return val>=avg*1.2?'heatmap-good':val>=avg*0.7?'heatmap-mid':'heatmap-bad'}else{return val<=1?'heatmap-good':val<=3?'heatmap-mid':'heatmap-bad'}}
-        var callDoneClick='onclick="showDBListPopup(\''+s.name+' 통화완료\','+JSON.stringify(s.callDoneList).replace(/"/g,'&quot;')+')"';
-        var noContactClick='onclick="showDBListPopup(\''+s.name+' 미접촉\','+JSON.stringify(s.noContactList).replace(/"/g,'&quot;')+')"';
-        
+        // ★ 따옴표 방어 로직 추가 (replace)
+        var callDoneClick='onclick="showDBListPopup(\''+s.name+' 통화완료\','+JSON.stringify(s.callDoneList).replace(/"/g,'&quot;').replace(/'/g,'\\\'')+')"';
+        var noContactClick='onclick="showDBListPopup(\''+s.name+' 미접촉\','+JSON.stringify(s.noContactList).replace(/"/g,'&quot;').replace(/'/g,'\\\'')+')"';
         var ltText=s.leadTime===null?'-':s.leadTime+'일';
+        
         tbody.innerHTML+='<tr><td style="font-weight:800">'+s.name+'</td>'+
             '<td class="heatmap-cell" style="background:#f8fafc;color:#334155">'+fmtNR(s.dbNew,s.dbRe)+'</td>'+
             '<td class="heatmap-cell '+hm(s.callAttemptRate,avgCAtR,true)+'">'+fmtNR(s.callAttemptNew,s.callAttemptRe)+'</td>'+
@@ -1815,10 +1837,11 @@ function renderBriefing(){
             '<td class="heatmap-cell '+hm(s.prospect,1,true)+'">'+fmtNR(s.prospNew,s.prospRe)+'</td>'+
             '<td class="heatmap-cell '+hm(s.contract,1,true)+'">'+fmtNR(s.contNew,s.contRe)+'</td>'+
             '<td style="font-weight:800;color:#2563eb">'+s.rev.toLocaleString()+'</td>'+
+            '<td style="font-weight:bold;color:#f59e0b">'+(s.avgDealSize>0?(Math.round(s.avgDealSize/10000)).toLocaleString()+'만':'-')+'</td>'+
             '<td class="heatmap-cell '+(s.noContact===0?'heatmap-good':s.noContact<=3?'heatmap-mid':'heatmap-bad')+'" style="cursor:pointer;text-decoration:underline" '+noContactClick+'>'+fmtNR(s.noContactNew,s.noContactRe)+'</td>'+
             '<td class="heatmap-cell '+(s.leadTime===null?'':(s.leadTime<=14?'heatmap-good':s.leadTime<=30?'heatmap-mid':'heatmap-bad'))+'">'+ltText+'</td></tr>';
     });
-    // 팀 퍼널
+    
     var totalDB=stats.reduce(function(a,c){return a+c.db},0);var totalDBNew=stats.reduce(function(a,c){return a+c.dbNew},0);var totalDBRe=stats.reduce(function(a,c){return a+c.dbRe},0);
     var totalCA=stats.reduce(function(a,c){return a+c.callAttempt},0);var totalCAN=stats.reduce(function(a,c){return a+c.callAttemptNew},0);var totalCAR=stats.reduce(function(a,c){return a+c.callAttemptRe},0);
     var totalCD=stats.reduce(function(a,c){return a+c.callDone},0);var totalCDN=stats.reduce(function(a,c){return a+c.callDoneNew},0);var totalCDR=stats.reduce(function(a,c){return a+c.callDoneRe},0);
@@ -1829,20 +1852,18 @@ function renderBriefing(){
     var fMax=totalDB||1;var fH='';
     fd.forEach(function(f,fi){var pct=Math.max(8,Math.round(f.v/fMax*100));fH+='<div class="funnel-step"><div style="width:70px;text-align:right;font-weight:700;font-size:12px">'+f.l+'</div><div style="flex:1"><div class="funnel-bar" style="width:'+pct+'%;background:'+f.c+'">'+f.t+'건</div></div>';if(fi>0){var prev=fd[fi-1];var dr=prev.v>0?Math.round((prev.v-f.v)/prev.v*100):0;fH+='<div style="font-size:11px;color:#dc2626;width:60px">▼'+dr+'%</div>'}else{fH+='<div style="width:60px"></div>'}fH+='</div>'});
     document.getElementById('briefing-funnel').innerHTML=fH;
-    // 월별 추이 차트
+    
     try{var canvas=document.getElementById('briefing-trend-chart');if(!canvas)return;if(briefingTrendChart)briefingTrendChart.destroy();if(typeof Chart==='undefined')return;var lineColors=['#2563eb','#dc2626','#16a34a','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16'];var datasets=[];teamMembers.forEach(function(m,mi){var mData=Array(12).fill(0);dbList.filter(function(d){return d.member===m.name&&d.status==='계약'&&!d.isFrozen}).forEach(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);if(p.year===ty)mData[p.month-1]+=(parseInt(String(d.amount).replace(/,/g,''))||0)});datasets.push({label:m.name,data:mData,borderColor:lineColors[mi%lineColors.length],backgroundColor:'transparent',borderWidth:2,tension:.3,pointRadius:3})});briefingTrendChart=new Chart(canvas.getContext('2d'),{type:'line',data:{labels:['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'],datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11,weight:'bold'}}}},scales:{y:{beginAtZero:true,ticks:{callback:function(v){return(v/10000)+'만'}}},x:{grid:{display:false}}}}})}catch(e){}
-    // 이번달 핵심 액션 요약
+    
     var actHtml='';
     stats.forEach(function(s){
         var alerts=[];
-        // 통화시도율 전원 표기
         var caLabel=s.callAttemptRate<80?'📞 통화시도율 저조 '+s.callAttemptRate+'%':'📞 통화시도율 '+s.callAttemptRate+'%';
         var caBg=s.callAttemptRate<80?'background:#fef9c3;color:#a16207':'background:#ecfdf5;color:#047857';
         alerts.push('<span class="action-badge" style="'+caBg+'">'+caLabel+'</span>');
         if(s.noContact>0)alerts.push('<span class="action-badge" style="background:#fef2f2;color:#dc2626">⚠️ 미접촉 '+s.noContact+'건</span>');
         if(s.stale>0)alerts.push('<span class="action-badge" style="background:#fef2f2;color:#dc2626">⏰ 장기 미진행 '+s.stale+'건</span>');
         if(s.db>=5&&s.meetRate<20)alerts.push('<span class="action-badge" style="background:#fef2f2;color:#dc2626">🚫 미팅율 저조 '+s.meetRate+'%</span>');
-        // 당월 계약율 + 누적 계약율
         alerts.push('<span class="action-badge" style="background:#eff6ff;color:#1d4ed8">📊 당월 '+s.contRate+'%, 누적 '+s.yearContRate+'%</span>');
         if(!s.hasRecentContract)alerts.push('<span class="action-badge" style="background:#fef2f2;color:#dc2626">🚨 장기 미계약팀원</span>');
         if(s.dbRe>0)alerts.push('<span class="action-badge" style="background:#eff6ff;color:#2563eb">🔄 재분배 진행률 '+s.reProgressRate+'%</span>');
@@ -1998,24 +2019,60 @@ function updateMyReassignBadge(){
 }
 
 function renderMyReassignList(){
-    document.getElementById('page-title').innerText='📥 나의 재배정 수신함';
-    var c=document.getElementById('myreassign-filter-container');
-    if(c.innerHTML===''){
-        c.innerHTML='<input type="text" id="mr-search" placeholder="업체명 검색" style="flex:1;min-width:200px;padding:10px;border:1px solid #ddd;border-radius:8px" onkeyup="myReassignCurrentPage=1;renderMyReassignList()"><select id="mr-status" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="myReassignCurrentPage=1;renderMyReassignList()"><option value="all">전체 상태</option><option value="선택">📋 선택(미확인)</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option></select>';
-    }
-    
-    var tbody=document.getElementById('my-reassign-body');if(!tbody)return;
-    var targetName=currentUser.role==='admin'?null:currentUser.name;
-    var kw=document.getElementById('mr-search')?document.getElementById('mr-search').value.toLowerCase():'';
-    var sf=document.getElementById('mr-status')?document.getElementById('mr-status').value:'all';
+    document.getElementById('page-title').innerText='📥 나의 재배정 수신함';
+    var c=document.getElementById('myreassign-filter-container');
+    if(c.innerHTML===''){
+        var html='<input type="text" id="mr-search" placeholder="업체명 검색" style="flex:1;min-width:150px;padding:10px;border:1px solid #ddd;border-radius:8px" onkeyup="myReassignCurrentPage=1;renderMyReassignList()">';
+        html+='<select id="mr-year" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="myReassignCurrentPage=1;renderMyReassignList()"></select>';
+        html+='<select id="mr-month" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="myReassignCurrentPage=1;renderMyReassignList()"></select>';
+        html+='<select id="mr-status" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="myReassignCurrentPage=1;renderMyReassignList()"><option value="all">전체 상태</option><option value="선택">📋 선택(미확인)</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option></select>';
+        if(currentUser.role==='admin'){
+            html+='<select id="mr-member" style="padding:10px;border:1px solid #2563eb;color:#2563eb;font-weight:bold;border-radius:8px" onchange="myReassignCurrentPage=1;renderMyReassignList()"><option value="all">전체 팀원 보기</option></select>';
+        }
+        c.innerHTML=html;
+        
+        // 연도/월 동적 생성
+        var cy=new Date().getFullYear();var cm=new Date().getMonth()+1;
+        var yo='<option value="all">전체 연도</option>';for(var y=cy+1;y>=2023;y--)yo+='<option value="'+y+'"'+(y===cy?' selected':'')+'>'+y+'년</option>';
+        document.getElementById('mr-year').innerHTML=yo;
+        var mo='<option value="all">전체 월</option>';for(var m=1;m<=12;m++)mo+='<option value="'+m+'"'+(m===cm?' selected':'')+'>'+m+'월</option>';
+        document.getElementById('mr-month').innerHTML=mo;
+        
+        // 관리자용 팀원 목록 (퇴사자 포함)
+        if(currentUser.role==='admin'){
+            var ms=document.getElementById('mr-member');
+            var allNames=members.map(function(m){return m.name;});
+            dbList.forEach(function(d){if(d.member&&allNames.indexOf(d.member)===-1&&d.member!=='관리자')allNames.push(d.member);});
+            var sortedNames=allNames.filter(function(n){return n!=='관리자'}).sort(function(a,b){return a.localeCompare(b,'ko')});
+            sortedNames.forEach(function(n){
+                var isResigned=!members.some(function(m){return m.name===n});
+                ms.innerHTML+='<option value="'+n+'">'+n+(isResigned?' (퇴사자)':'')+'</option>';
+            });
+        }
+    }
+    
+    var tbody=document.getElementById('my-reassign-body');if(!tbody)return;
+    
+    // 필터 값 읽기
+    var kw=document.getElementById('mr-search')?document.getElementById('mr-search').value.toLowerCase():'';
+    var sf=document.getElementById('mr-status')?document.getElementById('mr-status').value:'all';
+    var yf=document.getElementById('mr-year')?document.getElementById('mr-year').value:'all';
+    var mf=document.getElementById('mr-month')?document.getElementById('mr-month').value:'all';
+    var tm=currentUser.role==='admin'?(document.getElementById('mr-member')?document.getElementById('mr-member').value:'all'):currentUser.name;
 
-    var myReassigned=dbList.filter(function(d){
-        if(!d.isReassigned||d.isFrozen)return false;
-        if(targetName&&d.member!==targetName)return false;
-        if(kw&&!d.company.toLowerCase().includes(kw))return false;
-        if(sf!=='all'&&d.status!==sf)return false;
-        return true;
-    });
+    var myReassigned=dbList.filter(function(d){
+        if(!d.isReassigned||d.isFrozen)return false;
+        if(tm!=='all'&&d.member!==tm)return false;
+        if(kw&&!d.company.toLowerCase().includes(kw))return false;
+        if(sf!=='all'&&d.status!==sf)return false;
+        
+        // ★ 연도/월 필터 (재배정 받은 날짜 기준)
+        var parsed=parseDBDate(d.reassignedDate||d.date);
+        if(yf!=='all'&&parsed.year!==parseInt(yf))return false;
+        if(mf!=='all'&&parsed.month!==parseInt(mf))return false;
+        
+        return true;
+    });
     myReassigned.sort(function(a,b){
         var dA=new Date(a.reassignedDate||a.date).getTime()||0;
         var dB=new Date(b.reassignedDate||b.date).getTime()||0;
