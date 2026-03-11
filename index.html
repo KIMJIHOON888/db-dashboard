@@ -539,14 +539,11 @@ body{flex-direction:column;overflow:auto}
     </div>
 
     <div class="page-content" id="view-dashboard" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-            <h3 style="margin:0;font-weight:800"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></h3>
-            <div style="display:flex;gap:8px">
-                <select id="admin-stat-year" style="padding:8px;border-radius:6px;font-weight:bold" onchange="renderAdminDashboard()"></select>
-                <select id="admin-stat-month" style="padding:8px;border-radius:6px;font-weight:bold" onchange="renderAdminDashboard()"></select>
-            </div>
-        </div>
-        <div class="dashboard-grid">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h3 style="margin:0;font-weight:800"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></h3>
+            <select id="admin-stat-month" style="padding:8px;border-radius:6px;font-weight:bold" onchange="renderAdminDashboard()"></select>
+        </div>
+        <div class="dashboard-grid">
             <div class="stat-card"><div class="stat-label">이번달 총 매출</div><div class="stat-value" id="ad-total-rev">0</div></div>
             <div class="stat-card" style="border-left-color:#10b981"><div class="stat-label">이번달 총 계약</div><div class="stat-value" id="ad-total-cont">0건</div></div>
             <div class="stat-card" style="border-left-color:#f59e0b"><div class="stat-label">신규 DB 유입</div><div class="stat-value" id="ad-total-db">0개</div></div>
@@ -1243,10 +1240,17 @@ function saveData(shouldClose){
         return;
     }
 
-    var id=document.getElementById('edit-id').value||Date.now();
-    var total=parseInt(document.getElementById('input-amount').value.replace(/,/g,''))||0;
-    var shareList=[],ded=0;
-    for(var i=1;i<=3;i++){var ps=document.getElementById('share-partner-'+i);var pi=document.getElementById('share-percent-'+i);var p=ps.value;var pct=parseInt(pi.value)||0;if(p&&pct>0){var amt=Math.floor(total*(pct/100));shareList.push({partner:p,percent:pct,amount:amt,step:i});ded+=amt}}
+    // ★ 버그수정: 신규 등록 시 ID 중복 방지 (난수 추가)
+    var id=document.getElementById('edit-id').value||(Date.now() + Math.floor(Math.random()*100000));
+    var total=parseInt(document.getElementById('input-amount').value.replace(/,/g,''))||0;
+    var shareList=[], ded=0, totalPct=0;
+    for(var i=1;i<=3;i++){var ps=document.getElementById('share-partner-'+i);var pi=document.getElementById('share-percent-'+i);var p=ps.value;var pct=parseInt(pi.value)||0;if(p&&pct>0){var amt=Math.floor(total*(pct/100));shareList.push({partner:p,percent:pct,amount:amt,step:i});ded+=amt; totalPct+=pct;}}
+    
+    // ★ 버그수정: 쉐어 비율 합계 100% 초과 방지
+    if(totalPct > 100) {
+        alert('⚠️ 쉐어 비율의 합이 100%를 초과할 수 없습니다!\n현재 합계: ' + totalPct + '%\n비율을 다시 확인해주세요.');
+        return;
+    }
     var ex=dbList.find(function(x){return x.id==id})||{};
     var newMeet=document.getElementById('input-meet-date').value;
     var newStatus=document.getElementById('input-status').value;
