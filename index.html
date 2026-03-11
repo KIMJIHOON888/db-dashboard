@@ -360,10 +360,19 @@ body{flex-direction:column;overflow:auto}
         </div>
         <div style="font-weight:800;font-size:16px;margin-bottom:15px">📊 전년 vs 금년 실적 비교 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></div>
         <div class="compare-row">
-            <div class="compare-box"><div class="compare-val" style="color:#64748b" id="val-last-total">0</div><div style="font-size:12px;color:#94a3b8">작년 총 매출</div></div>
-            <div class="compare-box" style="background:#eff6ff"><div class="compare-val" style="color:var(--primary)" id="val-this-total">0</div><div style="font-size:12px;color:var(--primary)">올해 총 매출</div></div>
-            <div class="compare-box"><div class="compare-val" id="val-growth">0</div><div style="font-size:12px;color:#64748b">전년 대비 성장</div></div>
-        </div>
+            <div class="compare-box" style="background:linear-gradient(135deg, #f8fafc, #e2e8f0); border:1px solid #cbd5e1; border-left:5px solid #94a3b8; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05)">
+                <div style="font-size:14px;color:#475569;margin-bottom:8px;font-weight:800"><i class="fa-solid fa-calendar-minus"></i> 작년 총 매출</div>
+                <div class="compare-val" style="color:#334155; font-size:28px" id="val-last-total">0</div>
+            </div>
+            <div class="compare-box" style="background:linear-gradient(135deg, #eff6ff, #bfdbfe); border:1px solid #93c5fd; border-left:5px solid #3b82f6; box-shadow:0 4px 6px -1px rgba(37,99,235,0.1)">
+                <div style="font-size:14px;color:#1d4ed8;margin-bottom:8px;font-weight:800"><i class="fa-solid fa-calendar-check"></i> 올해 총 매출</div>
+                <div class="compare-val" style="color:#1d4ed8; font-size:28px" id="val-this-total">0</div>
+            </div>
+            <div class="compare-box" id="box-growth" style="background:linear-gradient(135deg, #f0fdf4, #bbf7d0); border:1px solid #86efac; border-left:5px solid #16a34a; box-shadow:0 4px 6px -1px rgba(22,163,74,0.1)">
+                <div style="font-size:14px;color:#15803d;margin-bottom:8px;font-weight:800"><i id="icon-growth" class="fa-solid fa-arrow-trend-up"></i> 전년 대비 성장</div>
+                <div class="compare-val" id="val-growth" style="color:#15803d; font-size:28px">0</div>
+            </div>
+        </div>
         <div class="card" style="padding:12px"><h4 style="margin-bottom:8px">📅 월별 매출 추이 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></h4><div class="table-container"><table id="yoy-detail-table" style="font-size:12px"><thead><tr><th style="padding:4px 6px">구분</th><th style="padding:4px 3px">1월</th><th style="padding:4px 3px">2월</th><th style="padding:4px 3px">3월</th><th style="padding:4px 3px">4월</th><th style="padding:4px 3px">5월</th><th style="padding:4px 3px">6월</th><th style="padding:4px 3px">7월</th><th style="padding:4px 3px">8월</th><th style="padding:4px 3px">9월</th><th style="padding:4px 3px">10월</th><th style="padding:4px 3px">11월</th><th style="padding:4px 3px">12월</th><th style="padding:4px 6px">합계</th></tr></thead><tbody id="yoy-detail-body"></tbody></table></div><div style="margin-top:12px;height:200px"><canvas id="revenue-chart"></canvas></div></div>
         <div class="card"><h4>📋 월별 DB 출처별 성과 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></h4><div class="table-container"><table id="month-kpi-table"><thead><tr><th>구분</th><th>1월</th><th>2월</th><th>3월</th><th>4월</th><th>5월</th><th>6월</th><th>7월</th><th>8월</th><th>9월</th><th>10월</th><th>11월</th><th>12월</th><th>합계</th></tr></thead><tbody id="month-kpi-body"></tbody></table></div></div>
         <div id="member-perf-section" style="display:none"><div class="card"><h4>📈 나의 성과 현황표</h4><div class="table-container"><table class="perf-table"><thead><tr><th>구분</th><th>DB배정</th><th>미팅</th><th>가망</th><th>계약</th><th>전환율</th><th>매출</th></tr></thead><tbody id="member-perf-body"></tbody></table></div></div></div>
@@ -539,10 +548,10 @@ body{flex-direction:column;overflow:auto}
         </div>
         <div class="dashboard-grid">
             <div class="stat-card"><div class="stat-label">이번달 총 매출</div><div class="stat-value" id="ad-total-rev">0</div></div>
-            <div class="stat-card" style="border-left-color:#10b981"><div class="stat-label">이번달 총 계약</div><div class="stat-value" id="ad-total-cont">0건</div></div>
-            <div class="stat-card" style="border-left-color:#f59e0b"><div class="stat-label">신규 DB 유입</div><div class="stat-value" id="ad-total-db">0개</div></div>
-            <div class="stat-card" style="border-left-color:#8b5cf6"><div class="stat-label">계약 전환율</div><div class="stat-value" id="ad-conv-rate">0%</div></div>
-        </div>
+            <div class="stat-card" style="border-left-color:#10b981"><div class="stat-label">이번달 총 계약</div><div class="stat-value" id="ad-total-cont">0건</div></div>
+            <div class="stat-card" style="border-left-color:#f59e0b"><div class="stat-label">신규 DB 유입</div><div class="stat-value" id="ad-total-db">0개</div></div>
+            <div class="stat-card" style="border-left-color:#8b5cf6"><div class="stat-label">계약 전환율</div><div class="stat-value" id="ad-conv-rate">0%</div></div>
+        </div>
         <h3 style="margin-bottom:15px">🏆 이달의 명예의 전당</h3>
         <div style="display:flex;gap:20px;margin-bottom:30px">
             <div class="rank-card" style="border-top:4px solid #f59e0b"><div class="rank-title" style="color:#b45309"><i class="fa-solid fa-trophy"></i> 500만원 이상</div><ul class="rank-list" id="rank-500"></ul></div>
@@ -1438,7 +1447,11 @@ function exportToExcel(){
     });
     var ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=headers.map(function(){return{wch:15}});
     var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'DB_List');
-    XLSX.writeFile(wb,'DB_List_'+new Date().toISOString().split('T')[0]+'.xlsx');showToast('엑셀 다운로드 완료!')}catch(e){console.error(e);showToast('엑셀 다운로드 오류','error')}
+    // 현재 보고 있는 화면의 타이틀을 엑셀 파일명에 추가!
+    var pageName = document.getElementById('page-title').innerText.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+    XLSX.writeFile(wb, pageName + '_' + new Date().toISOString().split('T')[0]+'.xlsx');
+    showToast('엑셀 다운로드 완료!')
+    }catch(e){console.error(e);showToast('엑셀 다운로드 오류','error')}
 }
 // ═══ 분석/YoY ═══
 function renderAnalysisData(){renderYoYSummaryTable();try{renderYoYDetail()}catch(e){console.error('YoY Detail error:',e)}try{renderMonthlyKPI()}catch(e){console.error('KPI error:',e)}if(currentUser.role!=='admin'){try{renderMemberPerformance()}catch(e){console.error('MemberPerf error:',e)}}}
@@ -2269,4 +2282,3 @@ function handleDragEnd(e){document.querySelectorAll('.rm-item-chip').forEach(fun
 function renderRoadmapView(){var tbody=document.getElementById('rm-body');var listDiv=document.getElementById('rm-list');var h1=document.getElementById('rm-header-row-1');var h2=document.getElementById('rm-header-row-2');tbody.innerHTML='';listDiv.innerHTML='';var maxMonth=12;tempRoadmap.forEach(function(i){if(i.start+i.duration-1>maxMonth)maxMonth=i.start+i.duration-1});var years=Math.ceil(maxMonth/12);var baseYear=new Date().getFullYear();var hh1='<th class="rm-header rm-diagonal" style="width:120px" rowspan="2"><span class="rm-diagonal-text rm-text-bottom-left">항목</span><span class="rm-diagonal-text rm-text-top-right">일정</span></th>';var hh2='';for(var y=0;y<years;y++){hh1+='<th class="rm-header" colspan="12">'+(baseYear+y)+'</th>';for(var m=1;m<=12;m++)hh2+='<th class="rm-subheader">'+m+'</th>'}h1.innerHTML=hh1;h2.innerHTML=hh2;if(tempRoadmap.length===0)listDiv.innerHTML='<div style="text-align:center;color:#94a3b8;font-size:12px">항목 없음</div>';else tempRoadmap.forEach(function(item,idx){var chip=document.createElement('div');chip.className='rm-item-chip';chip.draggable=true;chip.innerHTML='<i class="fa-solid fa-grip-vertical" style="color:#94a3b8;margin-right:5px"></i><span style="font-weight:bold;color:#334155">'+item.name+'</span><i class="fa-solid fa-xmark" style="color:#ef4444;margin-left:8px;cursor:pointer"></i>';chip.addEventListener('dragstart',function(e){handleDragStart(e,idx)});chip.addEventListener('dragover',handleDragOver);chip.addEventListener('dragleave',handleDragLeave);chip.addEventListener('drop',function(e){handleDrop(e,idx)});chip.addEventListener('dragend',handleDragEnd);chip.onclick=function(){loadRoadmapItemForEdit(idx)};chip.querySelector('.fa-xmark').onclick=function(e){e.stopPropagation();removeRoadmapItem(idx)};listDiv.appendChild(chip)});if(tempRoadmap.length===0){tbody.innerHTML='<tr><td colspan="'+(1+(years*12))+'" style="text-align:center;padding:20px;color:#cbd5e1">비어있음</td></tr>';return}tempRoadmap.forEach(function(item,idx){var tr='<tr>';var cHex=colorPalette[Math.min(idx,5)];var tCol=(Math.min(idx,5)>=5)?'#1e293b':'white';tr+='<td class="rm-cat-col" onclick="loadRoadmapItemForEdit('+idx+')" style="background:'+cHex+';color:'+tCol+';cursor:pointer">'+item.name+'</td>';var cols=years*12;for(var i=1;i<=cols;i++){if(i===item.start){var desc=item.desc?item.desc.replace(/\/\//g,'<br>'):'';var align=item.align||'center';var cont='';if(align==='out'){cont='<div class="rm-bar-container" style="width:100%;background:'+cHex+'"></div><div class="rm-bar-outer-text">'+desc+'</div>'}else{cont='<div class="rm-bar-container rm-align-'+align+'" style="width:100%;background:'+cHex+';color:'+tCol+'">'+desc+'</div>'}tr+='<td class="rm-cell" colspan="'+item.duration+'" onclick="loadRoadmapItemForEdit('+idx+')">'+cont+'</td>';i+=(item.duration-1)}else{tr+='<td class="rm-cell"></td>'}}tr+='</tr>';tbody.innerHTML+=tr})}
 document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('#modal input,#modal select,#modal textarea').forEach(function(el){el.addEventListener('change',function(){isModalDirty=true});el.addEventListener('input',function(){isModalDirty=true})})});
 </script></body></html>
-
