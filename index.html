@@ -530,14 +530,10 @@ body{flex-direction:column;overflow:auto}
     </div>
 
     <div class="page-content" id="view-dashboard" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-            <h3 style="margin:0;font-weight:800"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></h3>
-            <div style="display:flex;gap:8px">
-                <select id="admin-stat-year" style="padding:8px;border-radius:6px;font-weight:bold" onchange="renderAdminDashboard()"></select>
-                <select id="admin-stat-month" style="padding:8px;border-radius:6px;font-weight:bold" onchange="renderAdminDashboard()"></select>
-            </div>
-        </div>
-        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h3 style="margin:0;font-weight:800"><i class="fa-solid fa-tower-observation"></i> 통합 관제탑 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></h3>
+            <select id="admin-stat-month" style="padding:8px;border-radius:6px;font-weight:bold" onchange="renderAdminDashboard()"></select>
+        </div>
         <div class="dashboard-grid">
             <div class="stat-card"><div class="stat-label">이번달 총 매출</div><div class="stat-value" id="ad-total-rev">0</div></div>
             <div class="stat-card" style="border-left-color:#10b981"><div class="stat-label">이번달 총 계약</div><div class="stat-value" id="ad-total-cont">0건</div></div>
@@ -853,12 +849,13 @@ function getMonthlyGoal(name,y,m){var v=localStorage.getItem(getGoalKey(name,y,m
 function setMonthlyGoal(name,y,m,amount){localStorage.setItem(getGoalKey(name,y,m),String(amount))}
 
 function checkMonthlyGoal(){
-    if(!currentUser||currentUser.role==='admin')return;
-    var now=new Date();var y=now.getFullYear();var m=now.getMonth()+1;
-    var existing=getMonthlyGoal(currentUser.name,y,m);
-    if(existing>0)return; // 이미 설정됨 (설정 안 되어 있으면 며칠이든 무조건 팝업 띄움!)    
-
-// 지난달 실적, 올해 월평균 계산
+    if(!currentUser||currentUser.role==='admin')return;
+    var now=new Date();var y=now.getFullYear();var m=now.getMonth()+1;var day=now.getDate();
+    // 매월 1~7일에만 팝업 (첫 영업일 체크)
+    if(day>7)return;
+    var existing=getMonthlyGoal(currentUser.name,y,m);
+    if(existing>0)return; // 이미 설정됨
+    // 지난달 실적, 올해 월평균 계산
     var myDB=dbList.filter(function(d){return d.member===currentUser.name&&!d.isFrozen&&d.status==='계약'});
     var lastM=m-1;var lastY=y;if(lastM<1){lastM=12;lastY--}
     var lastRev=myDB.filter(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);return p.year===lastY&&p.month===lastM}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);
@@ -891,18 +888,13 @@ function renderMyGoalProgress(){
     var myDB=dbList.filter(function(d){return d.member===currentUser.name&&!d.isFrozen&&d.status==='계약'});
     var rev=myDB.filter(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);return p.year===y&&p.month===m}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);
     rev+=getShareRevenue(currentUser.name,y,m);
-    // ★수정: 텍스트용 무한대 퍼센트와 게이지바용 100% 제한 분리
-    var realPct=Math.round(rev/goal*100);
-    var barPct=Math.min(100, realPct);
+    var pct=Math.min(100,Math.round(rev/goal*100));
     el.style.display='block';
     document.getElementById('my-goal-text').innerText=rev.toLocaleString()+' / '+goal.toLocaleString()+'원';
-    document.getElementById('my-goal-bar').style.width=barPct+'%';
-    document.getElementById('my-goal-bar').style.background=barPct>=100?'linear-gradient(90deg,#10b981,#059669)':barPct>=70?'linear-gradient(90deg,#3b82f6,#10b981)':'linear-gradient(90deg,#f59e0b,#ef4444)';
-    
-    // 100%를 초과하면 불꽃 이모지와 함께 초과달성 표시!
-    var statusText = realPct > 100 ? ' 🔥 초과 달성!' : (realPct === 100 ? ' 🏆 달성!' : '');
-    document.getElementById('my-goal-pct').innerText = realPct + '%' + statusText;
-    document.getElementById('my-goal-pct').style.color = realPct >= 100 ? '#10b981' : (realPct >= 70 ? '#2563eb' : '#ef4444');
+    document.getElementById('my-goal-bar').style.width=pct+'%';
+    document.getElementById('my-goal-bar').style.background=pct>=100?'linear-gradient(90deg,#10b981,#059669)':pct>=70?'linear-gradient(90deg,#3b82f6,#10b981)':'linear-gradient(90deg,#f59e0b,#ef4444)';
+    document.getElementById('my-goal-pct').innerText=pct+'%'+(pct>=100?' 🏆 달성!':'');
+    document.getElementById('my-goal-pct').style.color=pct>=100?'#10b981':pct>=70?'#2563eb':'#ef4444';
 }
 
 // ═══ v29: 관리자 → 팀원 DB 배정 ═══
@@ -989,7 +981,7 @@ function renderFilters(){
     }
     initDateSelects();
 }
-function initDateSelects(){var ye=document.getElementById('filter-year');var me=document.getElementById('filter-month');var cy=new Date().getFullYear();var cm=new Date().getMonth()+1;var yo='<option value="all">전체 연도</option>';for(var y=cy+1;y>=2023;y--)yo+='<option value="'+y+'"'+(y===cy?' selected':'')+'>'+y+'년</option>';if(ye)ye.innerHTML=yo;var hy=document.getElementById('hist-year');if(hy)hy.innerHTML=yo;var mo='<option value="all">전체 월</option>';for(var m=1;m<=12;m++)mo+='<option value="'+m+'"'+(m===cm?' selected':'')+'>'+m+'월</option>';if(me)me.innerHTML=mo;var hm=document.getElementById('hist-month');if(hm)hm.innerHTML='<option value="all">전체 (1년치)</option>'+mo.replace('value="all"','').replace('전체 월','');var ay=document.getElementById('admin-stat-year');if(ay)ay.innerHTML=yo;var am=document.getElementById('admin-stat-month');if(am){var ao='<option value="all">전체 월</option>';for(var am2=1;am2<=12;am2++)ao+='<option value="'+am2+'"'+(am2===cm?' selected':'')+'>'+am2+'월</option>';am.innerHTML=ao}}
+function initDateSelects(){var ye=document.getElementById('filter-year');var me=document.getElementById('filter-month');var cy=new Date().getFullYear();var cm=new Date().getMonth()+1;var yo='<option value="all">전체 연도</option>';for(var y=cy+1;y>=2023;y--)yo+='<option value="'+y+'"'+(y===cy?' selected':'')+'>'+y+'년</option>';if(ye)ye.innerHTML=yo;var hy=document.getElementById('hist-year');if(hy)hy.innerHTML=yo;var mo='<option value="all">전체 월</option>';for(var m=1;m<=12;m++)mo+='<option value="'+m+'"'+(m===cm?' selected':'')+'>'+m+'월</option>';if(me)me.innerHTML=mo;var hm=document.getElementById('hist-month');if(hm)hm.innerHTML='<option value="all">전체 (1년치)</option>'+mo.replace('value="all"','').replace('전체 월','');var am=document.getElementById('admin-stat-month');if(am){var ao='<option value="all">전체 월</option>';for(var am2=1;am2<=12;am2++)ao+='<option value="'+am2+'"'+(am2===cm?' selected':'')+'>'+am2+'월</option>';am.innerHTML=ao}}
 
 // ═══ 리스트 렌더링 ═══
 function renderList(){
@@ -1316,8 +1308,7 @@ function executeRedistribution(){
     if(!hasStep3) { pText = '<div style="color:#94a3b8">이전 담당자의 3단계 기록이 없습니다.</div>'; }
 
     // 3. 새 복제 DB 생성 (출처 유지 & 상태 초기화)
-    // ★수정: 연속 클릭이나 시스템 딜레이 시에도 절대 겹치지 않는 강력한 난수 ID 생성
-    var newId = Date.now() + Math.floor(Math.random() * 1000000);
+    var newId=Date.now()+100;
     var clonedLogs=frozenLogs.slice();
     clonedLogs.unshift({time:new Date().toLocaleString(),text:"🤖 (시스템) ["+originalDB.member+"] 팀장으로부터 인계받은 재배정 DB입니다.",writer:"시스템",type:'system'});
     
@@ -1392,15 +1383,11 @@ function quickReassign(dbId,selId){
 
 // ★ v29: 관리자 전용 재배정/동결 강제 취소(복구) 기능
 function cancelRedistribution(){
-    var id = document.getElementById('edit-id').value;
-    var d = dbList.find(function(x){return x.id==id});
-    if(!d) return showToast('DB를 찾을 수 없습니다.','error');
-    // ★ 중복 방지 방어막: 이미 다른 팀원에게 배정된 DB는 강제 복구 금지
-    if(d.frozenTo) {
-        alert('⚠️ 복구 불가!\n이미 ['+d.frozenTo+'] 팀장에게 재배정이 완료된 DB입니다.\n\n데이터 중복을 방지하기 위해, 먼저 ['+d.frozenTo+'] 팀장의 수신함에서 해당 DB를 삭제하신 후에 복구를 진행해 주세요.');
-        return;
-    }
-    if(!confirm('['+d.member+'] 팀장에게 다시 이 DB를 복구(반환)하시겠습니까?\n동결 상태가 해제됩니다.')) return;    
+    var id = document.getElementById('edit-id').value;
+    var d = dbList.find(function(x){return x.id==id});
+    if(!d) return showToast('DB를 찾을 수 없습니다.','error');
+    if(!confirm('['+d.member+'] 팀장에게 다시 이 DB를 복구(반환)하시겠습니까?\n동결 상태가 해제됩니다.')) return;
+    
     d.isFrozen = false;
     d.frozenTo = '';
     d.frozenDate = '';
@@ -1425,18 +1412,9 @@ function cancelRedistribution(){
 function exportToExcel(){
     try{if(typeof XLSX==='undefined')throw new Error('XLSX not loaded');
     var data=[];var isAdmin=currentUser.role==='admin';
-    var headers=isAdmin?['접수일','담당자','업체명','대표자','연락처','지역','출처','통화상태','미팅일','진행상태','계약일','상품','총금액','순수실적(내몫)','동결여부']:['접수일','업체명','대표자','연락처','지역','출처','통화상태','미팅일','진행상태','계약일','상품','총계약금액','내실적(수당용)'];
+    var headers=isAdmin?['접수일','담당자','업체명','대표자','연락처','지역','출처','통화상태','미팅일','진행상태','계약일','상품','총금액','순수실적','동결여부']:['접수일','업체명','대표자','연락처','지역','출처','통화상태','미팅일','진행상태','계약일','상품','총금액','순수실적'];
     data.push(headers);
-    totalFilteredData.forEach(function(d){
-        // ★수정: 관리자는 중복 방지를 위해 원본만 추출. 팀원은 쉐어 내역까지 모두 포함하여 급여계산 편하게 함!
-        if(isAdmin && d.isVirtualShare) return; 
-        
-        var compName = d.isVirtualShare ? "[쉐어받음] " + d.company : d.company;
-        var row=isAdmin?
-            [d.date||'',d.member||'',d.company||'',d.ceo||'',d.phone||'',d.region||'',d.source||'',d.callStatus||'',d.meetDate||'',d.status||'',d.contractDate||'',d.product||'',d.totalAmount||0,d.amount||0,d.isFrozen?'동결':'']:
-            [d.date||'',compName||'',d.ceo||'',d.phone||'',d.region||'',d.source||'',d.callStatus||'',d.meetDate||'',d.status||'',d.contractDate||'',d.product||'',d.totalAmount||0,d.amount||0];
-        data.push(row);
-    });
+    totalFilteredData.forEach(function(d){if(d.isVirtualShare)return;var row=isAdmin?[d.date||'',d.member||'',d.company||'',d.ceo||'',d.phone||'',d.region||'',d.source||'',d.callStatus||'',d.meetDate||'',d.status||'',d.contractDate||'',d.product||'',d.totalAmount||0,d.amount||0,d.isFrozen?'동결':'']:[d.date||'',d.company||'',d.ceo||'',d.phone||'',d.region||'',d.source||'',d.callStatus||'',d.meetDate||'',d.status||'',d.contractDate||'',d.product||'',d.totalAmount||0,d.amount||0];data.push(row)});
     var ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=headers.map(function(){return{wch:15}});
     var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'DB_List');
     XLSX.writeFile(wb,'DB_List_'+new Date().toISOString().split('T')[0]+'.xlsx');showToast('엑셀 다운로드 완료!')}catch(e){console.error(e);showToast('엑셀 다운로드 오류','error')}
@@ -1496,7 +1474,7 @@ function renderHistory(){var y=document.getElementById('hist-year').value,m=docu
 
 // ═══ 관리자 대시보드 ═══
 function goToMemberDB(memberName){navTo('list');setTimeout(function(){var memberEl=document.getElementById('filter-member');if(memberEl){memberEl.value=memberName;currentPage=1;renderList();showToast(memberName+' DB 필터 적용됨')}},100)}
-function renderAdminDashboard(){var now=new Date();var selectedMonth=document.getElementById('admin-stat-month').value;var selectedYear=document.getElementById('admin-stat-year')?document.getElementById('admin-stat-year').value:'all';var targetYear=selectedYear==='all'?now.getFullYear():parseInt(selectedYear);var isAllMonths=(selectedMonth==='all');var monthlyDBByDate=dbList.filter(function(d){if(d.isFrozen)return false;if(d.isReassigned)return false;var parsed=parseDBDate(d.date);if(parsed.year===0)return isAllMonths;if(parsed.year!==targetYear)return false;if(!isAllMonths&&parsed.month!==parseInt(selectedMonth))return false;return true});var totalDB=monthlyDBByDate.length;var contracts=dbList.filter(function(d){if(d.status!=='계약'||d.isFrozen)return false;var cd=getContractDate(d);var parsed=parseDBDate(cd);if(parsed.year!==targetYear)return false;if(!isAllMonths&&parsed.month!==parseInt(selectedMonth))return false;return true});var totalRevenue=getTeamRevenue(contracts);var convRate=totalDB>0?((contracts.length/totalDB)*100).toFixed(1):0;document.getElementById('ad-total-rev').innerText=totalRevenue.toLocaleString()+"원";document.getElementById('ad-total-cont').innerText=contracts.length+"건";document.getElementById('ad-total-db').innerText=totalDB+"개";document.getElementById('ad-conv-rate').innerText=convRate+"%";var stats={};var targetMonth=isAllMonths?null:parseInt(selectedMonth);members.filter(function(m){return m.role!=='admin'}).forEach(function(m){var ownRev=contracts.filter(function(d){return d.member===m.name}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);var shareRev=getShareRevenue(m.name,targetYear,targetMonth);stats[m.name]=ownRev+shareRev});var sorted=Object.entries(stats).sort(function(a,b){return b[1]-a[1]});var r500=sorted.filter(function(x){return x[1]>=5000000});var r300=sorted.filter(function(x){return x[1]>=3000000&&x[1]<5000000});var r60=sorted.filter(function(x){return x[1]>=600000&&x[1]<3000000});function fillList(id,arr){var el=document.getElementById(id);el.innerHTML='';if(arr.length===0)el.innerHTML='<li style="padding:10px;color:#999;text-align:center">달성자 없음</li>';arr.forEach(function(x){el.innerHTML+='<li class="rank-item"><span>'+x[0]+'</span> <span class="rank-val">'+x[1].toLocaleString()+'</span></li>'})}fillList('rank-500',r500);fillList('rank-300',r300);fillList('rank-60',r60);
+function renderAdminDashboard(){var now=new Date();var selectedMonth=document.getElementById('admin-stat-month').value;var targetYear=now.getFullYear();var isAllMonths=(selectedMonth==='all');var monthlyDBByDate=dbList.filter(function(d){if(d.isFrozen)return false;if(d.isReassigned)return false;var parsed=parseDBDate(d.date);if(parsed.year===0)return isAllMonths;if(parsed.year!==targetYear)return false;if(!isAllMonths&&parsed.month!==parseInt(selectedMonth))return false;return true});var totalDB=monthlyDBByDate.length;var contracts=dbList.filter(function(d){if(d.status!=='계약'||d.isFrozen)return false;var cd=getContractDate(d);var parsed=parseDBDate(cd);if(parsed.year!==targetYear)return false;if(!isAllMonths&&parsed.month!==parseInt(selectedMonth))return false;return true});var totalRevenue=getTeamRevenue(contracts);var convRate=totalDB>0?((contracts.length/totalDB)*100).toFixed(1):0;document.getElementById('ad-total-rev').innerText=totalRevenue.toLocaleString()+"원";document.getElementById('ad-total-cont').innerText=contracts.length+"건";document.getElementById('ad-total-db').innerText=totalDB+"개";document.getElementById('ad-conv-rate').innerText=convRate+"%";var stats={};var targetMonth=isAllMonths?null:parseInt(selectedMonth);members.filter(function(m){return m.role!=='admin'}).forEach(function(m){var ownRev=contracts.filter(function(d){return d.member===m.name}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);var shareRev=getShareRevenue(m.name,targetYear,targetMonth);stats[m.name]=ownRev+shareRev});var sorted=Object.entries(stats).sort(function(a,b){return b[1]-a[1]});var r500=sorted.filter(function(x){return x[1]>=5000000});var r300=sorted.filter(function(x){return x[1]>=3000000&&x[1]<5000000});var r60=sorted.filter(function(x){return x[1]>=600000&&x[1]<3000000});function fillList(id,arr){var el=document.getElementById(id);el.innerHTML='';if(arr.length===0)el.innerHTML='<li style="padding:10px;color:#999;text-align:center">달성자 없음</li>';arr.forEach(function(x){el.innerHTML+='<li class="rank-item"><span>'+x[0]+'</span> <span class="rank-val">'+x[1].toLocaleString()+'</span></li>'})}fillList('rank-500',r500);fillList('rank-300',r300);fillList('rank-60',r60);
     // v28: 심폐소생술 랭킹
     var cprEl=document.getElementById('cpr-ranking');if(cprEl){
         var cprStats=members.filter(function(m){return m.role!=='admin'}).map(function(m){var cpr=getCPRContracts(m.name,targetYear,targetMonth,isAllMonths);return{name:m.name,count:cpr.length,rev:cpr.reduce(function(a,c){return a+c.amount},0)}}).filter(function(x){return x.count>0}).sort(function(a,b){return b.rev-a.rev});
