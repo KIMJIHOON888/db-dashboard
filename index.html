@@ -1166,7 +1166,10 @@ function openModal(id,rowNum){
         document.getElementById('input-consulting').value=d.consulting||'';document.getElementById('input-phone-issue').value=d.phoneIssue||'';
         updateShareFields();
         if(d.shareList&&Array.isArray(d.shareList)){d.shareList.forEach(function(s,i){if(i<3){document.getElementById('share-partner-'+(i+1)).value=s.partner;document.getElementById('share-percent-'+(i+1)).value=s.percent}})}
-        calculateShare();tempLogs=d.logs||[];tempRoadmap=d.roadmap||[];
+        calculateShare();
+        // ★ 심연의 버그 픽스: 배열 참조를 끊어내어(Deep Copy) 취소 시 유령 메모가 부활하는 현상 차단!
+        tempLogs = JSON.parse(JSON.stringify(d.logs || []));
+        tempRoadmap = JSON.parse(JSON.stringify(d.roadmap || []));
     }else{
         document.getElementById('edit-id').value='';document.getElementById('display-member').innerText=currentUser.name;
         document.getElementById('input-date').disabled=false; document.getElementById('label-input-date').innerText='접수일';
@@ -1457,7 +1460,77 @@ function exportToExcel(){
 function renderAnalysisData(){renderYoYSummaryTable();try{renderYoYDetail()}catch(e){console.error('YoY Detail error:',e)}try{renderMonthlyKPI()}catch(e){console.error('KPI error:',e)}if(currentUser.role!=='admin'){try{renderMemberPerformance()}catch(e){console.error('MemberPerf error:',e)}}}
 function goToMemberYearlyContracts(memberName){navTo('list');setTimeout(function(){var yearEl=document.getElementById('filter-year');var monthEl=document.getElementById('filter-month');var statusEl=document.getElementById('filter-status');var sourceEl=document.getElementById('filter-source');var memberEl=document.getElementById('filter-member');if(yearEl)yearEl.value=new Date().getFullYear();if(monthEl)monthEl.value='all';if(statusEl)statusEl.value='계약';if(memberName==='SM'){if(sourceEl)sourceEl.value='팀DB';if(memberEl)memberEl.value='all'}else if(memberName==='추장호'){if(sourceEl)sourceEl.value='추장호DB';if(memberEl)memberEl.value='all'}else{if(sourceEl)sourceEl.value='all';if(memberEl)memberEl.value=memberName}currentPage=1;renderList();showToast(memberName+'의 올해 계약 리스트입니다.')},100)}
 function renderYoYSummaryTable(){var tbody=document.querySelector('#yoy-summary-table tbody');tbody.innerHTML='';var thisY=new Date().getFullYear();var list=members.filter(function(m){return m.role!=='admin'}).map(function(m){var myDB=dbList.filter(function(d){return d.member===m.name&&d.status==='계약'&&!d.isFrozen});var l=myDB.filter(function(d){var cd=getContractDate(d);return parseDBDate(cd).year===thisY-1}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);var tItems=myDB.filter(function(d){var cd=getContractDate(d);return parseDBDate(cd).year===thisY});var t=tItems.reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);var thisCnt=tItems.length;l+=getShareRevenue(m.name,thisY-1,null);t+=getShareRevenue(m.name,thisY,null);thisCnt+=getShareContractCount(m.name,thisY,null);return{name:m.name,last:l,this:t,thisCnt:thisCnt,isSpecial:false}});var smL=getSpecialPartnerRevenue('SM',thisY-1,null);var smT=getSpecialPartnerRevenue('SM',thisY,null);if(smL>0||smT>0)list.push({name:'🗣️ SM',last:smL,this:smT,thisCnt:0,isSpecial:true});var cjL=getSpecialPartnerRevenue('추장호',thisY-1,null);var cjT=getSpecialPartnerRevenue('추장호',thisY,null);if(cjL>0||cjT>0)list.push({name:'🎯 추장호',last:cjL,this:cjT,thisCnt:0,isSpecial:true});list.sort(function(a,b){if(a.isSpecial!==b.isSpecial)return a.isSpecial?1:-1;return b.this-a.this});var normalRank=0;list.forEach(function(d){if(!d.isSpecial)normalRank++;var rank=d.isSpecial?'-':normalRank;var crownHtml='';if(!d.isSpecial&&normalRank===1)crownHtml='<span style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(234,179,8,.5))">👑</span> ';else if(!d.isSpecial&&normalRank===2)crownHtml='<span style="font-size:18px;filter:grayscale(.3) brightness(1.3)">👑</span> ';else if(!d.isSpecial&&normalRank===3)crownHtml='<span style="font-size:16px;filter:sepia(1) saturate(3) hue-rotate(350deg)">👑</span> ';var nameStyle=!d.isSpecial&&normalRank<=3?' style="font-weight:800;font-size:15px"':'';var rowBg='';if(!d.isSpecial&&normalRank===1)rowBg=' style="background:linear-gradient(90deg,#fef9c3,#fef3c7,white)"';else if(!d.isSpecial&&normalRank===2)rowBg=' style="background:linear-gradient(90deg,#f1f5f9,#e2e8f0,white)"';else if(!d.isSpecial&&normalRank===3)rowBg=' style="background:linear-gradient(90deg,#fff7ed,#fed7aa,white)"';if(d.isSpecial)rowBg=' style="background:#fffbeb"';var cleanName=d.name.replace(/[^\w\s가-힣]/gi,'').trim();var nameHtml='<span style="cursor:pointer;text-decoration:underline" onclick="goToMemberYearlyContracts(\''+cleanName+'\')" title="'+cleanName+' 계약 내역 보기">'+crownHtml+d.name+'</span>';var cntHtml=d.isSpecial?'-':'<span style="cursor:pointer;text-decoration:underline;color:#10b981;font-weight:bold" onclick="goToMemberYearlyContracts(\''+cleanName+'\')" title="'+cleanName+' 계약 내역 보기">'+d.thisCnt+'건</span>';var growthPct=d.last>0?Math.round((d.this-d.last)/d.last*100):(d.this>0?100:0);var growthColor=growthPct>0?'#16a34a':growthPct<0?'#dc2626':'#64748b';var growthSign=growthPct>0?'+':'';tbody.innerHTML+='<tr'+rowBg+'><td>'+rank+'</td><td'+nameStyle+'>'+nameHtml+'</td><td>'+cntHtml+'</td><td>'+d.last.toLocaleString()+'</td><td style="font-weight:bold;color:#2563eb">'+d.this.toLocaleString()+'</td><td>'+(d.this-d.last).toLocaleString()+'</td><td style="font-weight:bold;color:'+growthColor+'">'+growthSign+growthPct+'%</td></tr>'})}
-function renderYoYDetail(){var thisY=new Date().getFullYear();var lastY=thisY-1;var thisData=Array(12).fill(0);var lastData=Array(12).fill(0);if(currentUser.role==='admin'){dbList.forEach(function(d){if(d.status!=='계약'||d.isFrozen)return;var cd=getContractDate(d);var p=parseDBDate(cd);var amt=parseInt(String(d.totalAmount||d.amount).toString().replace(/,/g,''))||0;if(d.shareList&&Array.isArray(d.shareList)){d.shareList.forEach(function(s){if(isExternalPartner(s.partner)&&s.amount>0)amt-=s.amount})}if(p.year===thisY)thisData[p.month-1]+=amt;if(p.year===lastY)lastData[p.month-1]+=amt})}else{var targetDB=dbList.filter(function(d){return d.member===currentUser.name&&!d.isFrozen});targetDB.forEach(function(d){if(d.status!=='계약')return;var cd=getContractDate(d);var p=parseDBDate(cd);var amt=parseInt(String(d.amount).replace(/,/g,''))||0;if(p.year===thisY)thisData[p.month-1]+=amt;if(p.year===lastY)lastData[p.month-1]+=amt});getVirtualShareEntries(currentUser.name).forEach(function(se){var p=parseDBDate(se.contractDate);if(p.year===thisY)thisData[p.month-1]+=se.amount;if(p.year===lastY)lastData[p.month-1]+=se.amount})}var thisTotal=thisData.reduce(function(a,b){return a+b},0);var lastTotal=lastData.reduce(function(a,b){return a+b},0);document.getElementById('val-last-total').innerText=lastTotal.toLocaleString();document.getElementById('val-this-total').innerText=thisTotal.toLocaleString();document.getElementById('val-growth').innerText=(thisTotal-lastTotal).toLocaleString();var html='<tr><td>'+lastY+'년</td>';lastData.forEach(function(v){html+='<td>'+v.toLocaleString()+'</td>'});html+='<td style="font-weight:bold">'+lastTotal.toLocaleString()+'</td></tr>';html+='<tr style="background:#eff6ff"><td>'+thisY+'년</td>';thisData.forEach(function(v){html+='<td>'+v.toLocaleString()+'</td>'});html+='<td style="font-weight:bold;color:blue">'+thisTotal.toLocaleString()+'</td></tr>';document.getElementById('yoy-detail-body').innerHTML=html;renderRevenueChart(lastData,thisData,lastY,thisY)}
+function renderYoYDetail(){
+    var thisY=new Date().getFullYear();var lastY=thisY-1;var thisData=Array(12).fill(0);var lastData=Array(12).fill(0);
+    if(currentUser.role==='admin'){
+        dbList.forEach(function(d){
+            if(d.status!=='계약'||d.isFrozen)return;
+            var cd=getContractDate(d);var p=parseDBDate(cd);
+            var amt=parseInt(String(d.totalAmount||d.amount).toString().replace(/,/g,''))||0;
+            if(d.shareList&&Array.isArray(d.shareList)){
+                d.shareList.forEach(function(s){if(isExternalPartner(s.partner)&&s.amount>0)amt-=s.amount})
+            }
+            if(p.year===thisY)thisData[p.month-1]+=amt;
+            if(p.year===lastY)lastData[p.month-1]+=amt;
+        })
+    }else{
+        var targetDB=dbList.filter(function(d){return d.member===currentUser.name&&!d.isFrozen});
+        targetDB.forEach(function(d){
+            if(d.status!=='계약')return;
+            var cd=getContractDate(d);var p=parseDBDate(cd);
+            var amt=parseInt(String(d.amount).replace(/,/g,''))||0;
+            if(p.year===thisY)thisData[p.month-1]+=amt;
+            if(p.year===lastY)lastData[p.month-1]+=amt;
+        });
+        getVirtualShareEntries(currentUser.name).forEach(function(se){
+            var p=parseDBDate(se.contractDate);
+            if(p.year===thisY)thisData[p.month-1]+=se.amount;
+            if(p.year===lastY)lastData[p.month-1]+=se.amount;
+        })
+    }
+    var thisTotal=thisData.reduce(function(a,b){return a+b},0);var lastTotal=lastData.reduce(function(a,b){return a+b},0);
+    
+    // 카드 데이터 업데이트
+    document.getElementById('val-last-total').innerText=lastTotal.toLocaleString()+'원';
+    document.getElementById('val-this-total').innerText=thisTotal.toLocaleString()+'원';
+    var tDiff = thisTotal-lastTotal;
+    var tSign = tDiff > 0 ? '+' : '';
+    
+    var valGrowth = document.getElementById('val-growth');
+    valGrowth.innerText = tSign + tDiff.toLocaleString()+'원';
+    valGrowth.style.color = tDiff > 0 ? '#16a34a' : (tDiff < 0 ? '#dc2626' : '#64748b');
+
+    // 테이블 렌더링 (다이나믹 컬러 적용)
+    var html='<tr style="background:#f8fafc; color:#64748b"><td style="font-weight:bold">'+lastY+'년</td>';
+    lastData.forEach(function(v){html+='<td>'+(v>0?v.toLocaleString():'<span style="color:#cbd5e1">-</span>')+'</td>'});
+    html+='<td style="font-weight:900; color:#334155">'+lastTotal.toLocaleString()+'</td></tr>';
+
+    html+='<tr style="background:linear-gradient(90deg, #eff6ff, #ffffff); border-left: 3px solid #3b82f6;"><td style="font-weight:bold; color:#1d4ed8">'+thisY+'년</td>';
+    thisData.forEach(function(v, i){
+        var diff = v - lastData[i];
+        var bg = (v > 0 && diff > 0) ? 'background:#f0fdf4;' : '';
+        html+='<td style="'+bg+'">'+(v>0?'<span style="color:#2563eb;font-weight:bold">'+v.toLocaleString()+'</span>':'<span style="color:#cbd5e1">-</span>')+'</td>';
+    });
+    html+='<td style="font-weight:900; color:#2563eb; font-size:14px">'+thisTotal.toLocaleString()+'</td></tr>';
+    
+    // 월별 성장액 행 추가
+    html+='<tr style="background:#fffbeb; font-size:11px"><td style="font-weight:bold; color:#b45309">성장액</td>';
+    thisData.forEach(function(v, i){
+        var diff = v - lastData[i];
+        if(lastData[i]===0 && v===0) {
+             html+='<td><span style="color:#cbd5e1">-</span></td>';
+        } else {
+             var color = diff > 0 ? '#16a34a' : (diff < 0 ? '#dc2626' : '#94a3b8');
+             var sign = diff > 0 ? '+' : '';
+             html+='<td style="color:'+color+'; font-weight:bold">'+sign+diff.toLocaleString()+'</td>';
+        }
+    });
+    var tColor = tDiff > 0 ? '#16a34a' : (tDiff < 0 ? '#dc2626' : '#94a3b8');
+    html+='<td style="color:'+tColor+'; font-weight:900; font-size:13px">'+tSign+tDiff.toLocaleString()+'</td></tr>';
+
+    document.getElementById('yoy-detail-body').innerHTML=html;
+    renderRevenueChart(lastData,thisData,lastY,thisY);
+}
 function renderRevenueChart(lastData,thisData,lastY,thisY){try{var canvas=document.getElementById('revenue-chart');if(!canvas)return;if(revenueChartInstance)revenueChartInstance.destroy();if(typeof Chart==='undefined')return;var ctx=canvas.getContext('2d');revenueChartInstance=new Chart(ctx,{type:'bar',data:{labels:['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'],datasets:[{label:lastY+'년',data:lastData,backgroundColor:'rgba(148,163,184,.5)',borderColor:'#94a3b8',borderWidth:1,borderRadius:4},{label:thisY+'년',data:thisData,backgroundColor:'rgba(59,130,246,.7)',borderColor:'#2563eb',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:12,weight:'bold'}}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+ctx.parsed.y.toLocaleString()+'원'}}}},scales:{y:{beginAtZero:true,ticks:{callback:function(v){return(v/10000).toLocaleString()+'만'}}},x:{grid:{display:false}}}}})}catch(e){console.error('Chart render error:',e)}}
 function renderMonthlyKPI(){var ty=new Date().getFullYear();var d=(currentUser.role==='admin')?dbList.filter(function(x){return!x.isFrozen}):dbList.filter(function(x){return x.member===currentUser.name&&!x.isFrozen});d=d.filter(function(x){var cd=getContractDate(x);return parseDBDate(cd).year===ty&&x.status==='계약'});var sources=['회사DB','개인DB','팀DB','추장호DB','기타DB','재배정DB'];var data={};sources.forEach(function(s){data[s]=Array(12).fill().map(function(){return{cnt:0,amt:0}})});d.forEach(function(x){var cd=getContractDate(x);var p=parseDBDate(cd);var src=x.source||"";if(sources.indexOf(src)===-1&&src!=='재배정DB')src='기타DB';if(data[src]){data[src][p.month-1].cnt++;data[src][p.month-1].amt+=(parseInt(String(x.totalAmount||x.amount).toString().replace(/,/g,''))||0)}if(x.isReassigned&&data['재배정DB']){data['재배정DB'][p.month-1].cnt++;data['재배정DB'][p.month-1].amt+=(parseInt(String(x.totalAmount||x.amount).toString().replace(/,/g,''))||0)}});var tb=document.getElementById('month-kpi-table').querySelector('tbody');tb.innerHTML='';sources.forEach(function(src){var rowHtml='<td style="font-weight:bold">'+(src==='재배정DB'?'🔄 '+src:src)+'</td>';var totalCnt=0,totalAmt=0;for(var i=0;i<12;i++){var c=data[src][i].cnt,a=data[src][i].amt;totalCnt+=c;totalAmt+=a;rowHtml+='<td>'+(c>0?'<b>'+c+'</b><br><span style="font-size:10px;color:#2563eb">'+a.toLocaleString()+'</span>':'<span style="color:#eee">-</span>')+'</td>'}rowHtml+='<td style="background:#f1f5f9;font-weight:bold">'+totalCnt+'건<br><span style="color:#2563eb">'+totalAmt.toLocaleString()+'</span></td>';tb.innerHTML+='<tr>'+rowHtml+'</tr>'})}
 function renderMemberPerformance() {
