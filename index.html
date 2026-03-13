@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>DB Pro Master v29.5</title>
+<title>DB Pro Master v29.6</title>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -77,6 +77,27 @@ tr:hover{background-color:#f8fafc;cursor:pointer}
 .rank-val{font-weight:bold;color:var(--primary)}
 .progress-bar-bg{background:#e2e8f0;height:8px;border-radius:4px;overflow:hidden;width:100px;margin:5px auto 0}
 .progress-bar-fill{height:100%;background:var(--primary);border-radius:4px;transition:width .3s ease}
+.dashboard-topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.dashboard-topbar h3{margin:0;font-size:24px;display:flex;align-items:center;gap:10px;color:#0f172a}
+.dashboard-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.stat-card{background:#fff;padding:18px 18px 16px;border-radius:14px;display:flex;flex-direction:column;justify-content:space-between;border-left:4px solid var(--primary);box-shadow:0 2px 8px rgba(15,23,42,.05);min-height:96px}
+.stat-label{font-size:12px;color:#64748b;font-weight:700;margin-bottom:6px;letter-spacing:-.01em}
+.stat-value{font-size:22px;font-weight:800;color:#1e293b;line-height:1.2}
+.dashboard-honor-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.rank-card{background:#fff;border-radius:12px;padding:16px;border:1px solid #e2e8f0;min-width:0}
+.rank-title{font-weight:800;font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.rank-item{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;gap:10px}
+.rank-item span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-val{font-weight:bold;color:var(--primary);white-space:nowrap}
+.goal-mini{display:flex;flex-direction:column;gap:4px;min-width:120px}
+.goal-mini-top{display:flex;align-items:center;gap:6px;justify-content:center}
+.goal-mini-track{height:8px;background:#e2e8f0;border-radius:99px;overflow:hidden}
+.goal-mini-fill{height:100%;border-radius:99px;transition:width .4s ease}
+.goal-mini-text{font-size:11px;color:#475569;text-align:center;font-weight:700}
+.goal-mini-empty{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:999px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:800}
+@media (max-width:1200px){.dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-honor-grid{grid-template-columns:1fr}}
+@media (max-width:720px){.dashboard-grid{grid-template-columns:1fr}.dashboard-topbar{align-items:flex-start}}
+
 .compare-row{display:flex;gap:20px;margin-bottom:20px}
 .compare-box{flex:1;background:#f8fafc;padding:20px;border-radius:12px;text-align:center;border:1px solid #e2e8f0}
 .compare-val{font-size:24px;font-weight:800}
@@ -519,7 +540,7 @@ body{flex-direction:column;overflow:auto}
 
     <div class="page-content" id="view-dashboard" style="display:none">
         <div class="dashboard-topbar">
-            <h3><i class="fa-solid fa-tower-observation"></i> 통합 관제탑 <span style="font-size:12px;color:#64748b;font-weight:600">(계약일 기준)</span><span class="dashboard-version-chip">v29.5</span></h3>
+            <h3><i class="fa-solid fa-tower-observation"></i> 통합 관제탑 <span style="font-size:12px;color:#64748b;font-weight:600">(계약일 기준)</span></h3>
             <select id="admin-stat-month" style="padding:10px 12px;border-radius:10px;border:1px solid var(--border);font-weight:800;background:#fff" onchange="renderAdminDashboard()"></select>
         </div>
         <div class="dashboard-grid">
@@ -1351,7 +1372,17 @@ function renderAdminDashboard(){var now=new Date();var selectedMonth=document.ge
     }var tbody=document.getElementById('team-status-body');tbody.innerHTML='';var teamStats=members.filter(function(m){return m.role!=='admin'}).map(function(m){var myDataByDate=monthlyDBByDate.filter(function(d){return d.member===m.name});var dbCount=myDataByDate.length;var reassignCount=dbList.filter(function(d){return d.member===m.name&&d.isReassigned&&!d.isFrozen&&(function(){var p=parseDBDate(d.date);if(p.year===0)return isAllMonths;if(p.year!==targetYear)return false;if(!isAllMonths&&p.month!==parseInt(selectedMonth))return false;return true})()}).length;var meetCount=myDataByDate.filter(function(d){return d.meetDate}).length;var prospectCount=myDataByDate.filter(function(d){return d.status==='가망고객'}).length;var myContracts=contracts.filter(function(d){return d.member===m.name});var contCount=myContracts.length;var rev=myContracts.reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0)},0);var shareRev=getShareRevenue(m.name,targetYear,targetMonth);var shareCnt=getShareContractCount(m.name,targetYear,targetMonth);rev+=shareRev;contCount+=shareCnt;var rate=dbCount>0?Math.round((contCount/dbCount)*100):0;return{name:m.name,db:dbCount,reassign:reassignCount,meet:meetCount,prospect:prospectCount,cont:contCount,rev:rev,rate:rate,isSpecial:false}});['SM','추장호'].forEach(function(sp){var spRev=getSpecialPartnerRevenue(sp,targetYear,targetMonth);var icon=sp==='SM'?'🗣️':'🎯';teamStats.push({name:icon+' '+sp,db:'-',meet:'-',prospect:'-',cont:'-',rev:spRev,rate:'-',isSpecial:true})});teamStats.sort(function(a,b){if(a.isSpecial!==b.isSpecial)return a.isSpecial?1:-1;return b.rev-a.rev});var maxRev=1;teamStats.forEach(function(s){if(!s.isSpecial&&s.rev>maxRev)maxRev=s.rev});var normalRank=0;teamStats.forEach(function(s){var barWidth=Math.max(5,(s.rev/maxRev)*100);if(s.isSpecial){tbody.innerHTML+='<tr style="background:#fffbeb;border-top:2px solid #fcd34d"><td style="font-weight:bold">-</td><td style="font-weight:bold">'+s.name+'</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td><div style="font-weight:bold;color:#c2410c">'+s.rev.toLocaleString()+'</div><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:'+barWidth+'%;background:#f59e0b"></div></div></td><td>-</td></tr>'}else{normalRank++;
 var mGoal=getMonthlyGoal(s.name,targetYear,isAllMonths?new Date().getMonth()+1:parseInt(selectedMonth));
 var mGPct=mGoal>0?Math.min(999,Math.round(s.rev/mGoal*100)):0;
-var gDisp=mGoal>0?'<span style="font-weight:bold;color:'+(mGPct>=100?'#10b981':'#ef4444')+'">'+mGPct+'%</span>':'<span style="color:#ccc">-</span>';
+var goalFillColor=mGPct>=120?'#7c3aed':(mGPct>=100?'#10b981':(mGPct>=70?'#2563eb':(mGPct>=40?'#f59e0b':'#ef4444')));
+var gDisp='';
+if(mGoal>0){
+    gDisp='<div class="goal-mini">'
+        +'<div class="goal-mini-top"><span style="font-weight:800;color:'+goalFillColor+'">'+mGPct+'%</span></div>'
+        +'<div class="goal-mini-track"><div class="goal-mini-fill" style="width:'+Math.min(100,mGPct)+'%;background:'+goalFillColor+'"></div></div>'
+        +'<div class="goal-mini-text">'+Math.round(s.rev/10000).toLocaleString()+'만 / '+Math.round(mGoal/10000).toLocaleString()+'만</div>'
+        +'</div>';
+}else{
+    gDisp='<span class="goal-mini-empty">목표 미설정</span>';
+}
 tbody.innerHTML+='<tr><td style="font-weight:bold">'+normalRank+'</td><td style="cursor:pointer;color:#2563eb;text-decoration:underline" onclick="goToMemberDB(\''+s.name+'\')" title="'+s.name+' DB 보기">'+s.name+'</td><td>'+s.db+'</td><td style="color:#3b82f6;font-weight:bold">'+(s.reassign>0?'🔄'+s.reassign:'-')+'</td><td>'+s.meet+'</td><td style="color:var(--prospect);font-weight:bold">'+s.prospect+'</td><td style="color:#10b981;font-weight:bold">'+s.cont+'</td><td>'+s.rate+'%</td><td><div style="font-weight:bold;color:var(--primary)">'+s.rev.toLocaleString()+'</div><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:'+barWidth+'%"></div></div></td><td>'+gDisp+'</td></tr>'}})}
 
 // ═══ v29: 외부DB 현황판 ═══
