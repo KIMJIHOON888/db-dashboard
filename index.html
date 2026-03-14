@@ -1568,9 +1568,12 @@ function saveData(shouldClose){
     var cv=document.getElementById('input-company').value.trim();
     if(!cv){alert('업체명 필수 기입\n(없을 시 대표자명 기입)');document.getElementById('input-company').focus();return}
     var id=document.getElementById('edit-id').value||Date.now();
-    var total=parseInt(document.getElementById('input-amount').value.replace(/,/g,''))||0;
-    var shareList=[],ded=0;
-    for(var i=1;i<=3;i++){var ps=document.getElementById('share-partner-'+i);var pi=document.getElementById('share-percent-'+i);var p=ps.value;var pct=parseInt(pi.value)||0;if(p&&pct>0){var amt=Math.floor(total*(pct/100));shareList.push({partner:p,percent:pct,amount:amt,step:i});ded+=amt}}
+    // ★ v30.11: 다중계약 수집
+    var contracts=getContractsFromSlots();
+    var total=contracts.reduce(function(a,c){return a+(c.totalAmount||0);},0);
+    var ded=contracts.reduce(function(a,c){return a+(c.totalAmount||0)-(c.amount||0);},0);
+    var firstC=contracts[0]||{};
+    var shareList=firstC.shareList||[];
     var ex=dbList.find(function(x){return x.id==id})||{};
     var normalizedPhone=normalizePhone(document.getElementById('input-phone').value);
     if(document.getElementById('input-phone')) document.getElementById('input-phone').value=normalizedPhone;
