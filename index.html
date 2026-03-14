@@ -152,6 +152,30 @@ tr:hover{background-color:#f8fafc;cursor:pointer}
 .badge-multi{display:inline-block;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:4px;vertical-align:middle}
 .add-contract-btn{width:100%;padding:10px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:2px dashed #86efac;border-radius:8px;color:#16a34a;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px}
 .add-contract-btn:hover{background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-color:#4ade80}
+
+/* ── v30.13: 심폐소생 장인 배지 ── */
+.cpr-master-badge{display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-left:5px;animation:cprPulse 2s infinite;vertical-align:middle}
+@keyframes cprPulse{0%,100%{box-shadow:0 0 0 0 rgba(168,85,247,.5)}50%{box-shadow:0 0 0 6px rgba(168,85,247,0)}}
+.cpr-shine{position:relative;overflow:hidden}
+.cpr-shine::after{content:'';position:absolute;top:-50%;left:-60%;width:40%;height:200%;background:linear-gradient(to right,rgba(255,255,255,0),rgba(255,255,255,.3),rgba(255,255,255,0));transform:skewX(-15deg);animation:shine 3s infinite}
+@keyframes shine{0%{left:-60%}100%{left:160%}}
+
+/* ── v30.13: 클릭 가능 카드 명확화 ── */
+.stat-card[onclick]::after{content:'→';position:absolute;top:8px;right:10px;font-size:11px;color:#cbd5e1;transition:.2s}
+.stat-card[onclick]{position:relative}
+.stat-card[onclick]:hover::after{color:#3b82f6;transform:translateX(2px)}
+.clickable-card{cursor:pointer;position:relative}
+.clickable-card::after{content:'→';position:absolute;top:10px;right:12px;font-size:12px;color:#cbd5e1;transition:.2s}
+.clickable-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(15,23,42,.1)}
+.clickable-card:hover::after{color:#3b82f6;transform:translateX(3px)}
+
+/* ── v30.13: 핵심액션 카드 강화 ── */
+.action-guide{margin-top:8px;padding:8px 10px;border-radius:7px;font-size:12px;font-weight:600;line-height:1.5}
+.action-guide.urgent{background:#fef2f2;border-left:3px solid #ef4444;color:#7f1d1d}
+.action-guide.normal{background:#f0f9ff;border-left:3px solid #3b82f6;color:#1e3a8a}
+.action-guide.positive{background:#f0fdf4;border-left:3px solid #10b981;color:#064e3b}
+.action-step{display:flex;align-items:flex-start;gap:6px;margin-bottom:4px}
+.action-step-num{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:currentColor;color:#fff;font-size:10px;font-weight:800;flex-shrink:0;opacity:.9}
 .dynamic-section.active{display:block;animation:fadeIn .3s}
 .contract-box{background:#ecfdf5;border-color:#6ee7b7}.prospect-box{background:#f3e8ff;border-color:#d8b4fe}
 .share-info{background:#fffbeb;border:1px solid #fcd34d;padding:15px;border-radius:8px;margin-top:15px}
@@ -610,7 +634,10 @@ body{flex-direction:column;overflow:auto}
         <!-- 헤더 -->
         <div class="dashboard-topbar">
             <h3><i class="fa-solid fa-tower-observation" style="color:#3b82f6"></i> 통합 관제탑 <span style="font-size:12px;color:#94a3b8;font-weight:600;margin-left:4px">(계약일 기준)</span></h3>
+            <div style="display:flex;align-items:center;gap:10px">
+            <span id="data-range-badge"></span>
             <select id="admin-stat-month" style="padding:9px 14px;border-radius:10px;border:1.5px solid #e2e8f0;font-weight:800;background:#fff;color:#0f172a;font-size:13px" onchange="renderAdminDashboard()"></select>
+            </div>
         </div>
 
         <!-- ① 핵심 KPI -->
@@ -1001,7 +1028,55 @@ function getTeamRevenue(contractDBList){var t=0;contractDBList.forEach(function(
 // ═══ 데이터 로드 ═══
 window.onload=function(){var n=new Date();calYear=n.getFullYear();calMonth=n.getMonth();fetchDB(function(){isDataLoaded=true;var li=localStorage.getItem('last_login_id');var lp=localStorage.getItem('last_login_pw');if(li&&lp){document.getElementById('login-user-name').value=li;document.getElementById('login-remember').checked=true;var u=members.find(function(m){return m.name===li});if(u&&u.pw===lp)processLoginSuccess(u)}});initDateSelects()};
 
-function fetchDB(callback){if(!GAS_URL)return showToast('URL 설정 필요','error');document.getElementById('login-loading').style.display='block';fetch(GAS_URL).then(function(r){return r.json()}).then(function(data){document.getElementById('login-loading').style.display='none';if(data.db)dbList=data.db;else dbList=[];if(data.members)members=data.members;dbList.sort(function(a,b){var dA=new Date(a.date).getTime()||0;var dB=new Date(b.date).getTime()||0;if(dB!==dA)return dB-dA;return(Number(b.id)||0)-(Number(a.id)||0)});if(callback)callback();checkMeetingAlerts();updateReassignBadge();if(typeof updateNewDBBadge==='function')updateNewDBBadge();updateMyReassignBadge()}).catch(function(e){document.getElementById('login-loading').style.display='none';console.error(e);showToast('서버 연결 실패','error')})}
+function fetchDB(callback,fetchAll){
+    if(!GAS_URL)return showToast('URL 설정 필요','error');
+    document.getElementById('login-loading').style.display='block';
+    // ★ v30.14: range 파라미터 - 기본은 최근 1년, 전체보기 요청 시 all
+    var url=GAS_URL+(fetchAll?'?range=all':'?range=recent');
+    fetch(url).then(function(r){return r.json()}).then(function(data){
+        document.getElementById('login-loading').style.display='none';
+        if(data.db)dbList=data.db;else dbList=[];
+        if(data.members)members=data.members;
+        // 전체 데이터 여부 플래그
+        isAllDataLoaded=!!fetchAll||(data.isAll===true);
+        dbList.sort(function(a,b){
+            var dA=new Date(a.date).getTime()||0;
+            var dB=new Date(b.date).getTime()||0;
+            if(dB!==dA)return dB-dA;
+            return(Number(b.id)||0)-(Number(a.id)||0);
+        });
+        if(callback)callback();
+        checkMeetingAlerts();updateReassignBadge();
+        if(typeof updateNewDBBadge==='function')updateNewDBBadge();
+        updateMyReassignBadge();
+        // 전체 데이터 아닐 때 UI에 안내 표시
+        updateDataRangeBadge();
+        // 목표 GAS 동기화 (최초 1회)
+        syncGoalsFromGAS();
+    }).catch(function(e){
+        document.getElementById('login-loading').style.display='none';
+        console.error(e);showToast('서버 연결 실패','error');
+    });
+}
+var isAllDataLoaded=false;
+function loadAllData(){
+    if(isAllDataLoaded){showToast('이미 전체 데이터가 로드되어 있습니다.');return;}
+    if(!confirm('전체 데이터를 불러옵니다.\nDB가 많을수록 로딩이 느릴 수 있습니다.\n계속하시겠습니까?'))return;
+    fetchDB(function(){
+        showToast('전체 데이터 로드 완료! ('+dbList.length+'건)');
+        renderList();
+        if(currentUser.role==='admin')renderAdminDashboard();
+    },true);
+}
+function updateDataRangeBadge(){
+    var el=document.getElementById('data-range-badge');
+    if(!el)return;
+    if(isAllDataLoaded){
+        el.innerHTML='<span style="background:#dcfce7;color:#15803d;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;cursor:default">✅ 전체 데이터</span>';
+    } else {
+        el.innerHTML='<span style="background:#fef9c3;color:#a16207;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;cursor:pointer" onclick="loadAllData()" title="클릭하면 전체 데이터를 불러옵니다">⚡ 최근 1년 데이터 · 전체보기</span>';
+    }
+}
 
 // ★ v25: 재배정 대기함 배지 업데이트
 function updateReassignBadge(){if(!currentUser||currentUser.role!=='admin')return;var cnt=dbList.filter(function(d){return d.isFrozen&&!d.frozenTo}).length;var b=document.getElementById('reassign-badge');var hb=document.getElementById('header-reassign-alert');if(cnt>0){b.style.display='inline';b.innerText=cnt;hb.innerHTML='<span class="meeting-badge meeting-overdue" style="cursor:pointer"><i class="fa-solid fa-inbox"></i> 재배정 대기 '+cnt+'건</span>';hb.style.display='block'}else{b.style.display='none';hb.style.display='none'}}
@@ -1054,8 +1129,31 @@ function processLoginSuccess(user){
 
 // ═══ v28: 월초 목표 설정 시스템 ═══
 function getGoalKey(name,y,m){return 'dbpro_goal_'+name+'_'+y+'_'+m}
-function getMonthlyGoal(name,y,m){var v=localStorage.getItem(getGoalKey(name,y,m));return v?parseInt(v):0}
-function setMonthlyGoal(name,y,m,amount){localStorage.setItem(getGoalKey(name,y,m),String(amount))}
+function getMonthlyGoal(name,y,m){
+    // localStorage 캐시 우선 (빠른 렌더링)
+    var v=localStorage.getItem(getGoalKey(name,y,m));
+    return v?parseInt(v):0;
+}
+// GAS에서 목표 전체 동기화 (fetchDB 완료 후 1회 실행)
+function syncGoalsFromGAS(){
+    fetch(GAS_URL+'?action=get_goals').then(function(r){return r.json()}).then(function(d){
+        if(!d.goals||!Array.isArray(d.goals))return;
+        d.goals.forEach(function(g){
+            if(g.name&&g.year&&g.month&&g.amount){
+                localStorage.setItem(getGoalKey(g.name,g.year,g.month),String(g.amount));
+            }
+        });
+    }).catch(function(){/* 네트워크 오류 시 localStorage 사용 */});
+}
+function setMonthlyGoal(name,y,m,amount){
+    // localStorage 캐시 (즉시 반영)
+    localStorage.setItem(getGoalKey(name,y,m),String(amount));
+    // GAS에도 저장 (브라우저/기기 변경 시에도 유지)
+    fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save_goal',name:name,year:y,month:m,amount:amount})})
+    .then(function(r){return r.json()})
+    .then(function(d){if(d.result!=='success')console.warn('목표 GAS 저장 실패');})
+    .catch(function(e){console.warn('목표 저장 네트워크 오류',e);});
+}
 
 function checkMonthlyGoal(){
     if(!currentUser||currentUser.role==='admin')return;
@@ -1241,7 +1339,12 @@ function renderListPage(){
         if(d.isFrozen)badge='status-frozen';
         var rowClass='';
         if(d.isFrozen)rowClass=' class="frozen-row"';
-        else if(d.status==='계약')rowClass=' class="contract-row"';
+        else if(d.status==='계약'){
+            var _cprRow=false;
+            if(d.isReassigned)_cprRow=true;
+            else{var _rd=new Date(d.date);var _cd=new Date(getContractDate(d));if(Math.ceil((_cd-_rd)/(864e5))>=365)_cprRow=true;}
+            rowClass=_cprRow?' class="contract-row cpr-shine"':' class="contract-row"';
+        }
         // ★ v25: 새 DB 하이라이트
         if(d.hasAdminAlert&&d.member===currentUser.name&&!d.isFrozen)rowClass=' class="new-db-highlight"';
         var alertIcon='';if(currentUser.role!=='admin'&&d.hasAdminAlert&&!d.isReassigned)alertIcon=' <span class="list-new-badge">NEW</span><i class="fa-solid fa-comment-dots admin-alert-icon" title="관리자 코멘트 확인!"></i>';
@@ -1255,7 +1358,13 @@ function renderListPage(){
         if(d.status==='계약'){
             var _mc=getDBContracts(d);
             var _mb=_mc.length>1?'<span class="badge-multi">🔁 '+_mc.length+'건</span>':'';
-            companyDisplay='<span style="background:#16a34a;color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-right:4px">계약</span>'+_mb+companyDisplay;
+            // CPR 계약 감지 (재배정 또는 1년 이상 방치)
+            var _isCPR=false;
+            if(d.isReassigned)_isCPR=true;
+            else{var _regD=new Date(d.date);var _contD=new Date(getContractDate(d));if(Math.ceil((_contD-_regD)/(864e5))>=365)_isCPR=true;}
+            var _cprBadge=_isCPR?'<span class="cpr-master-badge">🔥 영업장인</span>':'';
+            var _rowShine=_isCPR?' cpr-shine':'';
+            companyDisplay='<span style="background:#16a34a;color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-right:4px">계약</span>'+_mb+_cprBadge+companyDisplay;
         }
         var amountDisplay=d.isVirtualShare?' <span style="font-size:11px;color:#c2410c">('+((d.amount||0).toLocaleString())+'원)</span>':'';
         var clickAction=d.isVirtualShare?'openModal(\''+d.originalId+'\','+(idx+1)+')':'openModal(\''+d.id+'\','+(idx+1)+')';
@@ -1676,7 +1785,17 @@ function saveData(shouldClose){
         if(!confirm('⚠️ 중복 DB 경고!\n\n업체명: '+_dupCheck.company+'\n대표자: '+(_dupCheck.ceo||'-')+'\n연락처: '+(_dupCheck.phone||'-')+'\n담당: '+_dupCheck.member+'\n사유: '+dupReason+'\n\n유사한 DB가 이미 존재합니다.\n그래도 저장하시겠습니까?'))return;
     }
     showLoading();
-    fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save',data:obj})}).then(function(r){return r.json()}).then(function(d){hideLoading();showToast('저장 완료');if(currentUser.role==='admin'&&isAdminLogAdded&&obj.member!==currentUser.name){sendSystemMessage(obj.member,"📝 ["+cv+"] DB에 관리자 코멘트가 등록되었습니다.\n확인 후 조치 바랍니다.")}isModalDirty=false;document.getElementById('edit-id').value=id;if(shouldClose===true)document.getElementById('modal').style.display='none';fetchDB(function(){if(currentUser.role==='admin'&&document.getElementById('view-dashboard').style.display==='block')renderAdminDashboard();else renderList();checkMeetingAlerts()})}).catch(function(){hideLoading();showToast('저장 실패','error')});
+    fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save',data:obj})}).then(function(r){return r.json()}).then(function(d){hideLoading();
+                // CPR 계약 감지 - 특별 축하 메시지
+                if(obj.status==='계약'){
+                    var _cprToast=false;
+                    if(obj.isReassigned)_cprToast=true;
+                    else{var _rD=new Date(obj.date);var _cD=new Date(obj.contractDate||obj.date);if(Math.ceil((_cD-_rD)/(864e5))>=365)_cprToast=true;}
+                    if(_cprToast){
+                        setTimeout(function(){showToast('🔥 영업 장인! 죽은 DB를 계약으로 살려냈습니다! 대단합니다 '+currentUser.name+' 팀장!')},500);
+                    } else { showToast('저장 완료'); }
+                } else { showToast('저장 완료'); }
+                if(currentUser.role==='admin'&&isAdminLogAdded&&obj.member!==currentUser.name){sendSystemMessage(obj.member,"📝 ["+cv+"] DB에 관리자 코멘트가 등록되었습니다.\n확인 후 조치 바랍니다.")}isModalDirty=false;document.getElementById('edit-id').value=id;if(shouldClose===true)document.getElementById('modal').style.display='none';fetchDB(function(){if(currentUser.role==='admin'&&document.getElementById('view-dashboard').style.display==='block')renderAdminDashboard();else renderList();checkMeetingAlerts()})}).catch(function(){hideLoading();showToast('저장 실패','error')});
 }
 function deleteData(){if(!confirm('삭제하시겠습니까?'))return;var id=document.getElementById('edit-id').value;showLoading();fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'delete',id:id})}).then(function(r){return r.json()}).then(function(d){hideLoading();showToast('삭제 완료');document.getElementById('modal').style.display='none';fetchDB(function(){renderList()})}).catch(function(){hideLoading();showToast('실패','error')})}
 
@@ -2650,13 +2769,19 @@ function renderMyAlerts(){
         html+='<div class="alert-card-warn" style="flex:1;min-width:250px"><div style="font-weight:800;margin-bottom:6px">⏰ 장기 미진행 '+longNoProgressList.length+'건</div>';
         longNoProgressList.slice(0,5).forEach(function(s){html+='<div style="font-size:12px;padding:2px 0;cursor:pointer;color:#2563eb;text-decoration:underline" onclick="openModal(\''+s.id+'\')">'+s.company+' <span style="color:#f59e0b">('+s.days+'일째)</span></div>';});
         if(longNoProgressList.length>5)html+='<div style="font-size:11px;color:#2563eb;cursor:pointer;margin-top:4px" onclick="showOverflowPopup(\'장기 미진행 중\','+JSON.stringify(longNoProgressList).replace(/"/g,'&quot;')+')">외 '+(longNoProgressList.length-5)+'건 더보기</div>';
-        html+='<div style="margin-top:8px;padding:6px 8px;background:#fef3c7;border-radius:6px;font-size:11px;color:#92400e">💡 지금 바로 상태 업데이트 or 재배정 요청하세요.</div></div>';
+        html+='<div class="action-guide urgent">'
+            +'<div class="action-step"><span>⚡</span><span><b>오늘 바로</b> 상태 업데이트 or 전화 1통 — 기록 없으면 재배정 처리됩니다.</span></div>'
+            +'<div class="action-step"><span>📞</span><span>부재중이라도 <b>통화시도 기록</b>을 남기세요. 활동 증거가 됩니다.</span></div>'
+            +'</div></div>';
     }
     if(longProspectList.length>0){
         html+='<div class="alert-card-info" style="flex:1;min-width:250px"><div style="font-weight:800;margin-bottom:6px">🌟 장기 가망DB '+longProspectList.length+'건</div>';
         longProspectList.slice(0,5).forEach(function(s){html+='<div style="font-size:12px;padding:2px 0;cursor:pointer;color:#2563eb;text-decoration:underline" onclick="openModal(\''+s.id+'\')">'+s.company+' <span style="color:#8b5cf6">('+s.days+'일째)</span></div>';});
         if(longProspectList.length>5)html+='<div style="font-size:11px;color:#2563eb;cursor:pointer;margin-top:4px" onclick="showOverflowPopup(\'장기 가망DB\','+JSON.stringify(longProspectList).replace(/"/g,'&quot;')+')">외 '+(longProspectList.length-5)+'건 더보기</div>';
-        html+='<div style="margin-top:8px;padding:6px 8px;background:#ede9fe;border-radius:6px;font-size:11px;color:#5b21b6">💡 가망고객 일주일 내 follow-up이 핵심입니다.</div></div>';
+        html+='<div class="action-guide normal">'
+            +'<div class="action-step"><span>📅</span><span><b>이번 주 안에</b> 재연락 — 7일이 지나면 관심이 급격히 식습니다.</span></div>'
+            +'<div class="action-step"><span>💬</span><span>새로운 조건이나 혜택 정보로 <b>접촉 명분</b>을 만드세요.</span></div>'
+            +'</div></div>';
     }
     if(neglectedC.length>0){
         var gMsg=neverChecked.length>0?'🚨 한 번도 확인 안 한 계약고객 <b>'+neverChecked.length+'건</b> — 지금 열어 이력을 남기세요.':'💡 방치가 길수록 환수 리스크 상승 — 이번 주 순서대로 점검하세요.';
@@ -2664,15 +2789,18 @@ function renderMyAlerts(){
         html+='<div style="font-size:11px;color:#64748b;margin-bottom:6px">24개월 이내 계약고객 중 30일↑ 미확인</div>';
         neglectedC.slice(0,4).forEach(function(d){var ds=d.lastContractCheckAt?Math.ceil((now-new Date(d.lastContractCheckAt))/(864e5))+'일 미확인':'미확인 이력 없음';html+='<div style="font-size:12px;padding:2px 0;cursor:pointer;color:#2563eb;text-decoration:underline" onclick="openModal(\''+d.id+'\')">'+d.company+' <span style="color:#dc2626">('+ds+')</span></div>';});
         if(neglectedC.length>4)html+='<div style="font-size:11px;color:#94a3b8;margin-top:3px">외 '+(neglectedC.length-4)+'건</div>';
-        html+='<div style="margin-top:8px;padding:6px 8px;background:#fef2f2;border-radius:6px;font-size:11px;color:#991b1b">'+gMsg+'</div></div>';
+        html+='<div class="action-guide urgent">'
+            +'<div class="action-step"><span>🔴</span><span>'+gMsg+'</span></div>'
+            +'<div class="action-step"><span>📋</span><span>확인 후 <b>관리과정 일자별 기록</b>에 메모 1줄만 남겨도 됩니다.</span></div>'
+            +'</div></div>';
     }
 
     // 성과 진단
     var diagLines='';var hasDiag=false;
-    if(myC0<myC1&&myC1<myC2&&myC2>0){hasDiag=true;diagLines+='<div style="margin-bottom:8px;padding:8px;background:#fef2f2;border-radius:6px"><b style="color:#dc2626">📉 계약 3개월 연속 하락</b><br><span style="font-size:11px;color:#64748b">'+m2.month+'월 '+myC2+'건 → '+m1.month+'월 '+myC1+'건 → '+m0.month+'월 '+myC0+'건</span><br><span style="font-size:11px">가망고객 전환에 지금 당장 집중하세요.</span></div>';}
-    if(meetGap!==null&&meetGap<-10){hasDiag=true;diagLines+='<div style="margin-bottom:8px;padding:8px;background:#fff7ed;border-radius:6px"><b style="color:#c2410c">📊 미팅 전환율 팀 평균보다 '+Math.abs(meetGap)+'%p 낮음</b><br><span style="font-size:11px;color:#64748b">내 미팅률 '+myMR0+'% vs 팀 평균 '+teamAvgMeet+'%</span></div>';}
-    if(contGap<-1&&teamAvgCont>0){hasDiag=true;diagLines+='<div style="margin-bottom:8px;padding:8px;background:#f5f3ff;border-radius:6px"><b style="color:#7c3aed">🏆 이번 달 계약 팀 평균보다 부족</b><br><span style="font-size:11px;color:#64748b">내 계약 '+myC0+'건 vs 팀원 평균 '+teamAvgCont+'건</span></div>';}
-    if(myC0===0&&new Date().getDate()>15){hasDiag=true;diagLines+='<div style="margin-bottom:8px;padding:8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px"><b style="color:#dc2626">🚨 이번 달 계약 실적 0건 — 월말까지 '+(new Date(thisY,thisM,0).getDate()-new Date().getDate())+'일 남았습니다</b><br><span style="font-size:11px">가망고객 재접촉, 대기 DB 상태 점검을 지금 바로 하세요.</span></div>';}
+    if(myC0<myC1&&myC1<myC2&&myC2>0){hasDiag=true;diagLines+='<div style="margin-bottom:8px;padding:8px;background:#fef2f2;border-radius:6px"><b style="color:#dc2626">📉 계약 3개월 연속 하락 — 반전 타이밍!</b><br><span style="font-size:11px;color:#64748b">'+m2.month+'월 '+myC2+'건 → '+m1.month+'월 '+myC1+'건 → '+m0.month+'월 '+myC0+'건</span><br><div style="font-size:11px;margin-top:4px">① 가망고객 <b>오늘 전화</b> &nbsp; ② 대기DB <b>상태 점검</b> &nbsp; ③ 미팅 제안 <b>1건 목표</b></div></div>';}
+    if(meetGap!==null&&meetGap<-10){hasDiag=true;diagLines+='<div style="margin-bottom:8px;padding:8px;background:#fff7ed;border-radius:6px"><b style="color:#c2410c">📊 미팅 전환율 팀 평균보다 '+Math.abs(meetGap)+'%p 낮음 — 지금이 기회!</b><br><span style="font-size:11px;color:#64748b">내 미팅률 '+myMR0+'% vs 팀 평균 '+teamAvgMeet+'%</span><br><div style="font-size:11px;margin-top:4px">통화완료 직후 <b>3일 내 미팅 제안</b>이 핵심 — 스크립트를 바꿔보세요</div></div>';}
+    if(contGap<-1&&teamAvgCont>0){hasDiag=true;diagLines+='<div style="margin-bottom:8px;padding:8px;background:#f5f3ff;border-radius:6px"><b style="color:#7c3aed">🏆 이번 달 계약 팀 평균보다 부족</b><br><span style="font-size:11px;color:#64748b">내 계약 '+myC0+'건 vs 팀원 평균 '+teamAvgCont+'건</span><br><div style="font-size:11px;margin-top:4px">잘 하는 팀원의 <b>접근법을 관찰</b>하고 &nbsp; 가망고객 목록 지금 열기</div></div>';}
+    if(myC0===0&&new Date().getDate()>15){hasDiag=true;diagLines+='<div style="margin-bottom:8px;padding:8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px"><b style="color:#dc2626">🚨 이번 달 계약 실적 0건 — 월말까지 '+(new Date(thisY,thisM,0).getDate()-new Date().getDate())+'일 남았습니다!</b><br><div style="font-size:11px;margin-top:4px">① 가망고객 <b>지금 전화</b> — 한 통이 계약을 만듭니다<br>② 통화완료 대기DB 집중 공략<br>③ 관리자에게 도움 요청도 전략입니다</div></div>';}
     if(hasDiag){html+='<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px;flex:1;min-width:260px"><div style="font-weight:800;margin-bottom:10px;font-size:14px">🔍 나의 성과 진단 <span style="font-size:11px;color:#64748b;font-weight:400">(최근 3개월 기준)</span></div>'+diagLines+'</div>';}
 
     cards.innerHTML=html;
