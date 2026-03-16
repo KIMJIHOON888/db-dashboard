@@ -963,13 +963,13 @@ body{flex-direction:column;overflow:auto}
                         </div>
                     </div>
                     <!-- 하위호환 숨김 필드 -->
-                    <input type="hidden" id="input-contract-date">
-                    <input type="hidden" id="input-product">
-                    <input type="hidden" id="input-amount">
-                    <input type="hidden" id="share-partner-1"><input type="hidden" id="share-partner-2"><input type="hidden" id="share-partner-3">
-                    <input type="hidden" id="share-percent-1"><input type="hidden" id="share-percent-2"><input type="hidden" id="share-percent-3">
-                    <span id="disp-total" style="display:none"></span><span id="disp-net" style="display:none"></span>
-                    <span id="share-val-1" style="display:none"></span><span id="share-val-2" style="display:none"></span><span id="share-val-3" style="display:none"></span>
+                    <input type="hidden" id="legacy-input-contract-date">
+                    <input type="hidden" id="legacy-input-product">
+                    <input type="hidden" id="legacy-input-amount">
+                    <input type="hidden" id="legacy-share-partner-1"><input type="hidden" id="legacy-share-partner-2"><input type="hidden" id="legacy-share-partner-3">
+                    <input type="hidden" id="legacy-share-percent-1"><input type="hidden" id="legacy-share-percent-2"><input type="hidden" id="legacy-share-percent-3">
+                    <span id="legacy-disp-total" style="display:none"></span><span id="legacy-disp-net" style="display:none"></span>
+                    <span id="legacy-share-val-1" style="display:none"></span><span id="legacy-share-val-2" style="display:none"></span><span id="legacy-share-val-3" style="display:none"></span>
                     <div id="btn-roadmap-area" style="display:none"></div>
                 </div>
             </div>
@@ -2148,31 +2148,90 @@ function getDBContractsByMonth(d,y,m){
 function isMultiContract(d){return getDBContracts(d).length>1;}
 // ── updateShareFields: 출처별 고정값 ──
 function updateShareFields(){
-    var src=document.getElementById('input-source').value;
-    var cm=document.getElementById('display-member').innerText;
+    var srcEl=document.getElementById('input-source');
+    var memberEl=document.getElementById('display-member');
+    if(!srcEl||!memberEl)return;
+    var src=srcEl.value;
+    var cm=memberEl.innerText;
     var sels=[1,2,3].map(function(i){return document.getElementById('share-partner-'+i);});
     var ins=[1,2,3].map(function(i){return document.getElementById('share-percent-'+i);});
-    if(!sels[0])return; // DOM 준비 안 됐으면 스킵
-    var sm=typeof sortMemberNames==='function'?sortMemberNames(members,cm):members.filter(function(m){return m.role!=='admin';});
-    var co='<option value="">선택</option>';
-    sm.forEach(function(m){co+='<option value="'+m.name+'">'+m.name+' 팀장</option>';});
-    sels.forEach(function(sel,idx){
-        var fo=co;
-        if(idx===0){
-            if(src==='회사DB')fo='<option value="회사">🏢 회사</option>';
-            else if(src==='팀DB')fo='<option value="SM">🗣️ SM</option>';
-            else if(src==='추장호DB')fo='<option value="추장호">🎯 추장호</option>';
-        } else {
-            if(src==='회사DB')fo='<option value="">선택</option><option value="회사">🏢 회사</option>'+co.replace('<option value="">선택</option>','');
-            else if(src==='팀DB')fo='<option value="">선택</option><option value="SM">🗣️ SM</option>'+co.replace('<option value="">선택</option>','');
-            else if(src==='추장호DB')fo='<option value="">선택</option><option value="추장호">🎯 추장호</option>'+co.replace('<option value="">선택</option>','');
-        }
-        sel.innerHTML=fo;
+    if(!sels[0]||!ins[0])return;
+
+    var prevSource=window.__lastShareSource||'';
+    var isSourceChanged=prevSource!==src;
+    window.__lastShareSource=src;
+
+    var currentValues=sels.map(function(sel,idx){
+        return {partner:(sel&&sel.value)||'', percent:(ins[idx]&&ins[idx].value)||''};
     });
-    if(src==='회사DB'){sels[0].value='회사';sels[0].disabled=true;if(ins[0]&&!ins[0].value)ins[0].value=10;}
-    else if(src==='팀DB'){sels[0].value='SM';sels[0].disabled=true;if(ins[0]&&!ins[0].value)ins[0].value=40;}
-    else if(src==='추장호DB'){sels[0].value='추장호';sels[0].disabled=true;if(ins[0]&&!ins[0].value)ins[0].value=50;}
-    else{sels[0].value='';sels[0].disabled=false;}
+
+    var memberOptions=[];
+    if(typeof sortMemberNames==='function'){
+        memberOptions=sortMemberNames(members,cm);
+    }else if(Array.isArray(members)){
+        memberOptions=members.filter(function(m){return m.role!=='admin';});
+    }
+
+    var seen={};
+    var baseOptions='<option value="">선택</option>';
+    memberOptions.forEach(function(m){
+        if(!m||!m.name||seen[m.name])return;
+        seen[m.name]=1;
+        baseOptions+='<option value="'+m.name+'">'+m.name+' 팀장</option>';
+    });
+
+    var sourcePreset={
+        '회사DB':{partner:'회사',label:'🏢 회사',percent:'10'},
+        '팀DB':{partner:'SM',label:'🗣️ SM',percent:'40'},
+        '추장호DB':{partner:'추장호',label:'🎯 추장호',percent:'50'}
+    };
+    var preset=sourcePreset[src]||null;
+
+    sels.forEach(function(sel,idx){
+        if(!sel)return;
+        var extra='';
+        if(preset){
+            extra='<option value="'+preset.partner+'">'+preset.label+'</option>';
+        }
+        sel.innerHTML='<option value="">선택</option>'+extra+baseOptions.replace('<option value="">선택</option>','');
+        sel.disabled=false;
+    });
+
+    if(preset){
+        sels[0].value=preset.partner;
+        sels[0].disabled=true;
+        if(isSourceChanged || !ins[0].value || currentValues[0].partner!==preset.partner){
+            ins[0].value=preset.percent;
+        }
+    }else{
+        sels[0].disabled=false;
+        if(isSourceChanged){
+            sels[0].value='';
+            ins[0].value='';
+        }else if(currentValues[0].partner){
+            if([].slice.call(sels[0].options).some(function(opt){return opt.value===currentValues[0].partner;})){
+                sels[0].value=currentValues[0].partner;
+            }
+            ins[0].value=currentValues[0].percent;
+        }
+    }
+
+    for(var i=1;i<3;i++){
+        var prev=currentValues[i];
+        if(isSourceChanged && (!prev.partner || prev.partner===currentValues[0].partner)){
+            sels[i].value='';
+            ins[i].value='';
+            continue;
+        }
+        if(prev.partner && [].slice.call(sels[i].options).some(function(opt){return opt.value===prev.partner;})){
+            sels[i].value=prev.partner;
+        }
+        if(prev.percent!==undefined && prev.percent!==null){
+            ins[i].value=prev.percent;
+        }
+    }
+
+    calculateShare();
 }
 function renderLogs(){
     var container=document.getElementById('log-list');
@@ -3682,5 +3741,4 @@ function handleDragEnd(e){document.querySelectorAll('.rm-item-chip').forEach(fun
 function renderRoadmapView(){var tbody=document.getElementById('rm-body');var listDiv=document.getElementById('rm-list');var h1=document.getElementById('rm-header-row-1');var h2=document.getElementById('rm-header-row-2');tbody.innerHTML='';listDiv.innerHTML='';var maxMonth=12;tempRoadmap.forEach(function(i){if(i.start+i.duration-1>maxMonth)maxMonth=i.start+i.duration-1});var years=Math.ceil(maxMonth/12);var baseYear=new Date().getFullYear();var hh1='<th class="rm-header rm-diagonal" style="width:120px" rowspan="2"><span class="rm-diagonal-text rm-text-bottom-left">항목</span><span class="rm-diagonal-text rm-text-top-right">일정</span></th>';var hh2='';for(var y=0;y<years;y++){hh1+='<th class="rm-header" colspan="12">'+(baseYear+y)+'</th>';for(var m=1;m<=12;m++)hh2+='<th class="rm-subheader">'+m+'</th>'}h1.innerHTML=hh1;h2.innerHTML=hh2;if(tempRoadmap.length===0)listDiv.innerHTML='<div style="text-align:center;color:#94a3b8;font-size:12px">항목 없음</div>';else tempRoadmap.forEach(function(item,idx){var chip=document.createElement('div');chip.className='rm-item-chip';chip.draggable=true;chip.innerHTML='<i class="fa-solid fa-grip-vertical" style="color:#94a3b8;margin-right:5px"></i><span style="font-weight:bold;color:#334155">'+item.name+'</span><i class="fa-solid fa-xmark" style="color:#ef4444;margin-left:8px;cursor:pointer"></i>';chip.addEventListener('dragstart',function(e){handleDragStart(e,idx)});chip.addEventListener('dragover',handleDragOver);chip.addEventListener('dragleave',handleDragLeave);chip.addEventListener('drop',function(e){handleDrop(e,idx)});chip.addEventListener('dragend',handleDragEnd);chip.onclick=function(){loadRoadmapItemForEdit(idx)};chip.querySelector('.fa-xmark').onclick=function(e){e.stopPropagation();removeRoadmapItem(idx)};listDiv.appendChild(chip)});if(tempRoadmap.length===0){tbody.innerHTML='<tr><td colspan="'+(1+(years*12))+'" style="text-align:center;padding:20px;color:#cbd5e1">비어있음</td></tr>';return}tempRoadmap.forEach(function(item,idx){var tr='<tr>';var cHex=colorPalette[Math.min(idx,5)];var tCol=(Math.min(idx,5)>=5)?'#1e293b':'white';tr+='<td class="rm-cat-col" onclick="loadRoadmapItemForEdit('+idx+')" style="background:'+cHex+';color:'+tCol+';cursor:pointer">'+item.name+'</td>';var cols=years*12;for(var i=1;i<=cols;i++){if(i===item.start){var desc=item.desc?item.desc.replace(/\/\//g,'<br>'):'';var align=item.align||'center';var cont='';if(align==='out'){cont='<div class="rm-bar-container" style="width:100%;background:'+cHex+'"></div><div class="rm-bar-outer-text">'+desc+'</div>'}else{cont='<div class="rm-bar-container rm-align-'+align+'" style="width:100%;background:'+cHex+';color:'+tCol+'">'+desc+'</div>'}tr+='<td class="rm-cell" colspan="'+item.duration+'" onclick="loadRoadmapItemForEdit('+idx+')">'+cont+'</td>';i+=(item.duration-1)}else{tr+='<td class="rm-cell"></td>'}}tr+='</tr>';tbody.innerHTML+=tr})}
 document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('#modal input,#modal select,#modal textarea').forEach(function(el){el.addEventListener('change',function(){isModalDirty=true});el.addEventListener('input',function(){isModalDirty=true})})});
 </script></body></html>
-
 
