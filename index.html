@@ -1233,10 +1233,13 @@ function processLoginSuccess(user){
     primeSeenAlerts();setupHistoryTabs();checkMeetingAlerts();updateReassignBadge();updateMyReassignBadge();updateNewDBBadge();startGlobalPolling();
     document.getElementById('nav-my-reassign').style.display='flex';
     loadMessages(function(){updateMsgBadge()});
-    _syncGoalListFromLocalStorage();
-    navTo('list');
-    // v28: 월초 목표 설정 체크 (팀원만)
-    if(user.role!=='admin') setTimeout(function(){checkMonthlyGoal()},800);
+    var proceedAfterGoal=function(){ navTo('list'); };
+    if(user.role!=='admin'){
+        checkMonthlyGoal(function(){ proceedAfterGoal(); });
+    }else{
+        proceedAfterGoal();
+        syncGoalsFromGAS();
+    }
 }
 
 
@@ -1272,36 +1275,43 @@ function backfillGoalsFromMembers(sourceMembers){
     return saved;
 }
 function getMonthlyGoal(name,y,m){
-    var v=localStorage.getItem(getGoalKey(name,y,m));
-    if(v){var n=parseInt(v,10)||0;if(n>0)return n;}
     var found=(goalList||[]).find(function(g){
         return String(g.name)===String(name)&&
                parseInt(g.year,10)===parseInt(y,10)&&
                parseInt(g.month,10)===parseInt(m,10)&&
-               (g.amount||0)>0;
+               safeNum(g.amount)>0;
     });
-    if(found){localStorage.setItem(getGoalKey(name,y,m),String(found.amount));return found.amount;}
+    if(found){
+        localStorage.setItem(getGoalKey(name,y,m),String(found.amount));
+        return safeNum(found.amount);
+    }
+    var v=localStorage.getItem(getGoalKey(name,y,m));
+    if(v){var n=parseInt(v,10)||0;if(n>0)return n;}
     return 0;
 }
-function syncGoalsFromGAS(){
-    fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'get_goals'})})
+function syncGoalsFromGAS(callback){
+    return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'get_goals'})})
     .then(function(r){return r.json()})
     .then(function(d){
         var rawList=[];
         if(Array.isArray(d))rawList=d;
         else if(d&&Array.isArray(d.goals))rawList=d.goals;
+        goalList=[];
         if(rawList.length>0)mergeGoalEntries(rawList);
-        _syncGoalListFromLocalStorage();
         if(currentUser){
             try{if(currentUser.role==='admin')renderAdminDashboard();}catch(e){}
             try{renderMyGoalProgress();}catch(e){}
         }
-    }).catch(function(){
-        _syncGoalListFromLocalStorage();
+        if(typeof callback==='function')callback(rawList);
+        return rawList;
+    }).catch(function(err){
+        console.warn('목표 GAS 조회 실패',err);
         if(currentUser){
             try{if(currentUser.role==='admin')renderAdminDashboard();}catch(e){}
             try{renderMyGoalProgress();}catch(e){}
         }
+        if(typeof callback==='function')callback([]);
+        return [];
     });
 }
 function _syncGoalListFromLocalStorage(){
@@ -1320,55 +1330,67 @@ function _syncGoalListFromLocalStorage(){
     }
 }
 function setMonthlyGoal(name,y,m,amount){
-    // ① localStorage 즉시 저장
-    localStorage.setItem(getGoalKey(name,y,m),String(amount));
-    // ② goalList 메모리 업데이트
-    mergeGoalEntries([{name:name,year:y,month:m,amount:amount}]);
-    // ③ members 배열에도 기록 (관제탑 폴백용)
-    if(typeof members!=='undefined'){
-        members.forEach(function(mem){
-            if(mem&&mem.name===name){
-                mem.goalAmount=amount;
-                mem.goalYear=parseInt(y,10);
-                mem.goalMonth=parseInt(m,10);
-            }
-        });
-    }
-    // ④ GAS 저장
-    fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save_goal',name:name,year:y,month:m,amount:amount})})
+    return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'save_goal',name:name,year:y,month:m,amount:amount})})
     .then(function(r){return r.json()})
-    .then(function(d){if(d.result!=='success')console.warn('목표 GAS 저장 실패',d);})
-    .catch(function(e){console.warn('목표 저장 오류',e);});
+    .then(function(d){
+        if(!d||d.result!=='success') throw new Error((d&&d.error)||'목표 저장 실패');
+        localStorage.setItem(getGoalKey(name,y,m),String(amount));
+        mergeGoalEntries([{name:name,year:y,month:m,amount:amount}]);
+        return d;
+    });
 }
-function checkMonthlyGoal(){
-    if(!currentUser||currentUser.role==='admin')return;
+var _pendingLoginAfterGoal=null;
+function checkMonthlyGoal(onDone){
+    if(!currentUser||currentUser.role==='admin'){
+        if(typeof onDone==='function')onDone(true);
+        return Promise.resolve(true);
+    }
     var now=new Date();var y=now.getFullYear();var m=now.getMonth()+1;
-    var existing=getMonthlyGoal(currentUser.name,y,m);
-    if(existing>0)return; // 이미 설정됨 → 팝업 안 띄움
-    // 목표 미설정이면 언제든 팝업 (날짜 조건 없음)
-    var myDB=dbList.filter(function(d){return d.member===currentUser.name&&!d.isFrozen&&d.status==='계약';});
-    var lastM=m-1;var lastY=y;if(lastM<1){lastM=12;lastY--;}
-    var lastRev=myDB.filter(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);return p.year===lastY&&p.month===lastM;}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0);},0);
-    lastRev+=getShareRevenue(currentUser.name,lastY,lastM);
-    var yearRevTotal=myDB.filter(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);return p.year===y;}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0);},0);
-    yearRevTotal+=getShareRevenue(currentUser.name,y,null);
-    var avgRev=m>1?Math.round(yearRevTotal/(m-1)):0;
-    document.getElementById('goal-month-label').innerText='── '+y+'년 '+m+'월 목표 선언 ──';
-    document.getElementById('goal-last-rev').innerText=lastRev.toLocaleString()+'원';
-    document.getElementById('goal-avg-rev').innerText=avgRev.toLocaleString()+'원';
-    document.getElementById('goal-amount-input').value='';
-    document.getElementById('goal-modal').style.display='flex';
+    return syncGoalsFromGAS().then(function(){
+        var existing=getMonthlyGoal(currentUser.name,y,m);
+        if(existing>0){
+            if(typeof onDone==='function')onDone(true);
+            return true;
+        }
+        var myDB=dbList.filter(function(d){return d.member===currentUser.name&&!d.isFrozen&&d.status==='계약';});
+        var lastM=m-1;var lastY=y;if(lastM<1){lastM=12;lastY--;}
+        var lastRev=myDB.filter(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);return p.year===lastY&&p.month===lastM;}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0);},0);
+        lastRev+=getShareRevenue(currentUser.name,lastY,lastM);
+        var yearRevTotal=myDB.filter(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);return p.year===y;}).reduce(function(a,c){return a+(parseInt(String(c.amount).replace(/,/g,''))||0);},0);
+        yearRevTotal+=getShareRevenue(currentUser.name,y,null);
+        var avgRev=m>1?Math.round(yearRevTotal/(m-1)):0;
+        document.getElementById('goal-month-label').innerText='── '+y+'년 '+m+'월 목표 선언 ──';
+        document.getElementById('goal-last-rev').innerText=lastRev.toLocaleString()+'원';
+        document.getElementById('goal-avg-rev').innerText=avgRev.toLocaleString()+'원';
+        document.getElementById('goal-amount-input').value='';
+        _pendingLoginAfterGoal=typeof onDone==='function'?onDone:null;
+        document.getElementById('goal-modal').style.display='flex';
+        return false;
+    });
 }
 function submitGoal(){
     var v=document.getElementById('goal-amount-input').value.replace(/,/g,'');
     var amount=parseInt(v)||0;
     if(amount<100000){showToast('최소 10만원 이상 입력해주세요.','error');return}
     var now=new Date();
-    setMonthlyGoal(currentUser.name,now.getFullYear(),now.getMonth()+1,amount);
-    document.getElementById('goal-modal').style.display='none';
-    showToast('🔥 '+amount.toLocaleString()+'원 목표 설정 완료! 도전 시작!');
-    renderMyGoalProgress();
-    try{ if(currentUser&&currentUser.role==='admin') renderAdminDashboard(); }catch(e){}
+    var btn=document.querySelector('#goal-modal button');
+    if(btn){btn.disabled=true;btn.dataset.oldText=btn.innerText;btn.innerText='저장 중...';}
+    setMonthlyGoal(currentUser.name,now.getFullYear(),now.getMonth()+1,amount)
+    .then(function(){
+        document.getElementById('goal-modal').style.display='none';
+        showToast('🔥 '+amount.toLocaleString()+'원 목표 설정 완료! 도전 시작!');
+        renderMyGoalProgress();
+        try{ if(currentUser&&currentUser.role==='admin') renderAdminDashboard(); }catch(e){}
+        var cb=_pendingLoginAfterGoal; _pendingLoginAfterGoal=null;
+        if(typeof cb==='function')cb(true);
+    })
+    .catch(function(err){
+        console.error(err);
+        showToast('목표 저장 실패: 서버 저장을 확인해주세요.','error');
+    })
+    .finally(function(){
+        if(btn){btn.disabled=false;btn.innerText=btn.dataset.oldText||'이번 달 목표 확정';}
+    });
 }
 
 function renderMyGoalProgress(){
@@ -2598,14 +2620,6 @@ function renderAdminDashboard(){var now=new Date();var selectedMonth=document.ge
     teamStats.sort(function(a,b){if(a.isSpecial!==b.isSpecial)return a.isSpecial?1:-1;return b.rev-a.rev});var maxRev=1;teamStats.forEach(function(s){if(!s.isSpecial&&s.rev>maxRev)maxRev=s.rev});
     var normalRank=0;teamStats.forEach(function(s){var barWidth=Math.max(5,(s.rev/maxRev)*100);if(s.isSpecial){tbody.innerHTML+='<tr style="background:#fffbeb;border-top:2px solid #fcd34d"><td style="font-weight:bold">-</td><td style="font-weight:bold">'+s.name+'</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td><div style="font-weight:bold;color:#c2410c">'+s.rev.toLocaleString()+'</div><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:'+barWidth+'%;background:#f59e0b"></div></div></td><td>-</td></tr>'}else{normalRank++;
         var mGoal=getMonthlyGoal(s.name,targetYear,isAllMonths?new Date().getMonth()+1:targetMonth);
-        if(mGoal<=0){
-            var mm=members.find(function(mem){return mem.name===s.name;});
-            var gm=isAllMonths?new Date().getMonth()+1:targetMonth;
-            var gDirect=mm?coerceGoalNumber(mm.goalAmount||mm.monthGoal||mm.goal||mm.targetAmount||mm.currentGoal):0;
-            var gYear=mm?(parseInt(mm.goalYear||mm.year||targetYear,10)||targetYear):targetYear;
-            var gMonth=mm?(parseInt(mm.goalMonth||mm.month||gm,10)||gm):gm;
-            if(gDirect>0&&gYear===targetYear&&gMonth===gm){mergeGoalEntries([{name:s.name,year:gYear,month:gMonth,amount:gDirect}]);mGoal=gDirect;}
-        }
         var mGPct=mGoal>0?Math.min(999,Math.round(s.rev/mGoal*100)):0;
         var goalFillColor=mGPct>=120?'#7c3aed':(mGPct>=100?'#10b981':(mGPct>=70?'#2563eb':(mGPct>=40?'#f59e0b':'#ef4444')));
         var gDisp='';
