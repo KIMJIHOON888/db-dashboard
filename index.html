@@ -321,6 +321,40 @@ body{flex-direction:column;overflow:auto}
 .list-new-badge{display:inline-flex;align-items:center;justify-content:center;margin-right:6px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;line-height:1;padding:2px 6px;border-radius:999px;vertical-align:middle}
 .reassign-pagination{display:none;margin-top:12px;text-align:center;padding:10px}
 .reassign-pagination .btn{margin:0 6px}
+
+/* ===== v30.36 dashboard UI polish (CSS only, no data logic changes) ===== */
+#view-dashboard .kpi-hero-grid{gap:16px;margin-bottom:18px}
+#view-dashboard .kpi-hero{border-radius:18px;box-shadow:0 14px 30px rgba(15,23,42,.16), inset 0 1px 0 rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.10)}
+#view-dashboard .kpi-hero-label{font-size:12px;opacity:.82}
+#view-dashboard .kpi-hero-value{letter-spacing:-.02em;text-shadow:0 1px 1px rgba(0,0,0,.08)}
+#view-dashboard .kpi-hero-sub{opacity:.78}
+#view-dashboard .dashboard-grid{gap:14px;margin-top:4px}
+#view-dashboard .stat-card{min-height:86px;padding:16px 18px;border:1px solid #dbe4ee;border-radius:15px;box-shadow:0 6px 18px rgba(15,23,42,.06);background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);align-items:center}
+#view-dashboard .stat-card:hover{border-color:#cfd8e3;box-shadow:0 12px 24px rgba(15,23,42,.10);transform:translateY(-2px)}
+#view-dashboard .stat-card[onclick]::after{top:10px;right:12px;font-size:12px;color:#94a3b8}
+#view-dashboard .stat-icon{width:44px;height:44px;border-radius:12px;font-size:18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.45), 0 2px 8px rgba(15,23,42,.06)}
+#view-dashboard .stat-label{font-size:12px;color:#64748b;font-weight:800;margin-bottom:4px;letter-spacing:-.01em}
+#view-dashboard .stat-value{font-size:24px;font-weight:900;color:#0f172a;letter-spacing:-.02em}
+#view-dashboard .dashboard-chip-row{margin:16px 0 0;gap:10px}
+#view-dashboard .dashboard-chip{border-radius:999px;box-shadow:0 2px 6px rgba(15,23,42,.04)}
+#view-dashboard .dashboard-topbar{margin-bottom:18px;padding-bottom:8px;border-bottom:1px solid #eef2f7}
+#view-dashboard .dashboard-topbar h3{font-size:24px;letter-spacing:-.02em}
+#view-dashboard .stat-card:nth-child(1){border-left:4px solid #60a5fa}
+#view-dashboard .stat-card:nth-child(2){border-left:4px solid #34d399}
+#view-dashboard .stat-card:nth-child(3){border-left:4px solid #c084fc}
+#view-dashboard .stat-card:nth-child(4){border-left:4px solid #fb923c}
+#view-dashboard .stat-card:nth-child(5){border-left:4px solid #f472b6}
+#view-dashboard .stat-card:nth-child(6){border-left:4px solid #f87171}
+@media (max-width: 1100px){
+  #view-dashboard .dashboard-grid{gap:12px}
+  #view-dashboard .stat-card{min-height:80px}
+}
+@media (max-width: 640px){
+  #view-dashboard .kpi-hero{padding:20px 20px}
+  #view-dashboard .stat-card{padding:14px 16px}
+  #view-dashboard .stat-value{font-size:22px}
+}
+
 </style></head>
 <body>
 <div id="toast-container"></div>
