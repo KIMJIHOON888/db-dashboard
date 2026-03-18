@@ -1109,7 +1109,7 @@ body{flex-direction:column;overflow:auto}
     </div>
 </div>
 <script>
-const GAS_URL='https://script.google.com/macros/s/AKfycbxj3Q-6nkLe8txz2E3Axg89MlKPGb5deOPW4LZxbmoFT1YOPMNUrAspBwbiPPZuWfSELQ/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbxfts_HpJH61AYLKBxjtIH1fBvnOh19_cTe9mOos3wBwfW3vCZsP1fJvsU9uZRgD9AxKA/exec';
 function sha256(ascii){function rightRotate(v,a){return(v>>>a)|(v<<(32-a))}var mathPow=Math.pow;var maxWord=mathPow(2,32);var lengthProperty='length';var i,j;var result='';var words=[];var asciiBitLength=ascii[lengthProperty]*8;var hash=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];var k=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];ascii+='\x80';while(ascii[lengthProperty]%64-56)ascii+='\x00';for(i=0;i<ascii[lengthProperty];i++){j=ascii.charCodeAt(i);if(j>>8)return;words[i>>2]|=j<<((3-i)%4)*8}words[words[lengthProperty]]=((asciiBitLength/maxWord)|0);words[words[lengthProperty]]=(asciiBitLength);for(j=0;j<words[lengthProperty];){var w=words.slice(j,j+=16);var oldHash=hash;hash=hash.slice(0,8);for(i=0;i<64;i++){var w15=w[i-15],w2=w[i-2];var a=hash[0],e=hash[4];var temp1=hash[7]+(rightRotate(e,6)^rightRotate(e,11)^rightRotate(e,25))+((e&hash[5])^((~e)&hash[6]))+k[i]+(w[i]=(i<16)?w[i]:(w[i-16]+(rightRotate(w15,7)^rightRotate(w15,18)^(w15>>>3))+w[i-7]+(rightRotate(w2,17)^rightRotate(w2,19)^(w2>>>10)))|0);var temp2=(rightRotate(a,2)^rightRotate(a,13)^rightRotate(a,22))+((a&hash[1])^(a&hash[2])^(hash[1]&hash[2]));hash=[(temp1+temp2)|0].concat(hash);hash[4]=(hash[4]+temp1)|0}for(i=0;i<8;i++){hash[i]=(hash[i]+oldHash[i])|0}}for(i=0;i<8;i++){for(j=3;j+1;j--){var b=(hash[i]>>(j*8))&255;result+=((b<16)?0:'')+b.toString(16)}}return result}
 
 let members=[],dbList=[],goalList=[],currentUser=null,tempLogs=[],currentId=null,historyTab='prospect';
@@ -1205,13 +1205,31 @@ function isExternalPartner(n){if(!n)return false;if(n==='회사')return true;if(
 function getTeamRevenue(contractDBList){var t=0;contractDBList.forEach(function(d){getDBContracts(d).forEach(function(c){var a=c.totalAmount||0;t+=a;if(c.shareList&&Array.isArray(c.shareList)){c.shareList.forEach(function(s){if(isExternalPartner(s.partner)&&s.amount>0)t-=s.amount;})}});});return t;}
 
 // ═══ 데이터 로드 ═══
-window.onload=function(){var n=new Date();calYear=n.getFullYear();calMonth=n.getMonth();fetchDB(function(){isDataLoaded=true;var li=localStorage.getItem('last_login_id');var lp=localStorage.getItem('last_login_pw');if(li&&lp){document.getElementById('login-user-name').value=li;document.getElementById('login-remember').checked=true;var u=members.find(function(m){return m.name===li});if(u&&u.pw===lp)processLoginSuccess(u)}});initDateSelects()};
+window.onload=function(){var n=new Date();calYear=n.getFullYear();calMonth=n.getMonth();fetchDB(function(){isDataLoaded=true;var li=localStorage.getItem('last_login_id');var lp=localStorage.getItem('last_login_pw');if(li&&lp){document.getElementById('login-user-name').value=li;document.getElementById('login-remember').checked=true;var u=members.find(function(m){return m.name===li});if(u&&u.pw===lp)processLoginSuccess(u)}} ,'recent6');initDateSelects()};
 
-function fetchDB(callback,fetchAll){
+var isAllDataLoaded=false;
+var currentDataRangeMode='recent6';
+var currentCustomRange={fromDate:'',toDate:''};
+
+function buildFetchUrlByRange(mode){
+    var safeMode=mode||currentDataRangeMode||'recent6';
+    if(safeMode===true)safeMode='all';
+    if(safeMode==='all')return GAS_URL+'?range=all';
+    if(safeMode==='recent12')return GAS_URL+'?range=recent12';
+    if(safeMode==='custom'){
+        var fd=currentCustomRange.fromDate||'';
+        var td=currentCustomRange.toDate||'';
+        return GAS_URL+'?range=custom&fromDate='+encodeURIComponent(fd)+'&toDate='+encodeURIComponent(td);
+    }
+    return GAS_URL+'?range=recent6';
+}
+
+function fetchDB(callback,rangeMode){
     if(!GAS_URL)return showToast('URL 설정 필요','error');
+    if(rangeMode===true)rangeMode='all';
+    if(rangeMode)currentDataRangeMode=rangeMode;
     document.getElementById('login-loading').style.display='block';
-    // ★ v30.14: range 파라미터 - 기본은 최근 1년, 전체보기 요청 시 all
-    var url=GAS_URL+(fetchAll?'?range=all':'?range=recent');
+    var url=buildFetchUrlByRange(currentDataRangeMode);
     fetchNoCache(url).then(function(r){return r.json()}).then(function(data){
         document.getElementById('login-loading').style.display='none';
         var rawDB=Array.isArray(data.db)?data.db:[];
@@ -1221,8 +1239,7 @@ function fetchDB(callback,fetchAll){
         if(data.members)members=data.members;
         normalizeLoadedDBPhones();
         mergeGoalEntries(goalList);
-        // 전체 데이터 여부 플래그
-        isAllDataLoaded=!!fetchAll||(data.isAll===true);
+        isAllDataLoaded=(currentDataRangeMode==='all')||(data.isAll===true);
         mergeRecentSavedDBs();
         dbList.sort(function(a,b){
             var dA=new Date(a.date).getTime()||0;
@@ -1234,35 +1251,58 @@ function fetchDB(callback,fetchAll){
         checkMeetingAlerts();updateReassignBadge();
         if(typeof updateNewDBBadge==='function')updateNewDBBadge();
         updateMyReassignBadge();
-        // 전체 데이터 아닐 때 UI에 안내 표시
         updateDataRangeBadge();
-        // 목표 GAS 동기화 (최초 1회)
         syncGoalsFromGAS();
     }).catch(function(e){
         document.getElementById('login-loading').style.display='none';
         console.error(e);showToast('서버 연결 실패','error');
     });
 }
-var isAllDataLoaded=false;
-function loadAllData(){
-    if(isAllDataLoaded){showToast('이미 전체 데이터가 로드되어 있습니다.');return;}
-    if(!confirm('전체 데이터를 불러옵니다.\nDB가 많을수록 로딩이 느릴 수 있습니다.\n계속하시겠습니까?'))return;
+function setDataRange(mode){
+    if(mode==='all'){
+        if(isAllDataLoaded){showToast('이미 전체 데이터가 로드되어 있습니다.');return;}
+        if(!confirm('전체 데이터를 불러옵니다.\nDB가 많을수록 로딩이 느릴 수 있습니다.\n계속하시겠습니까?'))return;
+    }
     fetchDB(function(){
-        showToast('전체 데이터 로드 완료! ('+dbList.length+'건)');
+        showToast((mode==='all'?'전체':mode==='recent12'?'최근 1년':mode==='custom'?'기간선택':'최근 6개월')+' 데이터 로드 완료! ('+dbList.length+'건)');
         renderList();
-        if(currentUser.role==='admin')renderAdminDashboard();
-    },true);
+        if(currentUser&&currentUser.role==='admin')renderAdminDashboard();
+    },mode);
 }
+function chooseCustomRange(){
+    var from=prompt('조회 시작일을 입력하세요.\n예: 2024-01-01',currentCustomRange.fromDate||'');
+    if(from===null)return;
+    from=String(from||'').trim();
+    if(!from)return showToast('시작일을 입력하세요.','error');
+    var to=prompt('조회 종료일을 입력하세요.\n예: 2026-03-18',currentCustomRange.toDate||new Date().toISOString().slice(0,10));
+    if(to===null)return;
+    to=String(to||'').trim();
+    if(!to)return showToast('종료일을 입력하세요.','error');
+    currentCustomRange={fromDate:from,toDate:to};
+    setDataRange('custom');
+}
+function loadAllData(){setDataRange('all')}
 function updateDataRangeBadge(){
     var el=document.getElementById('data-range-badge');
     if(!el)return;
-    if(isAllDataLoaded){
-        el.innerHTML='<span style="background:#dcfce7;color:#15803d;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;cursor:default">✅ 전체 데이터</span>';
-    } else {
-        el.innerHTML='<span style="background:#fef9c3;color:#a16207;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;cursor:pointer" onclick="loadAllData()" title="클릭하면 전체 데이터를 불러옵니다">⚡ 최근 1년 데이터 · 전체보기</span>';
+    var label='최근 6개월';
+    if(currentDataRangeMode==='recent12')label='최근 1년';
+    else if(currentDataRangeMode==='custom')label='기간선택';
+    else if(currentDataRangeMode==='all')label='전체 데이터';
+    var customText=currentDataRangeMode==='custom'&&currentCustomRange.fromDate?(' ('+currentCustomRange.fromDate+' ~ '+(currentCustomRange.toDate||'')+')'):'';
+    function btn(text,mode,bg,color,extra){
+        return '<span style="background:'+bg+';color:'+color+';font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;cursor:pointer" onclick="'+(mode==='custom'?'chooseCustomRange()':'setDataRange(\''+mode+'\')')+'" '+(extra||'')+'>'+text+'</span>';
     }
+    el.innerHTML='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+      +'<span style="font-size:11px;font-weight:800;color:#475569">현재: '+label+customText+'</span>'
+      +btn('최근 6개월','recent6','#dbeafe','#1d4ed8')
+      +btn('최근 1년','recent12','#ede9fe','#6d28d9')
+      +btn('기간선택','custom','#fef3c7','#b45309')
+      +btn('전체','all','#dcfce7','#15803d','title="클릭하면 전체 데이터를 불러옵니다"')
+      +'</div>';
 }
 
+// ★ v25: 재배정 대기함 배지 업데이트
 // ★ v25: 재배정 대기함 배지 업데이트
 function updateReassignBadge(){if(!currentUser||currentUser.role!=='admin')return;var cnt=dbList.filter(function(d){return d.isFrozen&&!d.frozenTo}).length;var b=document.getElementById('reassign-badge');var hb=document.getElementById('header-reassign-alert');if(cnt>0){b.style.display='inline';b.innerText=cnt;hb.innerHTML='<span class="meeting-badge meeting-overdue" style="cursor:pointer"><i class="fa-solid fa-inbox"></i> 재배정 대기 '+cnt+'건</span>';hb.style.display='block'}else{b.style.display='none';hb.style.display='none'}}
 
@@ -3775,27 +3815,53 @@ function primeSeenAlerts(){
         .forEach(function(d){sessionSeenAlertIds[d.id]=true;});
 }
 var globalPollingTimer=null;
+function applyServerPulse(pulse){
+    if(!pulse)return;
+    if(pulse.alerts){
+        var a=pulse.alerts;
+        var md=[].concat(
+            (a.todayMeetings||[]).map(function(x){return{company:x.company,type:'today',date:x.meetDate,id:x.id}}),
+            (a.upcomingMeetings||[]).map(function(x){return{company:x.company,type:'upcoming',date:x.meetDate,days:x.days,id:x.id}}),
+            (a.overdueMeetings||[]).map(function(x){return{company:x.company,type:'overdue',date:x.meetDate,days:Math.abs(x.days||0),id:x.id}})
+        );
+        var tc=(a.todayMeetings||[]).length, uc=(a.upcomingMeetings||[]).length, oc=(a.overdueMeetings||[]).length;
+        var b=document.getElementById('meeting-alert-badge');
+        if(b){
+            b.dataset.details=JSON.stringify(md);
+            if(tc>0){b.innerHTML='<span class="meeting-badge meeting-today"><i class="fa-solid fa-bell"></i> 오늘 미팅 '+tc+'건</span>';b.style.display='block'}
+            else if(oc>0){b.innerHTML='<span class="meeting-badge meeting-overdue"><i class="fa-solid fa-exclamation-triangle"></i> 지난 미팅 '+oc+'건</span>';b.style.display='block'}
+            else if(uc>0){b.innerHTML='<span class="meeting-badge meeting-upcoming"><i class="fa-solid fa-calendar"></i> 예정 미팅 '+uc+'건</span>';b.style.display='block'}
+            else b.style.display='none';
+        }
+        if(currentUser&&currentUser.role==='admin'){
+            var cnt=Number(a.reassignQueueCount||0);
+            var rb=document.getElementById('reassign-badge');
+            var hb=document.getElementById('header-reassign-alert');
+            if(rb&&hb){
+                if(cnt>0){rb.style.display='inline';rb.innerText=cnt;hb.innerHTML='<span class="meeting-badge meeting-overdue" style="cursor:pointer"><i class="fa-solid fa-inbox"></i> 재배정 대기 '+cnt+'건</span>';hb.style.display='block'}
+                else {rb.style.display='none';hb.style.display='none';}
+            }
+        }
+    }
+    if(currentUser&&currentUser.role!=='admin'&&pulse.pendingAdminAlerts){
+        var unseen=(pulse.pendingAdminAlerts||[]).filter(function(d){return !sessionSeenAlertIds[d.id];});
+        if(unseen.length>0){
+            var normalCnt=unseen.filter(function(d){return !d.isReassigned;}).length;
+            var reCnt=unseen.filter(function(d){return d.isReassigned;}).length;
+            if(normalCnt>0) showToast('📬 새로운 DB가 '+normalCnt+'건 도착했습니다!','warning');
+            if(reCnt>0) showToast('🔄 재배정 DB가 '+reCnt+'건 도착했습니다!','warning');
+            unseen.forEach(function(d){sessionSeenAlertIds[d.id]=true;});
+        }
+    }
+}
 function startGlobalPolling(){
     if(globalPollingTimer)clearInterval(globalPollingTimer);
     globalPollingTimer=setInterval(function(){
         if(!currentUser)return;
-        fetch(GAS_URL).then(function(r){return r.json()}).then(function(data){
-            if(data.db)dbList=data.db;
-            if(data.members)members=data.members;
-            dbList.sort(function(a,b){var dA=new Date(a.date).getTime()||0;var dB=new Date(b.date).getTime()||0;if(dB!==dA)return dB-dA;return(Number(b.id)||0)-(Number(a.id)||0)});
-            updateNewDBBadge();updateMyReassignBadge();updateReassignBadge();checkMeetingAlerts();
+        var pulseUrl=GAS_URL+'?action=pulse&user='+encodeURIComponent(currentUser.name)+'&role='+encodeURIComponent(currentUser.role||'member');
+        fetchNoCache(pulseUrl).then(function(r){return r.json()}).then(function(data){
+            applyServerPulse(data);
             loadMessages(function(){updateMsgBadge()});
-            if(currentUser.role!=='admin'){
-                var pending=dbList.filter(function(d){return d.member===currentUser.name&&d.hasAdminAlert&&!d.isFrozen;});
-                var unseen=pending.filter(function(d){return !sessionSeenAlertIds[d.id];});
-                if(unseen.length>0){
-                    var normalCnt=unseen.filter(function(d){return !d.isReassigned;}).length;
-                    var reCnt=unseen.filter(function(d){return d.isReassigned;}).length;
-                    if(normalCnt>0) showToast('📬 새로운 DB가 '+normalCnt+'건 도착했습니다!','warning');
-                    if(reCnt>0) showToast('🔄 재배정 DB가 '+reCnt+'건 도착했습니다!','warning');
-                    unseen.forEach(function(d){sessionSeenAlertIds[d.id]=true;});
-                }
-            }
         }).catch(function(){});
     },60000);
 }
