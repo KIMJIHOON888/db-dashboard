@@ -3188,9 +3188,15 @@ function isExternalPortalRecord(d){
 }
 function copyExternalLink(partnerName){
     var normalized=normalizePartner(partnerName);
-    var url=location.origin+location.pathname+'?partner='+encodeURIComponent(normalized);
-    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(function(){showToast('전용 링크가 복사되었습니다.');}).catch(function(){prompt('아래 링크를 복사하세요.',url);});}
-    else{prompt('아래 링크를 복사하세요.',url);}
+    var currentUrl=(window.location.href||'').split('#')[0].split('?')[0];
+    var targetBase=currentUrl.replace(/[^\/?#]+$/, 'DB_Pro_Master_external.html');
+    if(!/DB_Pro_Master_external\.html$/i.test(targetBase)) targetBase=currentUrl;
+    var url=targetBase+'?partner='+encodeURIComponent(normalized);
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){showToast('전용 링크가 복사되었습니다.');}).catch(function(){prompt('아래 링크를 복사하세요.',url);});
+    }else{
+        prompt('아래 링크를 복사하세요.',url);
+    }
 }
 var externalPortalYearFilter='all', externalPortalMonthFilter='all', externalPortalMetricFilter='all', externalPortalPage=1, EXTERNAL_PORTAL_PAGE_SIZE=30;
 function isPortalMeetingRecord(d){return !!((d&&String(d.meetStatus||'').trim()==='진행') || (d&&String(d.meetDate||'').trim()));}
@@ -3382,7 +3388,7 @@ function renderDashboardRace(sorted){
 }
 
 // ═══ v28: 주간 영업 브리핑 ═══
-var APP_VERSION='v30_55';
+var APP_VERSION='external-fixed';
 var externalPortalPartner='';
 var isExternalPortal=false;
 var partnerAliasMapCache=null;
