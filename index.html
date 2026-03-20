@@ -323,13 +323,13 @@ tr:hover{background-color:#f8fafc;cursor:pointer}
 .race-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .race-name{width:110px;text-align:right;font-weight:800;font-size:14px}
 .race-bar-wrap{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
-.race-streak-burst{display:inline-flex;align-items:center;gap:3px;min-width:54px;justify-content:flex-start}
-.race-streak-fire{display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;filter:drop-shadow(0 0 6px rgba(251,191,36,.9));animation:raceFireGlow 1.15s ease-in-out infinite}
-.race-streak-fire:nth-child(2){animation-delay:.18s}
-.race-streak-fire:nth-child(3){animation-delay:.36s}
-.race-streak-fire:nth-child(4){animation-delay:.54s}
-.race-streak-more{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 6px;border-radius:999px;background:#fff7ed;border:1px solid #fdba74;color:#c2410c;font-size:11px;font-weight:900;box-shadow:0 2px 6px rgba(194,65,12,.15)}
-@keyframes raceFireGlow{0%,100%{transform:translateY(0) scale(1);opacity:1}50%{transform:translateY(-2px) scale(1.16);opacity:.9}}
+.race-streak-burst{display:inline-flex;align-items:center;gap:2px;min-width:54px;justify-content:flex-start;flex-shrink:0}
+.race-streak-fire{display:inline-flex;align-items:center;justify-content:center;font-size:18px;line-height:1;filter:drop-shadow(0 0 8px rgba(249,115,22,.55)) drop-shadow(0 0 14px rgba(250,204,21,.55));animation:raceFireBurn 1.05s ease-in-out infinite;transform-origin:center bottom}
+.race-streak-fire:nth-child(2){animation-delay:.14s}
+.race-streak-fire:nth-child(3){animation-delay:.28s}
+.race-streak-fire:nth-child(4){animation-delay:.42s}
+.race-streak-more{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:24px;padding:0 7px;border-radius:999px;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1px solid #fb923c;color:#c2410c;font-size:11px;font-weight:900;box-shadow:0 3px 10px rgba(194,65,12,.18)}
+@keyframes raceFireBurn{0%,100%{transform:translateY(0) scale(1);opacity:1}25%{transform:translateY(-1px) scale(1.08,.98);opacity:.96}50%{transform:translateY(-3px) scale(.94,1.18);opacity:1}75%{transform:translateY(-1px) scale(1.1,.96);opacity:.95}}
 
 @media(max-width:768px){
 body{flex-direction:column;overflow:auto}
@@ -3463,7 +3463,7 @@ function renderDashboardRace(sorted){
 }
 
 // ═══ v28: 주간 영업 브리핑 ═══
-var APP_VERSION='26032001';
+var APP_VERSION='v30.60';
 var externalPortalPartner='';
 var isExternalPortal=false;
 var partnerAliasMapCache=null;
@@ -3523,11 +3523,11 @@ function getConsecutiveContractMonths(memberName){
     return streak;
 }
 function buildRaceStreakFireworks(streak){
-    var n=parseInt(streak,10)||0;
-    if(n<2)return '';
-    var visible=Math.min(4,n);
+    var n=Number(streak)||0;
+    if(n<2) return '';
+    var visible=Math.min(n,4);
     var html='<div class="race-streak-burst" title="연속 계약 '+n+'개월">';
-    for(var i=0;i<visible;i++) html+='<span class="race-streak-fire">🎆</span>';
+    for(var i=0;i<visible;i++) html+='<span class="race-streak-fire">🔥</span>';
     if(n>visible) html+='<span class="race-streak-more">+'+(n-visible)+'</span>';
     html+='</div>';
     return html;
@@ -3634,7 +3634,7 @@ function renderBriefing(){
         var streakFireworks=buildRaceStreakFireworks(s.streak);
         raceHtml+='<div class="race-row">';
         raceHtml+='<div class="race-name">'+medal+s.name+'</div>';
-        raceHtml+='<div class="race-bar-wrap">'+streakFireworks+'<div style="flex:1;min-width:0"><div class="briefing-race-bar" style="width:'+pct+'%;background:'+bg+'"><span>'+s.rev.toLocaleString()+'원 ('+fmtNR(s.contNew,s.contRe)+'건)</span></div></div></div>';
+        raceHtml+='<div class="race-bar-wrap"><div style="flex:1;min-width:0"><div class="briefing-race-bar" style="width:'+pct+'%;background:'+bg+'"><span>'+s.rev.toLocaleString()+'원 ('+fmtNR(s.contNew,s.contRe)+'건)</span></div></div>'+streakFireworks+'</div>';
         raceHtml+='</div>';
     });
     document.getElementById('briefing-race').innerHTML=raceHtml;
