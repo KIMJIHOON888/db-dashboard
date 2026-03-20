@@ -319,6 +319,18 @@ tr:hover{background-color:#f8fafc;cursor:pointer}
 .cpr-firework-particle{position:absolute;width:8px;height:8px;border-radius:50%;left:0;top:0;animation:cprFirework 900ms ease-out forwards;opacity:1}
 @keyframes cprFirework{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
 
+
+.race-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.race-name{width:110px;text-align:right;font-weight:800;font-size:14px}
+.race-bar-wrap{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.race-streak-burst{display:inline-flex;align-items:center;gap:3px;min-width:54px;justify-content:flex-start}
+.race-streak-fire{display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;filter:drop-shadow(0 0 6px rgba(251,191,36,.9));animation:raceFireGlow 1.15s ease-in-out infinite}
+.race-streak-fire:nth-child(2){animation-delay:.18s}
+.race-streak-fire:nth-child(3){animation-delay:.36s}
+.race-streak-fire:nth-child(4){animation-delay:.54s}
+.race-streak-more{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 6px;border-radius:999px;background:#fff7ed;border:1px solid #fdba74;color:#c2410c;font-size:11px;font-weight:900;box-shadow:0 2px 6px rgba(194,65,12,.15)}
+@keyframes raceFireGlow{0%,100%{transform:translateY(0) scale(1);opacity:1}50%{transform:translateY(-2px) scale(1.16);opacity:.9}}
+
 @media(max-width:768px){
 body{flex-direction:column;overflow:auto}
 .sidebar{position:fixed;top:0;left:0;height:100%;transform:translateX(-100%);width:280px;box-shadow:none;overflow-y:auto;overflow-x:hidden}
@@ -1385,6 +1397,7 @@ function fetchDB(callback,rangeMode){
         if(data.members)members=data.members;
         normalizeLoadedDBPhones();
         mergeGoalEntries(goalList);
+        importGoalsFromMembers(members,false);
         isAllDataLoaded=(currentDataRangeMode==='all')||(data.isAll===true);
         mergeRecentSavedDBs();
         dbList.sort(function(a,b){
@@ -1585,6 +1598,28 @@ function backfillGoalsFromMembers(sourceMembers){
     });
     return saved;
 }
+function importGoalsFromMembers(sourceMembers,allowGuess){
+    var targetMembers=Array.isArray(sourceMembers)?sourceMembers:members;
+    if(!Array.isArray(targetMembers))return 0;
+    var now=new Date(), y=now.getFullYear(), m=now.getMonth()+1;
+    var entries=[];
+    targetMembers.forEach(function(mem){
+        var entry=normalizeGoalEntry(mem);
+        if(!entry && allowGuess){
+            var guess=coerceGoalNumber(mem&&(mem.goalAmount||mem.monthGoal||mem.goal||mem.targetAmount||mem.currentGoal));
+            if(mem&&mem.name&&guess>0) entry={name:mem.name,year:y,month:m,amount:guess};
+        }
+        if(entry)entries.push(entry);
+    });
+    if(entries.length){
+        mergeGoalEntries(entries);
+        entries.forEach(function(entry){
+            localStorage.setItem(getGoalKey(entry.name,entry.year,entry.month),String(entry.amount));
+        });
+    }
+    return entries.length;
+}
+
 function getMonthlyGoal(name,y,m){
     var found=(goalList||[]).find(function(g){
         return String(g.name)===String(name)&&
@@ -1610,6 +1645,7 @@ function syncGoalsFromGAS(callback){
         else if(d&&Array.isArray(d.goals))rawList=d.goals;
         goalList=[];
         if(rawList.length>0)mergeGoalEntries(rawList);
+        importGoalsFromMembers(members,false);
         if(currentUser){
             try{if(currentUser.role==='admin')renderAdminDashboard();}catch(e){}
             try{renderMyGoalProgress();}catch(e){}
@@ -3486,6 +3522,17 @@ function getConsecutiveContractMonths(memberName){
     }
     return streak;
 }
+function buildRaceStreakFireworks(streak){
+    var n=parseInt(streak,10)||0;
+    if(n<2)return '';
+    var visible=Math.min(4,n);
+    var html='<div class="race-streak-burst" title="연속 계약 '+n+'개월">';
+    for(var i=0;i<visible;i++) html+='<span class="race-streak-fire">🎆</span>';
+    if(n>visible) html+='<span class="race-streak-more">+'+(n-visible)+'</span>';
+    html+='</div>';
+    return html;
+}
+
 function getCPRContracts(memberName,year,month,isAll){
     var myDB=dbList.filter(function(d){return d.member===memberName&&!d.isFrozen&&d.status==='계약'});
     var filtered=myDB.filter(function(d){var cd=getContractDate(d);var p=parseDBDate(cd);if(p.year!==year)return false;if(!isAll&&p.month!==month)return false;return true});
@@ -3584,10 +3631,10 @@ function renderBriefing(){
     stats.forEach(function(s,i){
         var pct=Math.max(8,Math.round(s.rev/maxRev*100));var bg=raceColors[Math.min(i,raceColors.length-1)];
         var medal=i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':'';
-        var streakIcon='';
-        raceHtml+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
-        raceHtml+='<div style="width:100px;text-align:right;font-weight:800;font-size:14px">'+medal+s.name+streakIcon+'</div>';
-        raceHtml+='<div style="flex:1"><div class="briefing-race-bar" style="width:'+pct+'%;background:'+bg+'"><span>'+s.rev.toLocaleString()+'원 ('+fmtNR(s.contNew,s.contRe)+'건)</span></div></div>';
+        var streakFireworks=buildRaceStreakFireworks(s.streak);
+        raceHtml+='<div class="race-row">';
+        raceHtml+='<div class="race-name">'+medal+s.name+'</div>';
+        raceHtml+='<div class="race-bar-wrap">'+streakFireworks+'<div style="flex:1;min-width:0"><div class="briefing-race-bar" style="width:'+pct+'%;background:'+bg+'"><span>'+s.rev.toLocaleString()+'원 ('+fmtNR(s.contNew,s.contRe)+'건)</span></div></div></div>';
         raceHtml+='</div>';
     });
     document.getElementById('briefing-race').innerHTML=raceHtml;
