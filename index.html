@@ -355,6 +355,20 @@ body{flex-direction:column;overflow:auto}
 .external-portal-table-card{background:rgba(255,255,255,.96);border:1px solid #dbeafe;border-radius:24px;box-shadow:0 12px 28px rgba(15,23,42,.06);padding:20px}
 .portal-copy-btn{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer}
 .portal-copy-btn:hover{background:#dbeafe}
+.external-filter-card{min-width:280px}
+.external-filter-row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px}
+.external-filter-row select{min-width:110px;background:rgba(255,255,255,.94);color:#0f172a;border:1px solid rgba(255,255,255,.45);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:800;outline:none}
+.external-summary-card.clickable{cursor:pointer;transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease}
+.external-summary-card.clickable:hover{transform:translateY(-3px);box-shadow:0 18px 34px rgba(15,23,42,.14)}
+.external-summary-card.active{border-color:var(--accent,#2563eb);box-shadow:0 18px 34px rgba(15,23,42,.14), 0 0 0 2px rgba(255,255,255,.65) inset}
+.external-top-nav{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 0}
+.external-top-nav-light{margin:0 0 14px}
+.external-pill{border:none;border-radius:999px;padding:10px 14px;background:rgba(255,255,255,.14);color:#fff;font-size:12px;font-weight:800;cursor:pointer;backdrop-filter:blur(8px)}
+.external-top-nav-light .external-pill{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.external-pill.active{background:#fff;color:#0f172a}
+.external-top-nav-light .external-pill.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.external-pill.muted{cursor:default;opacity:.9}
+
 @media (max-width:1200px){.external-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:768px){
 .external-portal-screen{padding:14px}
@@ -362,6 +376,8 @@ body{flex-direction:column;overflow:auto}
 .external-hero-title{font-size:28px}
 .external-hero-meta{align-items:stretch;width:100%}
 .external-hero-meta-card{text-align:left;min-width:unset}
+.external-filter-row{justify-content:flex-start}
+.external-filter-row select{width:100%}
 .external-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .external-summary-card{min-height:108px;padding:16px}
 .external-portal-note{align-items:flex-start}
@@ -691,24 +707,29 @@ body{flex-direction:column;overflow:auto}
                     </div>
                     <div class="external-hero-meta">
                         <div id="app-version-portal" class="external-portal-chip" style="justify-content:center"></div>
-                        <div class="external-hero-meta-card">
-                            <div class="meta-label">마지막 업데이트</div>
-                            <div id="external-portal-updated" class="meta-value"></div>
+                        <div class="external-hero-meta-card external-filter-card">
+                            <div class="meta-label">조회 기간</div>
+                            <div class="external-filter-row">
+                                <select id="external-portal-year" onchange="applyExternalPortalFilters()"></select>
+                                <select id="external-portal-month" onchange="applyExternalPortalFilters()"></select>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="external-summary-grid" id="external-portal-summary"></div>
                 <div class="external-portal-note">
-                    <div class="left">핵심 진행지표를 먼저 확인한 뒤, 아래 목록에서 상세 업체 정보를 읽기 전용으로 조회할 수 있습니다.</div>
+                    <div class="left">상단 지표를 클릭하면 해당 상태의 업체만 바로 볼 수 있습니다. 상세 정보는 읽기 전용입니다.</div>
                     <div class="right">업체명을 클릭하면 현재 구현된 상세창이 보기 전용으로 열립니다.</div>
                 </div>
+                <div id="external-portal-top-nav" class="external-top-nav"></div>
             </div>
             <div class="external-portal-table-card" style="margin-bottom:20px">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
                     <h3 style="margin:0;color:#0f172a"><i class="fa-solid fa-building"></i> 현재 외부 DB 현황 <span id="external-portal-list-label" style="font-size:12px;color:#64748b;font-weight:700"></span></h3>
-                    <div style="font-size:12px;color:#64748b;font-weight:700">최근 업데이트 순으로 표시되며, 상세 정보는 읽기 전용으로만 볼 수 있습니다.</div>
+                    <div style="font-size:12px;color:#64748b;font-weight:700">배정일 기준으로 표시되며, 상세 정보는 읽기 전용으로만 볼 수 있습니다.</div>
                 </div>
-                <div class="table-container"><table><thead><tr><th>최근 업데이트</th><th>제휴업체</th><th>담당팀원</th><th>업체명</th><th>통화</th><th>진행상태</th><th>매출</th></tr></thead><tbody id="external-portal-body"></tbody></table></div>
+                <div id="external-portal-table-nav" class="external-top-nav external-top-nav-light"></div>
+                <div class="table-container"><table><thead><tr><th>배정일</th><th>제휴업체</th><th>담당팀원</th><th>업체명</th><th>통화</th><th>진행상태</th><th>매출</th></tr></thead><tbody id="external-portal-body"></tbody></table></div>
             </div>
         </div>
     </div>
@@ -3028,7 +3049,7 @@ function renderExternalDB(){
             g.total++;g.items.push(d);
             if(isCallAttempted(d.callStatus))g.callAttempt++;
             if(d.callStatus==='통화완료')g.callDone++;
-            if(String(d.meetStatus||'').trim()||!!d.meetDate)g.meet++;
+            if(isMeetingRegistered(d))g.meet++;
             if(st==='가망고객')g.prospect++;
             else if(st==='계약'){g.contract++;g.rev+=safeNum(d.totalAmount||d.amount||0)}
             else if(st==='종료')g.end++;
@@ -3073,7 +3094,7 @@ function renderExternalDB(){
     }
     if(extMetricFilter){
         allItems=allItems.filter(function(d){
-            if(extMetricFilter==='meet') return !!String(d.meetStatus||'').trim()||!!d.meetDate;
+            if(extMetricFilter==='meet') return isMeetingRegistered(d);
             if(extMetricFilter==='prospect') return (d.status||'')==='가망고객';
             return true;
         });
@@ -3171,6 +3192,64 @@ function copyExternalLink(partnerName){
     if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(function(){showToast('전용 링크가 복사되었습니다.');}).catch(function(){prompt('아래 링크를 복사하세요.',url);});}
     else{prompt('아래 링크를 복사하세요.',url);}
 }
+var externalPortalYearFilter='all', externalPortalMonthFilter='all', externalPortalMetricFilter='all', externalPortalPage=1, EXTERNAL_PORTAL_PAGE_SIZE=30;
+function isPortalMeetingRecord(d){return !!((d&&String(d.meetStatus||'').trim()==='진행') || (d&&String(d.meetDate||'').trim()));}
+function getAssignmentPortalTime(d){var candidates=[d.assignedAt,d.date,d.createdAt,d.createdAtTs];for(var i=0;i<candidates.length;i++){var v=candidates[i];var t=v?new Date(v).getTime():0;if(t&&!isNaN(t))return t;}return 0;}
+function formatPortalDate(ts){if(!ts)return '-';var d=new Date(ts); if(isNaN(d))return '-'; var y=d.getFullYear(), m=('0'+(d.getMonth()+1)).slice(-2), day=('0'+d.getDate()).slice(-2); return y+'-'+m+'-'+day;}
+function buildExternalPortalFilterOptions(records){
+    var yearSel=document.getElementById('external-portal-year');
+    var monthSel=document.getElementById('external-portal-month');
+    if(!yearSel||!monthSel)return;
+    var years=[];
+    (records||[]).forEach(function(d){var t=getAssignmentPortalTime(d); if(t){var y=new Date(t).getFullYear(); if(years.indexOf(y)===-1)years.push(y);}});
+    years.sort(function(a,b){return b-a});
+    yearSel.innerHTML='<option value="all">전체 연도</option>'+years.map(function(y){return '<option value="'+y+'">'+y+'년</option>';}).join('');
+    monthSel.innerHTML='<option value="all">전체 월</option>';
+    if(externalPortalYearFilter!=='all' && years.indexOf(Number(externalPortalYearFilter))===-1) externalPortalYearFilter='all';
+    yearSel.value=String(externalPortalYearFilter||'all');
+    refreshExternalPortalMonthOptions(records);
+}
+function refreshExternalPortalMonthOptions(records){
+    var yearSel=document.getElementById('external-portal-year');
+    var monthSel=document.getElementById('external-portal-month');
+    if(!monthSel)return;
+    var selectedYear=(yearSel&&yearSel.value)||externalPortalYearFilter||'all';
+    var months=[];
+    (records||[]).forEach(function(d){var t=getAssignmentPortalTime(d); if(!t)return; var dt=new Date(t); var y=String(dt.getFullYear()); if(selectedYear==='all' || y===String(selectedYear)){ var m=dt.getMonth()+1; if(months.indexOf(m)===-1)months.push(m); }});
+    months.sort(function(a,b){return a-b});
+    monthSel.innerHTML='<option value="all">전체 월</option>'+months.map(function(m){return '<option value="'+m+'">'+m+'월</option>';}).join('');
+    if(externalPortalMonthFilter!=='all' && months.indexOf(Number(externalPortalMonthFilter))===-1) externalPortalMonthFilter='all';
+    monthSel.value=String(externalPortalMonthFilter||'all');
+}
+function filterExternalPortalRecords(records){
+    return (records||[]).filter(function(d){
+        var t=getAssignmentPortalTime(d); var dt=t?new Date(t):null;
+        if(externalPortalYearFilter!=='all' && (!dt || String(dt.getFullYear())!==String(externalPortalYearFilter))) return false;
+        if(externalPortalMonthFilter!=='all' && (!dt || String(dt.getMonth()+1)!==String(externalPortalMonthFilter))) return false;
+        return true;
+    });
+}
+function filterExternalPortalMetric(records, metric){
+    var target=metric||'all';
+    return (records||[]).filter(function(d){
+        var st=String(d.status||'').trim();
+        if(target==='meet') return isPortalMeetingRecord(d);
+        if(target==='prospect') return st==='가망';
+        if(target==='contract') return st==='계약';
+        if(target==='end') return st==='종료';
+        return true;
+    });
+}
+function setExternalPortalMetric(metric){externalPortalMetricFilter=metric||'all'; externalPortalPage=1; setupExternalPortal();}
+function applyExternalPortalFilters(){
+    var yearSel=document.getElementById('external-portal-year');
+    var monthSel=document.getElementById('external-portal-month');
+    externalPortalYearFilter=(yearSel&&yearSel.value)||'all';
+    externalPortalMonthFilter=(monthSel&&monthSel.value)||'all';
+    externalPortalPage=1;
+    setupExternalPortal();
+}
+function changeExternalPortalPage(dir){externalPortalPage=Math.max(1, externalPortalPage + dir); setupExternalPortal();}
 function setupExternalPortal(){
     var records=(dbList||[]).filter(function(d){return d.source==='기타DB'&&!d.isFrozen&&normalizePartner(d.sourceDesc||'')===externalPortalPartner;});
     if(!externalPortalPartner||records.length===0){isExternalPortal=false;externalPortalPartner='';var portalFail=document.getElementById('external-portal-screen');if(portalFail)portalFail.style.display='none';var loginFail=document.getElementById('login-screen');if(loginFail)loginFail.style.display='flex';var mainFail=document.getElementById('app-main');if(mainFail)mainFail.style.display='none';var sideFail=document.getElementById('app-sidebar');if(sideFail)sideFail.style.display='none';showToast('외부업체 링크를 확인할 수 없어 일반 로그인 화면으로 이동합니다.','warning');return false;}
@@ -3182,51 +3261,60 @@ function setupExternalPortal(){
     var portal=document.getElementById('external-portal-screen'); if(portal){ portal.style.display='block'; main.insertBefore(portal, main.firstElementChild ? main.firstElementChild.nextElementSibling || portal : portal); }
     currentUser={name:externalPortalPartner,role:'external'};
     document.getElementById('external-portal-title').innerText=externalPortalPartner+' 외부 DB 진행 현황';
-    document.getElementById('external-portal-subtitle').innerText='최근 업데이트 순 · 읽기 전용 · 제휴업체 본인 데이터만 표시됩니다.';
-    if(records.length===0){
-        document.getElementById('external-portal-updated').innerText='표시할 데이터가 없습니다.';
-        document.getElementById('external-portal-summary').innerHTML='<div class="external-summary-card" style="grid-column:1/-1;text-align:center;color:#64748b;min-height:96px;display:flex;align-items:center;justify-content:center">해당 업체의 외부 DB 데이터가 아직 없습니다.</div>';
-        document.getElementById('external-portal-body').innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">해당 업체 데이터가 없습니다.</td></tr>';
-        return;
-    }
-    var total=records.length, callAttempt=0, callDone=0, meet=0, prospect=0, endCount=0, contract=0, revenue=0;
-    records.forEach(function(d){
+    document.getElementById('external-portal-subtitle').innerText='배정일 기준 · 읽기 전용 · 제휴업체 본인 데이터만 표시됩니다.';
+    buildExternalPortalFilterOptions(records);
+    var periodFiltered=filterExternalPortalRecords(records);
+    var filtered=filterExternalPortalMetric(periodFiltered, externalPortalMetricFilter);
+    var total=periodFiltered.length, callAttempt=0, callDone=0, meet=0, prospect=0, endCount=0, contract=0, revenue=0;
+    periodFiltered.forEach(function(d){
         var status=String(d.status||'').trim();
         if(isCallAttempted(d.callStatus))callAttempt++;
         if(d.callStatus==='통화완료')callDone++;
-        if(String(d.meetStatus||'').trim()||!!d.meetDate)meet++;
+        if(isPortalMeetingRecord(d))meet++;
         if(status==='가망')prospect++;
         if(status==='종료')endCount++;
         if(status==='계약'){contract++; revenue+=safeNum(d.totalAmount||d.amount||0);}
     });
-    var latest=getLatestExternalUpdate(records);
-    document.getElementById('external-portal-updated').innerText=formatPortalDateTime(latest);
-    var activeCount=Math.max(0,total-endCount);
+    var activeCount=Math.max(0,total-endCount-contract);
+    var topNav=document.getElementById('external-portal-top-nav');
+    if(topNav) topNav.innerHTML='';
     var summaryCards=[
-        {label:'총 DB',value:total+'건',sub:'현재 조회 대상 전체',icon:'fa-database',accent:'#2563eb',soft:'#eff6ff'},
-        {label:'통화시도',value:callAttempt+'건',sub:'통화완료 '+callDone+'건',icon:'fa-phone-volume',accent:'#0f766e',soft:'#ecfeff'},
-        {label:'미팅',value:meet+'건',sub:'미팅 등록 기준 집계',icon:'fa-calendar-check',accent:'#7c3aed',soft:'#f5f3ff'},
-        {label:'가망',value:prospect+'건',sub:'후속 관리 대상',icon:'fa-bullseye',accent:'#ea580c',soft:'#fff7ed'},
-        {label:'계약',value:contract+'건',sub:'계약 완료 기준',icon:'fa-file-signature',accent:'#059669',soft:'#ecfdf5'},
-        {label:'종료',value:endCount+'건',sub:'관리 종료 상태',icon:'fa-flag-checkered',accent:'#dc2626',soft:'#fef2f2'},
-        {label:'누적 매출',value:revenue.toLocaleString()+'원',sub:'진행중 '+activeCount+'건',icon:'fa-sack-dollar',accent:'#1d4ed8',soft:'#eff6ff'}
+        {metric:'all',label:'총 DB',value:total+'건',sub:'현재 조회 대상 전체',icon:'fa-database',accent:'#2563eb',soft:'#eff6ff'},
+        {metric:'all',label:'통화시도',value:callAttempt+'건',sub:'통화완료 '+callDone+'건',icon:'fa-phone-volume',accent:'#0f766e',soft:'#ecfeff'},
+        {metric:'meet',label:'미팅',value:meet+'건',sub:'미팅 일정 또는 진행 선택 기준',icon:'fa-calendar-check',accent:'#7c3aed',soft:'#f5f3ff'},
+        {metric:'prospect',label:'가망',value:prospect+'건',sub:'후속 관리 대상',icon:'fa-bullseye',accent:'#ea580c',soft:'#fff7ed'},
+        {metric:'contract',label:'계약',value:contract+'건',sub:'계약 완료 기준',icon:'fa-file-signature',accent:'#059669',soft:'#ecfdf5'},
+        {metric:'end',label:'종료',value:endCount+'건',sub:'관리 종료 상태',icon:'fa-flag-checkered',accent:'#dc2626',soft:'#fef2f2'},
+        {metric:'all',label:'누적 매출',value:revenue.toLocaleString()+'원',sub:'활성 DB '+activeCount+'건',icon:'fa-sack-dollar',accent:'#1d4ed8',soft:'#eff6ff'}
     ];
     document.getElementById('external-portal-summary').innerHTML=summaryCards.map(function(x){
-        return '<div class="external-summary-card" style="--accent:'+x.accent+';--soft:'+x.soft+'">'+
+        var clickable=(x.metric!=='all' || x.label==='총 DB');
+        var active=((x.metric==='all'&&externalPortalMetricFilter==='all'&&x.label==='총 DB') || (x.metric!=='all'&&externalPortalMetricFilter===x.metric));
+        return '<div class="external-summary-card '+(clickable?'clickable ':'')+(active?'active':'')+'" style="--accent:'+x.accent+';--soft:'+x.soft+'"'+(clickable?' onclick="setExternalPortalMetric(\''+x.metric+'\')"':'')+'>'+
             '<div class="icon"><i class="fa-solid '+x.icon+'"></i></div>'+
             '<div class="label">'+x.label+'</div>'+
             '<div class="value">'+x.value+'</div>'+
             '<div class="sub">'+x.sub+'</div>'+
         '</div>';
     }).join('');
-    var sorted=records.slice().sort(function(a,b){return getLatestExternalUpdate([b])-getLatestExternalUpdate([a]);});
+    var sorted=filtered.slice().sort(function(a,b){return getAssignmentPortalTime(b)-getAssignmentPortalTime(a);});
+    var totalPages=Math.max(1, Math.ceil(sorted.length/EXTERNAL_PORTAL_PAGE_SIZE));
+    if(externalPortalPage>totalPages) externalPortalPage=totalPages;
+    var start=(externalPortalPage-1)*EXTERNAL_PORTAL_PAGE_SIZE;
+    var pageItems=sorted.slice(start,start+EXTERNAL_PORTAL_PAGE_SIZE);
     document.getElementById('external-portal-list-label').innerText='('+sorted.length+'건)';
-    document.getElementById('external-portal-body').innerHTML=sorted.map(function(d){
+    if(sorted.length===0){
+        document.getElementById('external-portal-body').innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">해당 조건의 업체 데이터가 없습니다.</td></tr>';
+        var navEmpty=document.getElementById('external-portal-table-nav');
+        if(navEmpty) navEmpty.innerHTML='';
+        return true;
+    }
+    document.getElementById('external-portal-body').innerHTML=pageItems.map(function(d){
         var progressMeta=getExternalProgressMeta(d);
         var rev=(d.status==='계약')?safeNum(d.totalAmount||d.amount||0):0;
         var progressHtml=progressMeta.label==='-'?'<span style="color:#94a3b8">-</span>':'<span class="badge '+progressMeta.badge+'">'+progressMeta.label+'</span>';
         return '<tr onclick="openModal(\''+d.id+'\')" style="cursor:pointer">'+
-            '<td>'+formatPortalDateTime(getLatestExternalUpdate([d]))+'</td>'+
+            '<td>'+formatPortalDate(getAssignmentPortalTime(d))+'</td>'+
             '<td style="font-weight:800;color:#1d4ed8">'+escapeHtml(normalizePartner(d.sourceDesc||''))+'</td>'+
             '<td>'+escapeHtml(d.member||'-')+'</td>'+
             '<td style="font-weight:800">'+escapeHtml(d.company||'-')+'</td>'+
@@ -3234,6 +3322,11 @@ function setupExternalPortal(){
             '<td>'+progressHtml+'</td>'+
             '<td style="color:#2563eb">'+(rev>0?rev.toLocaleString()+'원':'-')+'</td></tr>';
     }).join('');
+    var nav=document.getElementById('external-portal-table-nav');
+    if(nav) nav.innerHTML=''
+      +'<button class="external-pill '+(externalPortalPage<=1?'muted':'')+'" '+(externalPortalPage<=1?'disabled':'onclick="changeExternalPortalPage(-1)"')+'>이전</button>'
+      +'<span class="external-pill muted">'+externalPortalPage+' / '+totalPages+' 페이지</span>'
+      +'<button class="external-pill '+(externalPortalPage>=totalPages?'muted':'')+'" '+(externalPortalPage>=totalPages?'disabled':'onclick="changeExternalPortalPage(1)"')+'>다음</button>';
     return true;
 }
 
@@ -3289,7 +3382,7 @@ function renderDashboardRace(sorted){
 }
 
 // ═══ v28: 주간 영업 브리핑 ═══
-var APP_VERSION='v30_54';
+var APP_VERSION='v30_55';
 var externalPortalPartner='';
 var isExternalPortal=false;
 var partnerAliasMapCache=null;
@@ -3298,6 +3391,7 @@ function setAppVersionLabels(){document.title='DB Pro Master '+APP_VERSION;['app
 
 var briefingTrendChart=null;
 function isCallAttempted(cs){return !!String(cs||'').trim()}
+function isMeetingRegistered(d){var meetStatus=String(d&&d.meetStatus||'').trim();return meetStatus==='진행';}
 function fmtNR(n,r){return n+'('+r+')'}
 function showDBListPopup(title,list){if(!list||list.length===0){alert(title+': 해당 DB가 없습니다.');return}var msg=title+'\n\n';list.forEach(function(d,i){msg+=(i+1)+'. '+d.company+'\n'});alert(msg)}
 
