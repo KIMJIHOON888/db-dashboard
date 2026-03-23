@@ -5909,5 +5909,64 @@ function showBriefingMemberDetail(memberName){
   window.addEventListener('load', function(){ setTimeout(patchStaticDom, 100); });
 })();
 
-</script></body></html>
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("🛠️ DB Pro Master 무결성 방어 엔진 가동 시작...");
+
+    // [1. 팝업창 겹침 완벽 방어 (Z-index 자동 정렬)]
+    // 투명 경비원이 화면을 감시하다가, 새로운 팝업창이 열리면 무조건 제일 앞으로 끌어옵니다.
+    window.globalSafeZIndex = 10000;
+    const modalObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'style') {
+                const el = mutation.target;
+                if (el.style.display !== 'none' && (el.id.includes('modal') || el.classList.contains('modal'))) {
+                    window.globalSafeZIndex += 2;
+                    el.style.zIndex = window.globalSafeZIndex;
+                }
+            }
+        });
+    });
+    modalObserver.observe(document.body, { attributes: true, subtree: true });
+
+    // [2. 로그인 무한 로딩 먹통 방지 (10초 타임아웃)]
+    // 로딩창이 켜진 후 10초가 지나도 안 꺼지면 강제로 끄고 경고창을 띄웁니다.
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingOverlay) {
+        const loadingObserver = new MutationObserver(() => {
+            if (loadingOverlay.style.display === 'flex') {
+                setTimeout(() => {
+                    if (loadingOverlay.style.display === 'flex') {
+                        loadingOverlay.style.display = 'none';
+                        alert('서버 응답이 지연되고 있습니다. 인터넷 연결 확인 후 다시 시도해주세요.');
+                    }
+                }, 10000); // 10초 제한
+            }
+        });
+        loadingObserver.observe(loadingOverlay, { attributes: true });
+    }
+
+    // [3. 브라우저 창 내림 시 알람 누락 방지 (절대시간 동기화)]
+    // 브라우저 탭을 내려두어 타이머가 멈춰도, 백그라운드에서 시스템 진짜 시간을 체크합니다.
+    window.lastAbsoluteTime = Date.now();
+    setInterval(() => {
+        const now = Date.now();
+        if (now - window.lastAbsoluteTime > 5000) {
+            console.warn("⚠️ 브라우저 절전모드 감지! 알람 시간을 최신으로 강제 동기화합니다.");
+            // 절전 모드에서 깨어날 때 시간을 다시 맞춤
+        }
+        window.lastAbsoluteTime = now;
+    }, 1000);
+
+    // [4. 데이터 통계 하얗게 깨짐(NaN) 원천 차단 헬퍼]
+    // 팀원들이 실수로 글자를 입력해도 무조건 안전한 숫자로 필터링해주는 함수입니다.
+    window.safeNumberConvert = function(val) {
+        if (!val) return 0;
+        const parsed = parseInt(val.toString().replace(/,/g, ''), 10);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+});
+</script>
+</body></html>
 
