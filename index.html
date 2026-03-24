@@ -1973,8 +1973,21 @@ function renderList(){
         var parsed=parseDBDate(d.date);
         var matchKw=!kw||(d.company||"").toLowerCase().includes(kw)||(d.member||"").toLowerCase().includes(kw);
         if(!matchKw)return false;
-        if(year!=='all'&&parsed.year!=year)return false;
-        if(month!=='all'&&parsed.month!=month)return false;
+        // ★ v33.1: 진행상태 필터가 '계약'이면 계약일 기준, 그 외 접수일 기준
+        if(sf==='계약'){
+          // 계약 필터 → 계약일 기준으로 날짜 매치
+          if(d.status==='계약'){
+            var _pc=parseDBDate(d.contractDate||d.date);
+            if(year!=='all'&&_pc.year!=year) return false;
+            if(month!=='all'&&_pc.month!=month) return false;
+          }else{
+            return false; // 계약 아닌 DB는 계약 필터에서 제외
+          }
+        }else{
+          // 그 외 → 접수일 기준
+          if(year!=='all'&&parsed.year!=year) return false;
+          if(month!=='all'&&parsed.month!=month) return false;
+        }
         if(source==='쉐어받음')return false;
         if(source!=='all'&&d.source!==source)return false;
         if(sf!=='all'&&sf!=='frozen'){var _ns=d.status==='진행중'?'상담 진행중':(d.status==='대기'?'선택':d.status);if(_ns!==sf)return false;}
@@ -1982,9 +1995,23 @@ function renderList(){
         if(currentUser.role==='admin'){if(tm!=='all'&&d.member!==tm)return false}else{if(d.member!==currentUser.name)return false}
         return true;
     });
-    // 쉐어 가상 엔트리
-    if(source==='all'||source==='쉐어받음'){var _shareTargets=[];var sn=(currentUser.role==='admin')?tm:currentUser.name;if(sn==='all'){members.forEach(function(m){if(m.role!=='admin')_shareTargets.push(m.name)})}else if(sn){_shareTargets.push(sn)}
-    _shareTargets.forEach(function(_stName){getVirtualShareEntries(_stName).forEach(function(ve){var vp=parseDBDate(ve.contractDate);if(year!=='all'&&vp.year!=year)return;if(month!=='all'&&vp.month!=month)return;if(kw&&!ve.company.toLowerCase().includes(kw))return;if(sf!=='all'&&sf!=='frozen'&&ve.status!==sf)return;filtered.push(ve)})})}
+    // ★ v33: 쉐어 가상 엔트리 — 필터 조건 완전 적용
+    if(source==='all'||source==='쉐어받음'){
+      // frozen/callStatus 필터 시 쉐어 제외 (쉐어는 동결·통화상태 없음)
+      if(sf!=='frozen'&&cf==='all'){
+        var _shareTargets=[];var sn=(currentUser.role==='admin')?tm:currentUser.name;
+        if(sn==='all'){members.forEach(function(m){if(m.role!=='admin')_shareTargets.push(m.name)})}
+        else if(sn){_shareTargets.push(sn)}
+        _shareTargets.forEach(function(_stName){getVirtualShareEntries(_stName).forEach(function(ve){
+          var vp=parseDBDate(ve.contractDate);
+          if(year!=='all'&&vp.year!=year)return;
+          if(month!=='all'&&vp.month!=month)return;
+          if(kw&&!ve.company.toLowerCase().includes(kw))return;
+          if(sf!=='all'&&ve.status!==sf)return;
+          filtered.push(ve);
+        })});
+      }
+    }
     filtered.sort(function(a,b){var dA=new Date(a.contractDate||a.date).getTime()||0;var dB=new Date(b.contractDate||b.date).getTime()||0;return dB-dA});
     totalFilteredData=filtered;
     renderMyAlerts();
@@ -3779,7 +3806,7 @@ function renderDashboardRace(sorted){
 }
 
 // ═══ v28: 주간 영업 브리핑 ═══
-var APP_VERSION='v32.9';
+var APP_VERSION='v33.1';
 var externalPortalPartner='';
 var isExternalPortal=false;
 var partnerAliasMapCache=null;
