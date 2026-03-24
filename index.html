@@ -792,7 +792,7 @@ body{flex-direction:column;overflow:auto}
             <div style="font-size:13px;color:#64748b">다른 팀원으로부터 재배정 받은 DB 목록입니다. 최신순으로 정렬됩니다.</div>
         </div>
         <div class="table-container">
-            <table><thead><tr><th>배정일</th><th>최초접수일</th><th>이전팀장</th><th>배정팀장</th><th>업체명</th><th>출처</th><th>진행상태</th><th>매출</th></tr></thead>
+            <table><thead><tr><th>배정일</th><th>최초접수일</th><th>이전팀장</th><th>배정팀장</th><th>업체명</th><th>출처</th><th>통화유무</th><th>진행상태</th><th>매출</th></tr></thead>
             <tbody id="my-reassign-body"></tbody></table>
         </div>
     </div>
@@ -1389,7 +1389,7 @@ function saveArchivedMembers(arr){try{localStorage.setItem(ARCHIVED_MEMBER_KEY,J
 function archiveMemberName(name){if(!name)return;var arr=getArchivedMembers();var found=arr.find(function(x){return x.name===name});var activeCount=(dbList||[]).filter(function(d){return d.member===name&&!d.isFrozen&&d.status!=='계약'&&d.status!=='종료'}).length;var totalCount=(dbList||[]).filter(function(d){return d.member===name}).length;if(found){found.deletedAt=new Date().toISOString();found.activeCount=activeCount;found.totalCount=totalCount;}else arr.unshift({name:name,deletedAt:new Date().toISOString(),activeCount:activeCount,totalCount:totalCount});saveArchivedMembers(arr)}
 function removeArchivedMember(name){saveArchivedMembers(getArchivedMembers().filter(function(x){return x.name!==name}))}
 function getUnreadAdminNoticeCount(){if(!currentUser||currentUser.role==='admin')return 0;var adminUser=members.find(function(m){return m.role==='admin'});var adminName=adminUser?adminUser.name:'관리자';return (messageList||[]).filter(function(msg){return !msg._deleted&&msg.from===adminName&&msg.to===currentUser.name&&!msg.isRead&&String(msg.text||'').indexOf('[관리자공지]')===0;}).length}
-function sendGroupNotice(){if(!currentUser||currentUser.role!=='admin')return;var input=document.getElementById('admin-broadcast-input');var text=(input&&input.value||'').trim();if(!text)return showToast('공지 내용을 입력하세요.','error');var targets=members.filter(function(m){return m.role!=='admin'});if(targets.length===0)return showToast('공지할 팀원이 없습니다.','error');targets.forEach(function(m,idx){setTimeout(function(){sendSystemMessage(m.name,'[관리자공지] '+text+'\n→ 오늘의 할 일 하단 안내 또는 소통창에서 확인하세요.');},idx*80);});if(input)input.value='';showToast('📢 전체 공지를 발송했습니다.');loadMessages(function(){renderMsgContacts();if(selectedChatPartner)renderChatMessages();updateMsgBadge()});}
+function sendGroupNotice(){if(!currentUser||currentUser.role!=='admin')return;var input=document.getElementById('admin-broadcast-input');var text=(input&&input.value||'').trim();if(!text)return showToast('공지 내용을 입력하세요.','error');var targets=members.filter(function(m){return m.role!=='admin'});if(targets.length===0)return showToast('공지할 팀원이 없습니다.','error');targets.forEach(function(m,idx){setTimeout(function(){sendSystemMessage(m.name,'[관리자공지] '+text);},idx*80);});if(input)input.value='';showToast('📢 전체 공지를 발송했습니다.');loadMessages(function(){renderMsgContacts();if(selectedChatPartner)renderChatMessages();updateMsgBadge()});}
 function renderArchivedMemberList(){var box=document.getElementById('archived-member-list');if(!box)return;var arr=getArchivedMembers();if(arr.length===0){box.innerHTML='<div style="padding:12px 0;color:#94a3b8;font-size:12px">보관 중인 퇴사자 기록이 없습니다.</div>';return;}box.innerHTML=arr.map(function(item){var active=(dbList||[]).filter(function(d){return d.member===item.name&&!d.isFrozen&&d.status!=='계약'&&d.status!=='종료'}).length;var all=(dbList||[]).filter(function(d){return d.member===item.name}).length;return '<div class="archive-member-item"><div><div style="font-weight:800;color:#7c2d12">'+item.name+'</div><div style="font-size:12px;color:#9a3412;margin-top:3px">보관 DB '+all+'건 · 재활용 후보 '+active+'건</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn btn-secondary" onclick="restoreArchivedMember(\''+item.name+'\')" style="padding:8px 10px;font-size:12px">복구</button><button class="btn btn-warning" onclick="recycleArchivedMemberDBs(\''+item.name+'\')" style="padding:8px 10px;font-size:12px">DB 재활용</button></div></div>';}).join('')}
 function restoreArchivedMember(name){if(!name)return;showLoading();fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'add_member',name:name,pw:'1234'})}).then(function(r){return r.json()}).then(function(d){hideLoading();if(d.result==='success'||d.result==='duplicate'){removeArchivedMember(name);showToast(name+' 팀원을 복구했습니다.');fetchDB(function(){renderMemberList();renderArchivedMemberList()})}else showToast('복구 중 오류 발생','error')}).catch(function(){hideLoading();showToast('서버 오류','error')})}
 function recycleArchivedMemberDBs(name){var targets=(dbList||[]).filter(function(d){return d.member===name&&!d.isFrozen&&d.status!=='계약'&&d.status!=='종료'});if(targets.length===0)return showToast('재활용할 DB가 없습니다.','warning');var options=members.filter(function(m){return m.role!=='admin'&&m.name!==name}).map(function(m){return m.name}).join(', ');var target=prompt(name+' 퇴사자 DB '+targets.length+'건을 누구에게 일괄 재배정할까요?\n가능: '+options+'\n\n입력 없이 확인하면 재배정 대기함으로 보냅니다.','');var toQueue=!target;var valid=toQueue||members.some(function(m){return m.role!=='admin'&&m.name===target});if(!valid)return showToast('존재하는 팀원 이름으로 입력해주세요.','error');showLoading();var done=0;targets.forEach(function(d){var payload=Object.assign({},d,{logs:(d.logs||[]).concat([{time:new Date().toLocaleString(),text:'🤖 (시스템) 퇴사자 보관함에서 '+(toQueue?'재배정 대기함':'['+target+'] 팀장')+'으로 이동했습니다.',writer:'시스템',type:'system'}])});if(toQueue){payload.isFrozen=true;payload.frozenTo='';payload.frozenDate=new Date().toISOString().slice(0,10);payload.frozenReason='퇴사자 DB 회수';}else{payload.member=target;payload.isReassigned=true;payload.reassignedFrom=name;payload.reassignedDate=new Date().toISOString().slice(0,10);payload.isFrozen=false;payload.frozenTo='';payload.frozenDate='';payload.frozenReason='';payload.hasAdminAlert=true;}fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save',data:payload})}).finally(function(){done++;if(done===targets.length){hideLoading();showToast('퇴사자 DB '+targets.length+'건 정리를 완료했습니다.');fetchDB(function(){renderArchivedMemberList();renderList();updateReassignBadge()})}});});}
@@ -2141,10 +2141,14 @@ if(d.isReassigned&&d.member===currentUser.name&&!d.isFrozen){
     // 이전 담당자 기록 표시 (로그에서 이전 담당자 기록만 추출)
     var prevRecords='';
     var prevLogs=(d.logs||[]).filter(function(l){
-        // 시스템 로그 중 이전 기록 보존 항목
-        if((l.text||'').indexOf('📋 [이전 기록 보존]')===0)return true;
-        // 재배정 전 담당자 작성 로그 (현재 담당자가 아닌 사람)
-        if(l.writer&&l.writer!==d.member&&l.writer!=='시스템'&&l.writer!=='system')return true;
+        // ★ v33.2: 시스템 메시지 완전 제외 — 메모만 표시
+        if(l.type==='system') return false;
+        if(l.writer==='시스템'||l.writer==='system') return false;
+        if((l.text||'').indexOf('🤖')===0) return false;
+        // 이전 기록 보존 항목 (메모 내용)
+        if((l.text||'').indexOf('📋 [이전 기록 보존]')===0) return true;
+        // 이전 담당자 작성 메모 (현재 담당자가 아닌 사람)
+        if(l.writer&&l.writer!==d.member) return true;
         return false;
     });
     if(prevLogs.length>0){
@@ -3038,7 +3042,7 @@ function executeRedistribution(){
     if(frozenObj.consulting)prevRecordText+='상담내용: '+frozenObj.consulting;
     if(prevRecordText!=='📋 [이전 기록 보존] ')clonedLogs.unshift({time:new Date().toLocaleString(),text:prevRecordText,writer:"시스템",type:'system'});
     clonedLogs.unshift({time:new Date().toLocaleString(),text:"🤖 (시스템) ["+originalDB.member+"] 팀장으로부터 인계받은 재배정 DB입니다.",writer:"시스템",type:'system'});
-    var newObj={id:newId,member:targetMem,date:frozenObj.date,source:frozenObj.source,gradeProv:frozenObj.gradeProv,company:compName,ceo:frozenObj.ceo,phone:frozenObj.phone,industry:frozenObj.industry,revenue:frozenObj.revenue,callStatus:'',credit:frozenObj.credit,annualRev:frozenObj.annualRev,tax:frozenObj.tax,region:frozenObj.region,meetDate:'',status:'선택',waitReason:'',ingDetail:'',prospectDetail:'',endReason:'',contractDate:'',product:'',totalAmount:0,amount:0,shareList:[],consulting:'',phoneIssue:'',logs:clonedLogs,roadmap:frozenObj.roadmap||[],hasAdminAlert:true,isReassigned:true,reassignedFrom:originalDB.member,reassignedDate:new Date().toISOString().split('T')[0],isFrozen:false,frozenTo:'',frozenDate:'',frozenReason:'',sourceDesc:frozenObj.sourceDesc||'',assignedAt:'',nextNotifyDate:'',followupType:'',prospectStartDate:''};
+    var newObj={id:newId,member:targetMem,date:frozenObj.date,source:frozenObj.source,gradeProv:frozenObj.gradeProv,company:compName,ceo:frozenObj.ceo,phone:frozenObj.phone,industry:frozenObj.industry,revenue:frozenObj.revenue,callStatus:'',meetStatus:'',credit:frozenObj.credit,annualRev:frozenObj.annualRev,tax:frozenObj.tax,region:frozenObj.region,meetDate:'',status:'선택',waitReason:'',ingDetail:'',prospectDetail:'',endReason:'',contractDate:'',product:'',totalAmount:0,amount:0,shareList:[],consulting:'',phoneIssue:'',logs:clonedLogs,roadmap:frozenObj.roadmap||[],hasAdminAlert:true,isReassigned:true,reassignedFrom:originalDB.member,reassignedDate:new Date().toISOString().split('T')[0],isFrozen:false,frozenTo:'',frozenDate:'',frozenReason:'',sourceDesc:frozenObj.sourceDesc||'',assignedAt:'',nextNotifyDate:'',followupType:'',prospectStartDate:''};
     fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save',data:frozenObj})}).then(function(r){return r.json()}).then(function(){return fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'save',data:newObj})})}).then(function(r){return r.json()}).then(function(){
         // 알림은 재배정 목록 뱃지로 대체
         hideLoading();showToast("성공적으로 재배정 되었습니다.");isModalDirty=false;
@@ -3806,7 +3810,7 @@ function renderDashboardRace(sorted){
 }
 
 // ═══ v28: 주간 영업 브리핑 ═══
-var APP_VERSION='v33.1';
+var APP_VERSION='v33.2';
 var externalPortalPartner='';
 var isExternalPortal=false;
 var partnerAliasMapCache=null;
@@ -4491,7 +4495,7 @@ function renderMyReassignList(){
         document.getElementById('my-reassign-next').onclick=function(){changeMyReassignPage(1)};
     }
     if(myReassigned.length===0){
-        tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8"><i class="fa-solid fa-inbox" style="font-size:30px;opacity:.3"></i><br><br>재배정 받은 DB가 없습니다.</td></tr>';
+        tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8"><i class="fa-solid fa-inbox" style="font-size:30px;opacity:.3"></i><br><br>재배정 받은 DB가 없습니다.</td></tr>';
         if(pager)pager.style.display='none';
         return;
     }
@@ -4504,21 +4508,49 @@ function renderMyReassignList(){
     myReassigned.slice(s,e).forEach(function(d){
         var isNew=d.hasAdminAlert;
         var newBadge=isNew?'<span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-left:4px;animation:pulse 1.5s infinite">NEW</span>':'';
-        var statusBadge='status-wait';
-        if(d.status==='진행중')statusBadge='status-ing';
-        if(d.status==='가망고객')statusBadge='status-prospect';
-        if(d.status==='계약')statusBadge='status-done';
-        if(d.status==='종료')statusBadge='status-end';
+        // ★ v33.2: 통화유무 배지 (DB목록과 동일)
+        var _rCallBadge=getCallStatusBadge(d.callStatus);
+        // ★ v33.2: 진행상태 (인라인 로직 — IIFE 스코프 함수 의존 제거)
+        var _rStDisplay;
+        var _rSt=String(d.status||'').trim();
+        if(_rSt==='진행중') _rSt='상담 진행중';
+        if(_rSt==='대기') _rSt='선택';
+        var _rMs=String(d.meetStatus||'').trim();
+        if(_rSt&&_rSt!=='선택'){
+          var _rSb='status-wait';
+          if(_rSt==='상담 진행중')_rSb='status-ing';
+          else if(_rSt==='가망고객')_rSb='status-prospect';
+          else if(_rSt==='계약')_rSb='status-done';
+          else if(_rSt==='종료')_rSb='status-end';
+          else if(_rSt==='청철/실효')_rSb='status-lapse';
+          _rStDisplay='<span class="badge '+_rSb+'">'+_rSt+'</span>';
+        }else if(d.callStatus==='통화완료'&&_rMs==='진행'){
+          _rStDisplay='<span class="badge status-ing">미팅진행</span>';
+        }else if(d.callStatus==='통화완료'&&_rMs==='종료'){
+          _rStDisplay='<span class="badge status-end">종료</span>';
+        }else if(d.callStatus&&d.callStatus!==''){
+          var _rcColor='#64748b';var _rcBg='#f1f5f9';
+          var _rcLabel=d.callStatus==='연속부재 문자전송'?'문자전송':d.callStatus;
+          if(d.callStatus==='부재중'){_rcColor='#d97706';_rcBg='#fef3c7';}
+          else if(d.callStatus==='연속부재 문자전송'){_rcColor='#b45309';_rcBg='#fef3c7';}
+          else if(d.callStatus==='장난DB'){_rcColor='#dc2626';_rcBg='#fee2e2';}
+          else if(d.callStatus==='재통화요청'){_rcColor='#2563eb';_rcBg='#dbeafe';}
+          else if(d.callStatus==='통화완료'){_rcColor='#16a34a';_rcBg='#dcfce7';}
+          _rStDisplay='<span class="badge" style="background:'+_rcBg+';color:'+_rcColor+'">'+_rcLabel+'</span>';
+        }else{
+          _rStDisplay='<span style="color:#94a3b8">-</span>';
+        }
         var rowBg=isNew?' style="background:#fefce8;cursor:pointer"':' style="cursor:pointer"';
         var amt=parseInt(String(d.totalAmount||d.amount||0).toString().replace(/,/g,''))||0;
-        tbody.innerHTML+='<tr'+rowBg+' onclick="openModal(\''+d.id+'\')">'+
+        tbody.innerHTML+='<tr'+rowBg+' onclick="openModal(\''+d.id+'\')">'+ 
             '<td style="font-weight:600">'+(d.reassignedDate||'-')+'</td>'+
             '<td>'+(d.date||'-')+'</td>'+
             '<td>'+(d.reassignedFrom||'-')+'</td>'+
             '<td style="font-weight:bold">'+d.member+'</td>'+
             '<td style="font-weight:bold">🔄 '+d.company+newBadge+'</td>'+
             '<td>'+d.source+'</td>'+
-            '<td><span class="badge '+statusBadge+'">'+d.status+'</span></td>'+
+            '<td>'+_rCallBadge+'</td>'+
+            '<td>'+_rStDisplay+'</td>'+
             '<td style="color:#2563eb;font-weight:bold">'+(amt>0?amt.toLocaleString()+'원':'-')+'</td>'+
             '</tr>';
     });
