@@ -851,7 +851,7 @@ body{flex-direction:column;overflow:auto}
                     <b>🚫 미팅율</b> — 통화완료 건 대비 미팅 잡은 비율 (20% 미만 시 저조 표시)<br>
                     <b>📊 당월/누적 계약율</b> — 당월: 이번달 배정 DB 대비 계약 비율 / 누적: 올해 전체 DB 대비 계약 비율<br>
                     <b>🚨 장기 미계약팀원</b> — 최근 3개월간 계약 실적이 없는 팀원<br>
-                    <b>🔄 재분배 진행률</b> — 재배정 받은 DB 중 대기·진행·가망·계약 상태로 전환된 비율<br>
+                    <b>🔄 재분배 진행률</b> — 재배정 받은 DB 중 3단계(현재상태)를 선택한 비율<br>
                     <b>🧟 심폐소생</b> — 재배정 DB 또는 1년 이상 묵은 DB를 계약 전환한 실적 (건수와 매출액)<br>
                     <b>⛔ 청철/실효</b> — 계약 후 청약철회 또는 실효 처리된 건수<br>
                     <b>🛡️ 유지율</b> — 총 계약금액 대비 실효 차감 후 남은 금액의 비율 (정확한 계산법 확정 전 100% 표시)<br>
@@ -3934,7 +3934,7 @@ function renderBriefing(){
         var noContactRe=periodDB.filter(function(d){return!isCallAttempted(d.callStatus)&&d.callStatus!=='장난DB'&&d.isReassigned}).length;
         var staleCount=myDB.filter(function(d){if(d.status!=='대기'&&d.status!=='진행중'&&d.status!=='선택')return false;var refDate=d.logs&&d.logs.length>0?new Date(d.logs[0].time):new Date(d.date);return Math.ceil((new Date()-refDate)/(1000*60*60*24))>=14}).length;
         var reDB=periodDB.filter(function(d){return d.isReassigned});
-        var reProgressed=reDB.filter(function(d){return d.status==='대기'||d.status==='진행중'||d.status==='가망고객'||d.status==='계약'}).length;
+        var reProgressed=reDB.filter(function(d){var _rs=String(d.status||'').trim();if(_rs==='진행중')_rs='상담 진행중';if(_rs==='대기')_rs='선택';return _rs&&_rs!=='선택';}).length;
         var reProgressRate=reDB.length>0?Math.round(reProgressed/reDB.length*100):0;
         var noContactList=periodDB.filter(function(d){return!isCallAttempted(d.callStatus)&&d.callStatus!=='장난DB'}).map(function(d){return{id:d.id,company:d.company}});
         var callDoneList=callDoneDB.map(function(d){return{id:d.id,company:d.company}});
@@ -5869,7 +5869,7 @@ function showBriefingMemberDetail(memberName){
             {label:'📊 누적 계약율',desc:'올해 전체DB 대비',val:_yearContRate,max:100,unit:'%',color:_yearContRate>=10?'#10b981':_yearContRate>=5?'#f59e0b':'#ef4444',warn:'올해 '+_yearDB.length+'건 중 '+_yearCont+'건'},
             {label:'🎉 계약건수',desc:'해당기간',val:s.contract,max:Math.max(s.contract,10),unit:'건',color:s.contract>0?'#10b981':'#ef4444',warn:s.contract===0?'계약 없음':''},
             {label:'🚨 장기미계약',desc:'최근 3개월',val:_recentCont?0:1,max:1,unit:'',color:_recentCont?'#10b981':'#ef4444',warn:_recentCont?'3개월 내 계약 있음':'3개월 미계약'},
-            {label:'🔄 재분배진행',desc:'재배정DB 전환율',val:_reProgress,max:100,unit:'%',color:_reProgress>=70?'#10b981':_reProgress>=30?'#f59e0b':'#ef4444',warn:_reDB.length>0?'재배정 '+_reDB.length+'건 중':'재배정 없음'},
+            {label:'🔄 재분배진행',desc:'3단계 진행율',val:_reProgress,max:100,unit:'%',color:_reProgress>=70?'#10b981':_reProgress>=30?'#f59e0b':'#ef4444',warn:_reDB.length>0?'재배정 '+_reDB.length+'건 중':'재배정 없음'},
             {label:'🧟 심폐소생',desc:'1년↑묵은DB 계약',val:_cprCount,max:Math.max(_cprCount,5),unit:'건',color:_cprCount>0?'#8b5cf6':'#94a3b8',warn:_cprCount>0?_cprRev.toLocaleString()+'원':''},
             {label:'⛔ 청철/실효',desc:'실효 처리 건수',val:s.lapse,max:Math.max(s.lapse,5),unit:'건',color:s.lapse>0?'#9333ea':'#10b981',warn:s.lapse>0?'발생':'없음'},
             {label:'🛡️ 유지율',desc:'실효차감 후 비율',val:100,max:100,unit:'%',color:'#10b981',warn:'계산법 확정 전 100%'},
@@ -6072,7 +6072,7 @@ function showBriefingMemberDetail(memberName){
       {label:'📊 누적 계약율',desc:'올해 전체DB 대비',val:_yearContRate,max:100,unit:'%',color:_yearContRate>=10?'#10b981':_yearContRate>=5?'#f59e0b':'#ef4444',warn:'올해 '+_yearDB.length+'건 중 '+_yearCont+'건'},
       {label:'🎉 계약건수',desc:'해당기간',val:contCnt,max:Math.max(contCnt,10),unit:'건',color:contCnt>0?'#10b981':'#ef4444',warn:contCnt===0?'계약 없음':''},
       {label:'🚨 장기미계약',desc:'최근 3개월',val:_recentCont?0:1,max:1,unit:'',color:_recentCont?'#10b981':'#ef4444',warn:_recentCont?'3개월 내 계약 있음':'3개월 미계약'},
-      {label:'🔄 재분배진행',desc:'재배정DB 전환율',val:_reProgress,max:100,unit:'%',color:_reProgress>=70?'#10b981':_reProgress>=30?'#f59e0b':'#ef4444',warn:_reDB.length>0?'재배정 '+_reDB.length+'건 중':'재배정 없음'},
+      {label:'🔄 재분배진행',desc:'3단계 진행율',val:_reProgress,max:100,unit:'%',color:_reProgress>=70?'#10b981':_reProgress>=30?'#f59e0b':'#ef4444',warn:_reDB.length>0?'재배정 '+_reDB.length+'건 중':'재배정 없음'},
       {label:'🧟 심폐소생',desc:'1년↑묵은DB 계약',val:_cprCount,max:Math.max(_cprCount,5),unit:'건',color:_cprCount>0?'#8b5cf6':'#94a3b8',warn:_cprCount>0?_cprRev.toLocaleString()+'원':''},
       {label:'⛔ 청철/실효',desc:'실효 처리 건수',val:lapseCnt,max:Math.max(lapseCnt,5),unit:'건',color:lapseCnt>0?'#9333ea':'#10b981',warn:lapseCnt>0?'발생':'없음'},
       {label:'🛡️ 유지율',desc:'실효차감 후 비율',val:100,max:100,unit:'%',color:'#10b981',warn:'계산법 확정 전 100%'},
