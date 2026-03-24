@@ -1533,6 +1533,9 @@ function recordUserLoginAt(userName){
     }catch(e){}
 }
 function getMemberLastLogin(name){
+    // GAS에서 보내준 lastLogin 우선 사용, localStorage fallback
+    var mem=(members||[]).find(function(m){return m.name===name});
+    if(mem&&mem.lastLogin) return mem.lastLogin;
     try{return localStorage.getItem('member_last_login_'+name)||'';}catch(e){return '';}
 }
 function formatMemberLastLogin(name){
@@ -1972,14 +1975,16 @@ function renderList(){
         if(!matchKw)return false;
         if(year!=='all'&&parsed.year!=year)return false;
         if(month!=='all'&&parsed.month!=month)return false;
-        if(source!=='all'&&source!=='쉐어받음'&&d.source!==source)return false;
+        if(source==='쉐어받음')return false;
+        if(source!=='all'&&d.source!==source)return false;
         if(sf!=='all'&&sf!=='frozen'){var _ns=d.status==='진행중'?'상담 진행중':(d.status==='대기'?'선택':d.status);if(_ns!==sf)return false;}
         if(cf!=='all'&&(d.callStatus||"")!==cf)return false;
         if(currentUser.role==='admin'){if(tm!=='all'&&d.member!==tm)return false}else{if(d.member!==currentUser.name)return false}
         return true;
     });
     // 쉐어 가상 엔트리
-    if(source==='all'||source==='쉐어받음'){var sn=(currentUser.role==='admin')?tm:currentUser.name;if(sn!=='all'){getVirtualShareEntries(sn).forEach(function(ve){var vp=parseDBDate(ve.contractDate);if(year!=='all'&&vp.year!=year)return;if(month!=='all'&&vp.month!=month)return;if(kw&&!ve.company.toLowerCase().includes(kw))return;if(sf!=='all'&&sf!=='frozen'&&ve.status!==sf)return;filtered.push(ve)})}}
+    if(source==='all'||source==='쉐어받음'){var _shareTargets=[];var sn=(currentUser.role==='admin')?tm:currentUser.name;if(sn==='all'){members.forEach(function(m){if(m.role!=='admin')_shareTargets.push(m.name)})}else if(sn){_shareTargets.push(sn)}
+    _shareTargets.forEach(function(_stName){getVirtualShareEntries(_stName).forEach(function(ve){var vp=parseDBDate(ve.contractDate);if(year!=='all'&&vp.year!=year)return;if(month!=='all'&&vp.month!=month)return;if(kw&&!ve.company.toLowerCase().includes(kw))return;if(sf!=='all'&&sf!=='frozen'&&ve.status!==sf)return;filtered.push(ve)})})}
     filtered.sort(function(a,b){var dA=new Date(a.contractDate||a.date).getTime()||0;var dB=new Date(b.contractDate||b.date).getTime()||0;return dB-dA});
     totalFilteredData=filtered;
     renderMyAlerts();
@@ -3153,6 +3158,7 @@ function getAdminRetentionRows(){
     dbList.forEach(function(d){
         if(!d||d.isFrozen||d.status!=='계약') return;
         var cDate=getContractDate(d);
+        if(monthsSince(cDate)<1) return;
         if(monthsSince(cDate)>=24) return;
         totalTarget++;
         var lastViewed=getContractCheckDate(d);
@@ -3544,9 +3550,7 @@ function isExternalPortalRecord(d){
 function copyExternalLink(partnerName){
     var normalized=normalizePartner(partnerName);
     var currentHref=(window.location.href||'').split('#')[0].split('?')[0];
-    var externalHref=currentHref.replace(/[^\/]+$/, 'DB_Pro_Master_external.html');
-    if(/DB_Pro_Master_external\.html$/i.test(currentHref))externalHref=currentHref;
-    var url=externalHref+'?partner='+encodeURIComponent(normalized);
+    var url=currentHref+'?partner='+encodeURIComponent(normalized);
     if(navigator.clipboard&&navigator.clipboard.writeText){
         navigator.clipboard.writeText(url).then(function(){showToast('전용 링크가 복사되었습니다.');}).catch(function(){prompt('아래 링크를 복사하세요.',url);});
     }else{
@@ -3775,7 +3779,7 @@ function renderDashboardRace(sorted){
 }
 
 // ═══ v28: 주간 영업 브리핑 ═══
-var APP_VERSION='v32.7';
+var APP_VERSION='v32.9';
 var externalPortalPartner='';
 var isExternalPortal=false;
 var partnerAliasMapCache=null;
@@ -4078,6 +4082,7 @@ function getContractCareList(){
     return dbList.filter(function(d){
         if(d.isFrozen||d.member!==currentUser.name||d.status!=='계약') return false;
         var cDate=getContractDate(d);
+        if(monthsSince(cDate)<1) return false;
         if(monthsSince(cDate)>=24) return false;
         var lastViewed=getContractCheckDate(d);
         return daysSinceDateValue(lastViewed)>=30;
@@ -4267,7 +4272,7 @@ function renderMyAlerts(){
             });
             if(!hasRecent)noContractMembers++;
             if(myDB.filter(function(d){var p=parseDBDate(d.date);return p.year===thisY&&p.month===thisM&&d.source==='개인DB';}).length>=8)activeMembers++;
-            var cIn24=myDB.filter(function(d){if(d.status!=='계약')return false;var cd=getContractDate(d);return cd&&new Date(cd)>=now24a;});
+            var cIn24=myDB.filter(function(d){if(d.status!=='계약')return false;var cd=getContractDate(d);if(!cd)return false;if(monthsSince(cd)<1)return false;return new Date(cd)>=now24a;});
             var neglect=cIn24.filter(function(d){if(!d.lastContractCheckAt)return true;return Math.ceil((now-new Date(d.lastContractCheckAt))/(864e5))>=30;}).length;
             if(neglect>=3)contractNeglectMembers++;
         });
@@ -4304,7 +4309,7 @@ function renderMyAlerts(){
 
     // 계약 유지관리 방치
     var now24=new Date();now24.setMonth(now24.getMonth()-24);
-    var cIn24M=myDB.filter(function(d){if(d.status!=='계약')return false;var cd=getContractDate(d);return cd&&new Date(cd)>=now24;});
+    var cIn24M=myDB.filter(function(d){if(d.status!=='계약')return false;var cd=getContractDate(d);if(!cd)return false;if(monthsSince(cd)<1)return false;return new Date(cd)>=now24;});
     var neglectedC=cIn24M.filter(function(d){if(!d.lastContractCheckAt)return true;return Math.ceil((now-new Date(d.lastContractCheckAt))/(864e5))>=30;});
     var neverChecked=cIn24M.filter(function(d){return!d.lastContractCheckAt;});
 
@@ -5042,7 +5047,10 @@ function showBriefingMemberDetail(memberName){
     }
     var prospect=document.getElementById('box-prospect');
     if(prospect){
+      var _prevPD=(document.getElementById('input-prospect-detail')||{}).value||'';
       prospect.innerHTML='<div class="form-group"><label>가망고객 사유 <span style="font-size:11px;color:#7c3aed">(고민중인 이유를 기록하세요)</span></label><textarea id="input-prospect-detail" rows="3" placeholder="예) 대표님 다음 달 재연락 요청 / 비용 검토 중 / 타사비교중.."></textarea></div>';
+      var _newPD=document.getElementById('input-prospect-detail');
+      if(_newPD&&_prevPD) _newPD.value=_prevPD;
     }
     // box-lapse: HTML에 직접 포함됨 - DOM 생성 불필요
 
@@ -5129,8 +5137,25 @@ function showBriefingMemberDetail(memberName){
 
   var __oldToggleStatusFields=window.toggleStatusFields;
   window.toggleStatusFields=function(isInit){
-    var s=normalizeStatus(document.getElementById('input-status').value);
-    document.getElementById('input-status').value=s;
+    var statusEl=document.getElementById('input-status');
+    var s=normalizeStatus(statusEl.value);
+    // ★ v32.9: 3단계 선택 조건 — 미팅진행='진행' 상태에서만 3단계 선택 가능
+    if(isInit!==true && s && s!=='선택'){
+      var _cs3=document.getElementById('input-call-status');
+      var _ms3=document.getElementById('input-meet-status');
+      var _callVal=_cs3?_cs3.value:'';
+      var _meetVal=_ms3?_ms3.value:'';
+      if(_callVal!=='통화완료' || _meetVal!=='진행'){
+        statusEl.value='선택'; s='선택';
+        var _alertBox=document.createElement('div');
+        _alertBox.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10005;background:#fff;border:3px solid #ef4444;border-radius:16px;padding:30px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;max-width:420px;animation:fadeIn .2s';
+        _alertBox.innerHTML='<div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="font-weight:900;font-size:16px;color:#dc2626;margin-bottom:10px">3단계 선택 불가</div><div style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:16px">3단계는 <b>미팅 진행 결과</b>를 입력하는 곳입니다.<br><br>2단계에서 <b style="color:#2563eb">통화완료 → 미팅진행여부 [진행]</b>을<br>먼저 선택해주세요.</div><button onclick="this.parentElement.remove()" style="padding:10px 30px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">확인</button>';
+        document.body.appendChild(_alertBox);
+        setTimeout(function(){if(_alertBox.parentElement)_alertBox.remove();},8000);
+        return;
+      }
+    }
+    statusEl.value=s;
     document.querySelectorAll('.dynamic-section').forEach(function(el){el.classList.remove('active');});
     if(s==='상담 진행중') document.getElementById('box-ing') && document.getElementById('box-ing').classList.add('active');
     if(s==='가망고객') document.getElementById('box-prospect') && document.getElementById('box-prospect').classList.add('active');
@@ -5306,14 +5331,20 @@ function showBriefingMemberDetail(memberName){
       else if(d.isReassigned) companyDisplay='🔄 '+companyDisplay+(d.reassignedFrom?' ['+d.reassignedFrom+'→]':'');
       var amountDisplay=d.isVirtualShare?' <span style="font-size:11px;color:#c2410c">('+((d.amount||0).toLocaleString())+'원)</span>':'';
       var clickAction=d.isVirtualShare?'openModal(\''+d.originalId+'\','+(idx+1)+')':'openModal(\''+d.id+'\','+(idx+1)+')';
-      // 진행상태 표시 규칙: 3단계 현재상태 우선, 없으면 2단계 통화여부, 없으면 '-'
+      // ★ v32.9: 진행상태 표시 규칙 (우선순위)
+      // 1. 3단계 현재상태 선택 → 무조건 3단계 값
+      // 2. 통화완료+미팅진행여부='진행'+3단계없음 → '미팅진행'
+      // 3. 통화완료+미팅진행여부='종료'+3단계없음 → '종료'
+      // 4. callStatus 있음 (부재중,문자전송 등) → 그 값
+      // 5. 아무것도 없음 → '-'
       var _stDisplay;
       if(d.isFrozen){
         _stDisplay='<span class="badge status-frozen">🔒 동결'+(d.frozenTo?' →'+d.frozenTo:'')+'</span>';
       }else{
-        var _normSt=d.status==='진행중'?'상담 진행중':(d.status==='대기'?'선택':d.status||'선택');
+        var _normSt=normalizeStatus(d.status||'선택');
+        var _ms2=String(d.meetStatus||'').trim();
         if(_normSt&&_normSt!=='선택'){
-          // 3단계 현재상태 우선
+          // ① 3단계 현재상태 최우선
           var _stBadge='status-wait';
           if(_normSt==='상담 진행중')_stBadge='status-ing';
           else if(_normSt==='가망고객')_stBadge='status-prospect';
@@ -5321,21 +5352,23 @@ function showBriefingMemberDetail(memberName){
           else if(_normSt==='종료')_stBadge='status-end';
           else if(_normSt==='청철/실효')_stBadge='status-lapse';
           _stDisplay='<span class="badge '+_stBadge+'">'+_normSt+'</span>';
+        }else if(d.callStatus==='통화완료'&&_ms2==='진행'){
+          // ② 통화완료+미팅진행 → '미팅진행'
+          _stDisplay='<span class="badge status-ing">미팅진행</span>';
+        }else if(d.callStatus==='통화완료'&&_ms2==='종료'){
+          // ③ 통화완료+미팅종료 → '종료'
+          _stDisplay='<span class="badge status-end">종료</span>';
         }else if(d.callStatus&&d.callStatus!==''){
-          // 통화완료+미팅진행여부 우선, 그 외 callStatus
-          var _ms2=String(d.meetStatus||'').trim();
-          if(d.callStatus==='통화완료'&&(_ms2==='진행'||_ms2==='종료')){
-            _stDisplay='<span class="badge '+(_ms2==='진행'?'status-ing':'status-end')+'">미팅'+_ms2+'</span>';
-          }else{
-            var _csBadge='call-none';
-            if(d.callStatus==='부재중')_csBadge='call-absent';
-            else if(d.callStatus==='연속부재 문자전송')_csBadge='call-text';
-            else if(d.callStatus==='장난DB')_csBadge='call-joke';
-            else if(d.callStatus==='재통화요청')_csBadge='call-recall';
-            else if(d.callStatus==='통화완료')_csBadge='call-done';
-            _stDisplay='<span class="call-badge '+_csBadge+'">'+getCallStatusDisplay(d.callStatus)+'</span>';
-          }
+          // ④ callStatus 표시 (status 스타일)
+          var _csColor='#64748b';var _csBg='#f1f5f9';
+          if(d.callStatus==='부재중'){_csColor='#d97706';_csBg='#fef3c7';}
+          else if(d.callStatus==='연속부재 문자전송'){_csColor='#b45309';_csBg='#fef3c7';}
+          else if(d.callStatus==='장난DB'){_csColor='#dc2626';_csBg='#fee2e2';}
+          else if(d.callStatus==='재통화요청'){_csColor='#2563eb';_csBg='#dbeafe';}
+          else if(d.callStatus==='통화완료'){_csColor='#16a34a';_csBg='#dcfce7';}
+          _stDisplay='<span class="badge" style="background:'+_csBg+';color:'+_csColor+'">'+getCallStatusDisplay(d.callStatus)+'</span>';
         }else{
+          // ⑤ 아무것도 없음
           _stDisplay='<span style="color:#94a3b8">-</span>';
         }
       }
