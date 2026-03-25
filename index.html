@@ -2217,9 +2217,13 @@ if(d.isReassigned&&d.member===currentUser.name&&!d.isFrozen){
             var loadedContracts=[];
             if(d.contracts&&Array.isArray(d.contracts)&&d.contracts.length>0){
                 loadedContracts=d.contracts.map(function(c){
-                    return {date:c.date||'',product:c.product||'',
-                            totalAmount:c.totalAmount||0,amount:c.amount||0,
-                            shareList:(c.shareList||[]).map(function(s){return Object.assign({},s);})};
+                    return Object.assign({},c,{
+                        date:c.date||'',
+                        product:c.product||'',
+                        totalAmount:c.totalAmount||0,
+                        amount:c.amount||0,
+                        shareList:(c.shareList||[]).map(function(s){return Object.assign({},s);})
+                    });
                 });
             } else {
                 loadedContracts=[{date:d.contractDate||'',product:d.product||'',
@@ -2408,7 +2412,7 @@ function recalcSlot(idx){
 }
 function recalcAllContracts(){
     var ta=0,na=0;
-    contractSlots.forEach(function(s){ta+=s.totalAmount||0;na+=s.amount||0;});
+    contractSlots.forEach(function(s){if(s&&s.isLapsed)return;ta+=s.totalAmount||0;na+=s.amount||0;});
     var taEl=document.getElementById('disp-total-all');var naEl=document.getElementById('disp-net-all');
     if(taEl)taEl.innerText=ta.toLocaleString();if(naEl)naEl.innerText=na.toLocaleString();
 }
@@ -2466,16 +2470,25 @@ function getContractsFromForm(){
         var p=ps.value;var pct=parseInt(pi.value)||0;
         if(p&&p.trim()&&pct>0){var amt=Math.floor(total*(pct/100));shareList.push({partner:p.trim(),percent:pct,amount:amt,step:i});ded+=amt;}
     }
-    var first={
+    var prevFirst=(contractSlots&&contractSlots[0])?contractSlots[0]:{};
+    var first=Object.assign({},prevFirst,{
         date:document.getElementById('input-contract-date').value||'',
         product:document.getElementById('input-product').value||'',
         totalAmount:total,
         amount:total-ded,
         shareList:shareList
-    };
+    });
     // contractSlots[0] 업데이트
     contractSlots=[first].concat(extraContracts.map(function(c){return Object.assign({},c);}));
     return contractSlots;
+}
+
+function getContractsForCurrentUI(){
+    var hasActiveForm=!!document.getElementById('input-amount');
+    if(hasActiveForm){
+        return getContractsFromForm();
+    }
+    return getContractsFromSlots();
 }
 
 // 추가 계약 등록 버튼 클릭
@@ -2583,12 +2596,16 @@ function _buildContractDetail(c,idx){
         shareRows='<div style="color:#94a3b8;font-size:12px">쉐어 없음</div>';
     }
     var net=c.amount||0;
-    return '<div style="font-size:13px">'+
+    var lapseWrapStart=c.isLapsed?'<div class="lapsed-contract" style="font-size:13px">':'<div style="font-size:13px">';
+    var lapseAmtClass=c.isLapsed?' class="lapsed-amount"':'';
+    var lapseBadge=c.isLapsed?'<div style="margin-bottom:8px"><span style="display:inline-flex;align-items:center;gap:6px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800">⛔ 청철/실효 처리됨</span></div>':'';
+    return lapseWrapStart+
+        lapseBadge+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'+
             '<div><span style="color:#64748b;font-size:11px">계약일</span><div style="font-weight:700">'+( c.date||'-')+'</div></div>'+
             '<div><span style="color:#64748b;font-size:11px">상품</span><div style="font-weight:700">'+(c.product||'-')+'</div></div>'+
-            '<div><span style="color:#64748b;font-size:11px">계약금액</span><div style="font-weight:800;color:#15803d">'+(c.totalAmount||0).toLocaleString()+'원</div></div>'+
-            '<div><span style="color:#64748b;font-size:11px">내 실적</span><div style="font-weight:800;color:#2563eb">'+net.toLocaleString()+'원</div></div>'+
+            '<div><span style="color:#64748b;font-size:11px">계약금액</span><div'+lapseAmtClass+' style="font-weight:800;color:#15803d">'+(c.totalAmount||0).toLocaleString()+'원</div></div>'+
+            '<div><span style="color:#64748b;font-size:11px">내 실적</span><div'+lapseAmtClass+' style="font-weight:800;color:#2563eb">'+net.toLocaleString()+'원</div></div>'+
         '</div>'+
         '<div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:6px">📊 쉐어</div>'+
         shareRows+
@@ -2631,6 +2648,7 @@ function _updateSummary(){
     }
     netTotal=total-ded;
     extraContracts.forEach(function(c){
+        if(c&&c.isLapsed)return;
         total+=c.totalAmount||0;
         netTotal+=c.amount||0;
     });
@@ -2829,11 +2847,7 @@ function cancelLapseMode(){
 
 function renderLapseContractSelector(){
     var el=document.getElementById('lapse-contract-selector');if(!el)return;
-    var allContracts=contractSlots||[];
-    // extraContracts 포함
-    if(typeof extraContracts!=='undefined'&&extraContracts.length>0){
-        allContracts=contractSlots.slice(0,1).concat(extraContracts);
-    }
+    var allContracts=getContractsForCurrentUI();
     if(allContracts.length<=1){
         el.innerHTML='<div style="font-size:12px;color:#64748b;padding:6px 0">전체 계약이 실효 처리됩니다.</div>';
         return;
@@ -2872,10 +2886,7 @@ function confirmLapse(){
     if(!reason){alert('청철/실효 사유를 입력해주세요.');document.getElementById('input-lapse-reason-new').focus();return}
     // 다중계약: 체크된 것만 실효
     var checks=document.querySelectorAll('.lapse-check');
-    var allContracts=contractSlots||[];
-    if(typeof extraContracts!=='undefined'&&extraContracts.length>0){
-        allContracts=contractSlots.slice(0,1).concat(extraContracts);
-    }
+    var allContracts=getContractsForCurrentUI();
     var hasSelection=false;
     if(checks.length>0){
         checks.forEach(function(chk){
@@ -2932,10 +2943,11 @@ function saveData(shouldClose){if(isExternalPortal){showToast('외부업체 링�
     if(!cv){alert('업체명 필수 기입\n(없을 시 대표자명 기입)');document.getElementById('input-company').focus();return}
     var id=document.getElementById('edit-id').value||Date.now();
     // ★ v30.11: 다중계약 수집
-    var contracts=getContractsFromSlots();
-    var total=contracts.reduce(function(a,c){return a+(c.totalAmount||0);},0);
-    var ded=contracts.reduce(function(a,c){return a+(c.totalAmount||0)-(c.amount||0);},0);
-    var firstC=contracts[0]||{};
+    var contracts=getContractsForCurrentUI();
+    var activeContracts=contracts.filter(function(c){return !c.isLapsed;});
+    var total=activeContracts.reduce(function(a,c){return a+(c.totalAmount||0);},0);
+    var ded=activeContracts.reduce(function(a,c){return a+(c.totalAmount||0)-(c.amount||0);},0);
+    var firstC=activeContracts[0]||contracts[0]||{};
     var shareList=firstC.shareList||[];
     var ex=dbList.find(function(x){return x.id==id})||{};
     var normalizedPhone=normalizePhone(document.getElementById('input-phone').value);
@@ -5208,7 +5220,7 @@ function showBriefingMemberDetail(memberName){
         statusEl.value='선택'; s='선택';
         var _alertBox=document.createElement('div');
         _alertBox.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10005;background:#fff;border:3px solid #ef4444;border-radius:16px;padding:30px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;max-width:420px;animation:fadeIn .2s';
-        _alertBox.innerHTML='<div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="font-weight:900;font-size:16px;color:#dc2626;margin-bottom:10px">3단계 선택 불가</div><div style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:16px">3단계는 <b>미팅 진행 결과</b>를 입력하는 곳입니다.<br><br>2단계에서 <b style="color:#2563eb">통화완료 → 미팅진행여부 [진행]</b>을<br>먼저 선택해주세요.</div><button onclick="this.parentElement.remove()" style="padding:10px 30px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">확인</button>';
+        _alertBox.innerHTML='<div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="font-weight:900;font-size:16px;color:#dc2626;margin-bottom:10px">3단계 선택 불가</div><div style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:16px">3단계는 <b>미팅 후 진행 사항</b>을 입력하는 곳입니다.<br><br>2단계에서 <b style="color:#2563eb">통화완료 → 미팅진행여부 [진행, 종료]</b>를<br>먼저 선택해주세요.</div><button onclick="this.parentElement.remove()" style="padding:10px 30px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">확인</button>';
         document.body.appendChild(_alertBox);
         setTimeout(function(){if(_alertBox.parentElement)_alertBox.remove();},8000);
         return;
@@ -5290,9 +5302,9 @@ function showBriefingMemberDetail(memberName){
             data.consulting = data.consulting || existing.consulting || '';
             data.careLog = data.careLog || existing.careLog || '';
             data.ingDetail = data.ingDetail || existing.ingDetail || '';
-            // contracts 배열은 보존하되 부분실효 처리된 것만 isLapsed=true
-            if(Array.isArray(existing.contracts)&&existing.contracts.length){
-              data.contracts = existing.contracts; // 원본 계약 배열 보존
+            // 현재 화면에서 만든 부분 실효 정보가 있으면 우선 사용, 없을 때만 기존 계약 배열 보존
+            if(!(Array.isArray(data.contracts)&&data.contracts.length) && Array.isArray(existing.contracts)&&existing.contracts.length){
+              data.contracts = existing.contracts;
             }
             // 통계용 totalAmount만 0으로 (실제 계약 데이터는 contracts에 보존)
             data.totalAmount = 0;
@@ -6135,4 +6147,3 @@ function showBriefingMemberDetail(memberName){
 })();
 
 </script></body></html>
-
