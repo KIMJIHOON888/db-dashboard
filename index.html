@@ -329,7 +329,7 @@ tr:hover{background-color:#f8fafc;cursor:pointer}
 .race-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .race-name{width:110px;text-align:right;font-weight:800;font-size:14px}
 .race-bar-wrap{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
-.race-streak-burst{display:inline-flex;align-items:center;gap:2px;min-width:54px;justify-content:flex-start;flex-shrink:0}
+.race-streak-burst{display:inline-flex;align-items:center;gap:2px;min-width:54px;justify-content:flex-start;flex-shrink:0;margin-left:8px}
 .race-streak-fire{display:inline-flex;align-items:center;justify-content:center;font-size:18px;line-height:1;filter:drop-shadow(0 0 8px rgba(249,115,22,.55)) drop-shadow(0 0 14px rgba(250,204,21,.55));animation:raceFireBurn 1.05s ease-in-out infinite;transform-origin:center bottom}
 .race-streak-fire:nth-child(2){animation-delay:.14s}
 .race-streak-fire:nth-child(3){animation-delay:.28s}
@@ -1320,7 +1320,7 @@ function parseDBDate(dateStr){if(!dateStr)return{year:0,month:0};try{var d=new D
 function getContractDate(d){return d.contractDate||d.date}
 function escapeHtml(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function getDdayText(m){if(!m)return'';var t=new Date();t.setHours(0,0,0,0);var md=new Date(m);md.setHours(0,0,0,0);var dd=Math.ceil((md-t)/864e5);if(dd===0)return' <span class="dday-badge dday-today">D-DAY</span>';if(dd>0&&dd<=7)return' <span class="dday-badge dday-soon">D-'+dd+'</span>';return''}
-function getCallStatusBadge(c){if(!c)return'<span class="call-badge call-none">-</span>';var b='call-none';if(c==='부재중')b='call-absent';else if(c==='장난DB')b='call-joke';else if(c==='재통화요청')b='call-recall';else if(c==='통화완료')b='call-done';return'<span class="call-badge '+b+'">'+c+'</span>'}
+function getCallStatusBadge(c){if(!c)return'<span class="call-badge call-none">-</span>';var b='call-none';var label=c;if(c==='부재중')b='call-absent';else if(c==='연속부재 문자전송'){b='call-absent';label='문자전송';}else if(c==='장난DB')b='call-joke';else if(c==='재통화요청')b='call-recall';else if(c==='통화완료')b='call-done';return'<span class="call-badge '+b+'">'+label+'</span>'}
 function copyPhone(p){navigator.clipboard.writeText(p).then(function(){showToast('📞 '+p+' 복사됨!')}).catch(function(){window.location.href='tel:'+p})}
 function formatCurrency(input){var ss=input.selectionStart;var ol=input.value.length;var v=input.value.replace(/,/g,'');if(!v){input.value='';return}var n=parseInt(v);if(isNaN(n)){input.value='';return}input.value=n.toLocaleString();var nl=input.value.length;input.setSelectionRange(ss+(nl-ol),ss+(nl-ol))}
 
@@ -2217,13 +2217,9 @@ if(d.isReassigned&&d.member===currentUser.name&&!d.isFrozen){
             var loadedContracts=[];
             if(d.contracts&&Array.isArray(d.contracts)&&d.contracts.length>0){
                 loadedContracts=d.contracts.map(function(c){
-                    return Object.assign({},c,{
-                        date:c.date||'',
-                        product:c.product||'',
-                        totalAmount:c.totalAmount||0,
-                        amount:c.amount||0,
-                        shareList:(c.shareList||[]).map(function(s){return Object.assign({},s);})
-                    });
+                    return {date:c.date||'',product:c.product||'',
+                            totalAmount:c.totalAmount||0,amount:c.amount||0,
+                            shareList:(c.shareList||[]).map(function(s){return Object.assign({},s);})};
                 });
             } else {
                 loadedContracts=[{date:d.contractDate||'',product:d.product||'',
@@ -2412,7 +2408,7 @@ function recalcSlot(idx){
 }
 function recalcAllContracts(){
     var ta=0,na=0;
-    contractSlots.forEach(function(s){if(s&&s.isLapsed)return;ta+=s.totalAmount||0;na+=s.amount||0;});
+    contractSlots.forEach(function(s){ta+=s.totalAmount||0;na+=s.amount||0;});
     var taEl=document.getElementById('disp-total-all');var naEl=document.getElementById('disp-net-all');
     if(taEl)taEl.innerText=ta.toLocaleString();if(naEl)naEl.innerText=na.toLocaleString();
 }
@@ -2470,25 +2466,16 @@ function getContractsFromForm(){
         var p=ps.value;var pct=parseInt(pi.value)||0;
         if(p&&p.trim()&&pct>0){var amt=Math.floor(total*(pct/100));shareList.push({partner:p.trim(),percent:pct,amount:amt,step:i});ded+=amt;}
     }
-    var prevFirst=(contractSlots&&contractSlots[0])?contractSlots[0]:{};
-    var first=Object.assign({},prevFirst,{
+    var first={
         date:document.getElementById('input-contract-date').value||'',
         product:document.getElementById('input-product').value||'',
         totalAmount:total,
         amount:total-ded,
         shareList:shareList
-    });
+    };
     // contractSlots[0] 업데이트
     contractSlots=[first].concat(extraContracts.map(function(c){return Object.assign({},c);}));
     return contractSlots;
-}
-
-function getContractsForCurrentUI(){
-    var hasActiveForm=!!document.getElementById('input-amount');
-    if(hasActiveForm){
-        return getContractsFromForm();
-    }
-    return getContractsFromSlots();
 }
 
 // 추가 계약 등록 버튼 클릭
@@ -2596,16 +2583,12 @@ function _buildContractDetail(c,idx){
         shareRows='<div style="color:#94a3b8;font-size:12px">쉐어 없음</div>';
     }
     var net=c.amount||0;
-    var lapseWrapStart=c.isLapsed?'<div class="lapsed-contract" style="font-size:13px">':'<div style="font-size:13px">';
-    var lapseAmtClass=c.isLapsed?' class="lapsed-amount"':'';
-    var lapseBadge=c.isLapsed?'<div style="margin-bottom:8px"><span style="display:inline-flex;align-items:center;gap:6px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800">⛔ 청철/실효 처리됨</span></div>':'';
-    return lapseWrapStart+
-        lapseBadge+
+    return '<div style="font-size:13px">'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'+
             '<div><span style="color:#64748b;font-size:11px">계약일</span><div style="font-weight:700">'+( c.date||'-')+'</div></div>'+
             '<div><span style="color:#64748b;font-size:11px">상품</span><div style="font-weight:700">'+(c.product||'-')+'</div></div>'+
-            '<div><span style="color:#64748b;font-size:11px">계약금액</span><div'+lapseAmtClass+' style="font-weight:800;color:#15803d">'+(c.totalAmount||0).toLocaleString()+'원</div></div>'+
-            '<div><span style="color:#64748b;font-size:11px">내 실적</span><div'+lapseAmtClass+' style="font-weight:800;color:#2563eb">'+net.toLocaleString()+'원</div></div>'+
+            '<div><span style="color:#64748b;font-size:11px">계약금액</span><div style="font-weight:800;color:#15803d">'+(c.totalAmount||0).toLocaleString()+'원</div></div>'+
+            '<div><span style="color:#64748b;font-size:11px">내 실적</span><div style="font-weight:800;color:#2563eb">'+net.toLocaleString()+'원</div></div>'+
         '</div>'+
         '<div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:6px">📊 쉐어</div>'+
         shareRows+
@@ -2648,7 +2631,6 @@ function _updateSummary(){
     }
     netTotal=total-ded;
     extraContracts.forEach(function(c){
-        if(c&&c.isLapsed)return;
         total+=c.totalAmount||0;
         netTotal+=c.amount||0;
     });
@@ -2847,7 +2829,11 @@ function cancelLapseMode(){
 
 function renderLapseContractSelector(){
     var el=document.getElementById('lapse-contract-selector');if(!el)return;
-    var allContracts=getContractsForCurrentUI();
+    var allContracts=contractSlots||[];
+    // extraContracts 포함
+    if(typeof extraContracts!=='undefined'&&extraContracts.length>0){
+        allContracts=contractSlots.slice(0,1).concat(extraContracts);
+    }
     if(allContracts.length<=1){
         el.innerHTML='<div style="font-size:12px;color:#64748b;padding:6px 0">전체 계약이 실효 처리됩니다.</div>';
         return;
@@ -2886,7 +2872,10 @@ function confirmLapse(){
     if(!reason){alert('청철/실효 사유를 입력해주세요.');document.getElementById('input-lapse-reason-new').focus();return}
     // 다중계약: 체크된 것만 실효
     var checks=document.querySelectorAll('.lapse-check');
-    var allContracts=getContractsForCurrentUI();
+    var allContracts=contractSlots||[];
+    if(typeof extraContracts!=='undefined'&&extraContracts.length>0){
+        allContracts=contractSlots.slice(0,1).concat(extraContracts);
+    }
     var hasSelection=false;
     if(checks.length>0){
         checks.forEach(function(chk){
@@ -2943,11 +2932,10 @@ function saveData(shouldClose){if(isExternalPortal){showToast('외부업체 링�
     if(!cv){alert('업체명 필수 기입\n(없을 시 대표자명 기입)');document.getElementById('input-company').focus();return}
     var id=document.getElementById('edit-id').value||Date.now();
     // ★ v30.11: 다중계약 수집
-    var contracts=getContractsForCurrentUI();
-    var activeContracts=contracts.filter(function(c){return !c.isLapsed;});
-    var total=activeContracts.reduce(function(a,c){return a+(c.totalAmount||0);},0);
-    var ded=activeContracts.reduce(function(a,c){return a+(c.totalAmount||0)-(c.amount||0);},0);
-    var firstC=activeContracts[0]||contracts[0]||{};
+    var contracts=getContractsFromSlots();
+    var total=contracts.reduce(function(a,c){return a+(c.totalAmount||0);},0);
+    var ded=contracts.reduce(function(a,c){return a+(c.totalAmount||0)-(c.amount||0);},0);
+    var firstC=contracts[0]||{};
     var shareList=firstC.shareList||[];
     var ex=dbList.find(function(x){return x.id==id})||{};
     var normalizedPhone=normalizePhone(document.getElementById('input-phone').value);
@@ -3179,7 +3167,7 @@ tbody.innerHTML+='<tr style="background:#eff6ff"><td class="row-label">📆 1년
 // ═══ 히스토리 ═══
 function setupHistoryTabs(){var tabsDiv=document.getElementById('history-tabs');if(!tabsDiv)return;var btnClass=function(tab){return'btn '+(historyTab===tab?'btn-primary':'btn-secondary')};if(currentUser.role==='admin'){tabsDiv.innerHTML='<button class="'+btnClass('admin-prospect')+'" onclick="switchHistoryTab(\'admin-prospect\')">🌟 가망고객</button><button class="'+btnClass('contract')+'" onclick="switchHistoryTab(\'contract\')">🤝 계약 고객</button>'}else{tabsDiv.innerHTML='<button class="'+btnClass('prospect')+'" onclick="switchHistoryTab(\'prospect\')">🌟 가망고객</button><button class="'+btnClass('contract')+'" onclick="switchHistoryTab(\'contract\')">🤝 계약 고객</button>'}}
 function switchHistoryTab(t){historyTab=t;setupHistoryTabs();renderHistory()}
-function renderHistory(){var y=document.getElementById('hist-year').value,m=document.getElementById('hist-month').value;var tbody=document.getElementById('history-body'),thead=document.getElementById('history-head');tbody.innerHTML='';if(historyTab==='admin-prospect'||historyTab==='prospect')thead.innerHTML='<tr><th style="width:45px">No.</th><th>접수일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>현재상태</th></tr>';else thead.innerHTML='<tr><th>계약일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>상품</th><th>매출</th></tr>';var list=dbList.filter(function(d){if(d.isFrozen)return false;var targetDate=d.date;if(historyTab==='contract'&&d.contractDate)targetDate=d.contractDate;var parsed=parseDBDate(targetDate);if(y!=='all'&&parsed.year!=y)return false;if(m!=='all'&&parsed.month!=m)return false;if(currentUser.role!=='admin'&&d.member!==currentUser.name)return false;if(historyTab==='admin-prospect'||historyTab==='prospect')return d.status==='가망고객';else return d.status==='계약'});if(historyTab==='contract'){if(currentUser.role==='admin'){members.forEach(function(mem){if(mem.role==='admin')return;getVirtualShareEntries(mem.name).forEach(function(ve){var parsed=parseDBDate(ve.contractDate);if(y!=='all'&&parsed.year!=y)return;if(m!=='all'&&parsed.month!=m)return;list.push(ve)})})}else{getVirtualShareEntries(currentUser.name).forEach(function(ve){var parsed=parseDBDate(ve.contractDate);if(y!=='all'&&parsed.year!=y)return;if(m!=='all'&&parsed.month!=m)return;list.push(ve)})}}if(list.length===0){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px">기록 없음</td></tr>';return}list.forEach(function(d){var row='';var companyDisplay=d.isVirtualShare?'['+d.originalMember+'쉐어] '+d.company:d.company;var clickId=d.isVirtualShare?d.originalId:d.id;if(historyTab==='admin-prospect'||historyTab==='prospect'){row='<td>'+d.date+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td><span class="badge status-prospect">'+d.status+'</span></td>'}else{row='<td>'+(d.contractDate||d.date)+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td>'+(d.product||'-')+'</td><td style="color:blue">'+(d.amount||0).toLocaleString()+'</td>'}tbody.innerHTML+='<tr onclick="openModal(\''+clickId+'\')">'+row+'</tr>'})}
+function renderHistory(){var y=document.getElementById('hist-year').value,m=document.getElementById('hist-month').value;var tbody=document.getElementById('history-body'),thead=document.getElementById('history-head');tbody.innerHTML='';if(historyTab==='admin-prospect'||historyTab==='prospect')thead.innerHTML='<tr><th style="width:45px">No.</th><th>접수일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>현재상태</th></tr>';else thead.innerHTML='<tr><th style="width:45px">No.</th><th>계약일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>상품</th><th>매출</th></tr>';var list=dbList.filter(function(d){if(d.isFrozen)return false;var targetDate=d.date;if(historyTab==='contract'&&d.contractDate)targetDate=d.contractDate;var parsed=parseDBDate(targetDate);if(y!=='all'&&parsed.year!=y)return false;if(m!=='all'&&parsed.month!=m)return false;if(currentUser.role!=='admin'&&d.member!==currentUser.name)return false;if(historyTab==='admin-prospect'||historyTab==='prospect')return d.status==='가망고객';else return d.status==='계약'});if(historyTab==='contract'){if(currentUser.role==='admin'){members.forEach(function(mem){if(mem.role==='admin')return;getVirtualShareEntries(mem.name).forEach(function(ve){var parsed=parseDBDate(ve.contractDate);if(y!=='all'&&parsed.year!=y)return;if(m!=='all'&&parsed.month!=m)return;list.push(ve)})})}else{getVirtualShareEntries(currentUser.name).forEach(function(ve){var parsed=parseDBDate(ve.contractDate);if(y!=='all'&&parsed.year!=y)return;if(m!=='all'&&parsed.month!=m)return;list.push(ve)})}}if(list.length===0){var _hCols=(historyTab==='admin-prospect'||historyTab==='prospect')?6:7;tbody.innerHTML='<tr><td colspan="'+_hCols+'" style="text-align:center;padding:30px">기록 없음</td></tr>';return}list.forEach(function(d,idx){var row='';var companyDisplay=d.isVirtualShare?'['+d.originalMember+'쉐어] '+d.company:d.company;var clickId=d.isVirtualShare?d.originalId:d.id;var numTd='<td style="text-align:center;color:#94a3b8;font-size:12px">'+(idx+1)+'</td>';if(historyTab==='admin-prospect'||historyTab==='prospect'){row=numTd+'<td>'+d.date+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td><span class="badge status-prospect">'+d.status+'</span></td>'}else{row=numTd+'<td>'+(d.contractDate||d.date)+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td>'+(d.product||'-')+'</td><td style="color:blue">'+(d.amount||0).toLocaleString()+'</td>'}var trStyle=d.isVirtualShare?'style="opacity:0.55;background:#f8fafc"':'';tbody.innerHTML+='<tr '+trStyle+' onclick="openModal(\''+clickId+'\')">'+row+'</tr>'})}
 
 // ═══ 관리자 대시보드 ═══
 function goToMemberDB(memberName){navTo('list');setTimeout(function(){var memberEl=document.getElementById('filter-member');if(memberEl){memberEl.value=memberName;currentPage=1;renderList();showToast(memberName+' DB 필터 적용됨')}},100)}
@@ -3993,7 +3981,7 @@ function renderBriefing(){
         var streakFireworks=buildRaceStreakFireworks(s.streak);
         raceHtml+='<div class="race-row">';
         raceHtml+='<div class="race-name">'+medal+s.name+'</div>';
-        raceHtml+='<div class="race-bar-wrap"><div style="flex:1;min-width:0"><div class="briefing-race-bar" style="width:'+pct+'%;background:'+bg+'"><span>'+s.rev.toLocaleString()+'원 ('+fmtNR(s.contNew,s.contRe)+'건)</span></div></div>'+streakFireworks+'</div>';
+        raceHtml+='<div class="race-bar-wrap"><div style="flex:1;min-width:0;display:flex;align-items:center"><div class="briefing-race-bar" style="width:'+pct+'%;background:'+bg+';flex-shrink:0"><span>'+s.rev.toLocaleString()+'원 ('+fmtNR(s.contNew,s.contRe)+'건)</span></div>'+streakFireworks+'</div></div>';
         raceHtml+='</div>';
     });
     document.getElementById('briefing-race').innerHTML=raceHtml;
@@ -5220,7 +5208,7 @@ function showBriefingMemberDetail(memberName){
         statusEl.value='선택'; s='선택';
         var _alertBox=document.createElement('div');
         _alertBox.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10005;background:#fff;border:3px solid #ef4444;border-radius:16px;padding:30px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;max-width:420px;animation:fadeIn .2s';
-        _alertBox.innerHTML='<div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="font-weight:900;font-size:16px;color:#dc2626;margin-bottom:10px">3단계 선택 불가</div><div style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:16px">3단계는 <b>미팅 후 진행 사항</b>을 입력하는 곳입니다.<br><br>2단계에서 <b style="color:#2563eb">통화완료 → 미팅진행여부 [진행, 종료]</b>를<br>먼저 선택해주세요.</div><button onclick="this.parentElement.remove()" style="padding:10px 30px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">확인</button>';
+        _alertBox.innerHTML='<div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="font-weight:900;font-size:16px;color:#dc2626;margin-bottom:10px">3단계 선택 불가</div><div style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:16px">3단계는 <b>미팅 진행 결과</b>를 입력하는 곳입니다.<br><br>2단계에서 <b style="color:#2563eb">통화완료 → 미팅진행여부 [진행]</b>을<br>먼저 선택해주세요.</div><button onclick="this.parentElement.remove()" style="padding:10px 30px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">확인</button>';
         document.body.appendChild(_alertBox);
         setTimeout(function(){if(_alertBox.parentElement)_alertBox.remove();},8000);
         return;
@@ -5302,9 +5290,13 @@ function showBriefingMemberDetail(memberName){
             data.consulting = data.consulting || existing.consulting || '';
             data.careLog = data.careLog || existing.careLog || '';
             data.ingDetail = data.ingDetail || existing.ingDetail || '';
-            // 현재 화면에서 만든 부분 실효 정보가 있으면 우선 사용, 없을 때만 기존 계약 배열 보존
-            if(!(Array.isArray(data.contracts)&&data.contracts.length) && Array.isArray(existing.contracts)&&existing.contracts.length){
-              data.contracts = existing.contracts;
+            data.prospectDetail = data.prospectDetail || existing.prospectDetail || '';
+            data.phoneIssue = data.phoneIssue || existing.phoneIssue || '';
+            data.endReason = data.endReason || existing.endReason || '';
+            data.waitReason = data.waitReason || existing.waitReason || '';
+            // contracts 배열은 보존하되 부분실효 처리된 것만 isLapsed=true
+            if(Array.isArray(existing.contracts)&&existing.contracts.length){
+              data.contracts = existing.contracts; // 원본 계약 배열 보존
             }
             // 통계용 totalAmount만 0으로 (실제 계약 데이터는 contracts에 보존)
             data.totalAmount = 0;
@@ -5474,8 +5466,8 @@ function showBriefingMemberDetail(memberName){
     var tbody=document.getElementById('history-body'), thead=document.getElementById('history-head'); if(!tbody||!thead) return;
     tbody.innerHTML='';
     if(historyTab==='admin-prospect'||historyTab==='prospect') thead.innerHTML='<tr><th>No.</th><th>접수일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>현재상태</th></tr>';
-    else if(historyTab==='lapse') thead.innerHTML='<tr><th>청철/실효일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>청철/실효 금액</th><th>사유</th></tr>';
-    else thead.innerHTML='<tr><th>계약일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>상품</th><th>매출</th></tr>';
+    else if(historyTab==='lapse') thead.innerHTML='<tr><th style="width:45px">No.</th><th>청철/실효일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>청철/실효 금액</th><th>사유</th></tr>';
+    else thead.innerHTML='<tr><th style="width:45px">No.</th><th>계약일</th><th>담당자</th><th>업체명</th><th>DB출처</th><th>상품</th><th>매출</th></tr>';
     var list=(dbList||[]).filter(function(d){
       if(d.isFrozen) return false;
       var targetDate=d.date;
@@ -5496,7 +5488,7 @@ function showBriefingMemberDetail(memberName){
         getVirtualShareEntries(currentUser.name).forEach(function(ve){ var parsed=parseDBDate(ve.contractDate); if(y!=='all'&&parsed.year!=y)return; if(m!=='all'&&parsed.month!=m)return; list.push(ve); });
       }
     }
-    if(list.length===0){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px">기록 없음</td></tr>'; return; }
+    if(list.length===0){ var _hCols=(historyTab==='admin-prospect'||historyTab==='prospect')?6:7;tbody.innerHTML='<tr><td colspan="'+_hCols+'" style="text-align:center;padding:30px">기록 없음</td></tr>'; return; }
     list.forEach(function(d, i){
       var companyDisplay=d.isVirtualShare?'['+d.originalMember+'쉐어] '+d.company:d.company;
       var clickId=d.isVirtualShare?d.originalId:d.id;
@@ -5504,11 +5496,12 @@ function showBriefingMemberDetail(memberName){
       if(historyTab==='admin-prospect'||historyTab==='prospect'){
         row='<td>'+(i+1)+'</td><td>'+d.date+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td><span class="badge status-prospect">가망고객</span></td>';
       }else if(historyTab==='lapse'){
-        row='<td>'+(d.lapseDate||'-')+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td style="color:#dc2626">'+getLapseBaseAmount(d).toLocaleString()+'</td><td>'+(d.lapseReason||'-')+'</td>';
+        row='<td style="text-align:center;color:#94a3b8;font-size:12px">'+(i+1)+'</td><td>'+(d.lapseDate||'-')+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td style="color:#dc2626">'+getLapseBaseAmount(d).toLocaleString()+'</td><td>'+(d.lapseReason||'-')+'</td>';
       }else{
-        row='<td>'+(d.contractDate||d.date)+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td>'+(d.product||'-')+'</td><td style="color:blue">'+(d.amount||0).toLocaleString()+'</td>';
+        row='<td style="text-align:center;color:#94a3b8;font-size:12px">'+(i+1)+'</td><td>'+(d.contractDate||d.date)+'</td><td>'+d.member+'</td><td style="font-weight:bold">'+companyDisplay+'</td><td style="color:blue">'+d.source+'</td><td>'+(d.product||'-')+'</td><td style="color:blue">'+(d.amount||0).toLocaleString()+'</td>';
       }
-      tbody.innerHTML+='<tr onclick="openModal(\''+clickId+'\')">'+row+'</tr>';
+      var _trStyle=d.isVirtualShare?' style="opacity:0.55;background:#f8fafc"':'';
+      tbody.innerHTML+='<tr'+_trStyle+' onclick="openModal(\''+clickId+'\')">'+row+'</tr>';
     });
   };
 
@@ -5738,7 +5731,26 @@ function showBriefingMemberDetail(memberName){
         leadTime:leadTime, streak:streak};
     });
 
-    var thead=document.getElementById('briefing-heatmap-head'), tbody=document.getElementById('briefing-heatmap-body');
+    // ★ v33.2: 실적레이스도 IIFE에서 재렌더 (매출 기준 통일: getNetRevenueForMember)
+    var raceEl=document.getElementById('briefing-race');
+    if(raceEl&&stats.length>0){
+      stats.sort(function(a,b){return b.rev-a.rev;});
+      var maxRev=stats[0].rev||1;if(maxRev<1)maxRev=1;
+      var raceColors2=['#f59e0b','#a3a3a3','#c2410c','#3b82f6','#6366f1','#8b5cf6','#64748b','#94a3b8'];
+      var raceHtml2='';
+      stats.forEach(function(s,i){
+        var pct=Math.max(8,Math.round(s.rev/maxRev*100));var bg=raceColors2[Math.min(i,raceColors2.length-1)];
+        var medal=i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':'';
+        var streakFw=buildRaceStreakFireworks(s.streak);
+        raceHtml2+='<div class="race-row">';
+        raceHtml2+='<div class="race-name">'+medal+s.name+'</div>';
+        raceHtml2+='<div class="race-bar-wrap"><div style="flex:1;min-width:0;display:flex;align-items:center"><div class="briefing-race-bar" style="width:'+pct+'%;background:'+bg+';flex-shrink:0"><span>'+s.rev.toLocaleString()+'원 ('+fmtNR(s.contNew||s.contract,s.contRe||0)+'건)</span></div>'+streakFw+'</div></div>';
+        raceHtml2+='</div>';
+      });
+      raceEl.innerHTML=raceHtml2;
+    }
+
+        var thead=document.getElementById('briefing-heatmap-head'), tbody=document.getElementById('briefing-heatmap-body');
     if(thead&&tbody){
       // 히트맵: DB배정(신규+재배정), 통화시도, 통화완료, 미팅, 가망, 계약, 청철/실효, 매출, 미접촉, 리드타임
       thead.innerHTML='<tr>'+
@@ -6147,3 +6159,4 @@ function showBriefingMemberDetail(memberName){
 })();
 
 </script></body></html>
+
