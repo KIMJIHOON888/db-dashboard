@@ -859,7 +859,7 @@ body{flex-direction:column;overflow:auto}
             <div style="margin-top:15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px">
                 <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:10px">📖 각 항목 설명</div>
                 <div style="font-size:12px;color:#64748b;line-height:2">
-                    <b>📞 통화시도율</b> — 배정된 총 DB 중 통화를 시도한 비율 (부재중·문자전송·재통화·통화완료 포함, 80% 미만 시 저조 표시)<br>
+                    <b>📞 통화시도율</b> — 배정된 총 DB 중 통화를 시도한 비율 (부재중·문자전송·재통화·통화완료·통화불가 포함, 80% 미만 시 저조 표시)<br>
                     <b>⚠️ 미접촉</b> — 아직 한 번도 통화를 시도하지 않은 DB 건수<br>
                     <b>⏰ 장기 미진행</b> — 대기·진행 상태에서 2주 이상 아무런 활동이 없는 DB 건수<br>
                     <b>🚫 미팅율</b> — 통화완료 건 대비 미팅 잡은 비율 (20% 미만 시 저조 표시)<br>
@@ -1118,7 +1118,7 @@ body{flex-direction:column;overflow:auto}
                     </div>
                     <div class="stage-collapsible" id="stage2-body">
                     <div class="form-grid">
-                        <div class="form-group"><label>통화여부</label><select id="input-call-status" onchange="toggleRecallField();toggleMeetStatusVisibility()"><option value="">선택</option><option value="부재중">부재중</option><option value="연속부재 문자전송">연속부재 문자전송</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select></div>
+                        <div class="form-group"><label>통화여부</label><select id="input-call-status" onchange="toggleRecallField();toggleMeetStatusVisibility()"><option value="">선택</option><option value="부재중">부재중</option><option value="연속부재 문자전송">연속부재 문자전송</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option><option value="통화불가 종료">통화불가 종료</option></select></div>
                         <div class="form-group" id="recall-date-wrap" style="display:none"><label>재통화 예정일 <span style="font-size:11px;color:#64748b">(비우면 다음날 알림)</span></label><input type="date" id="input-recall-date" onclick="try{this.showPicker()}catch(e){}"></div>
                         <div class="form-group" id="meet-status-group" style="display:none"><label>미팅진행여부 <span style="color:#ef4444;font-size:11px">* 통화완료 후 필수</span></label><select id="input-meet-status" onchange="toggleMeetDateField()"><option value="">선택</option><option value="진행">진행</option><option value="종료">종료</option></select></div>
                         <div class="form-group" id="meet-date-wrap" style="display:none"><label>미팅 일정</label><input type="date" id="input-meet-date" onclick="try{this.showPicker()}catch(e){}"></div>
@@ -1335,7 +1335,7 @@ function parseDBDate(dateStr){if(!dateStr)return{year:0,month:0};try{var d=new D
 function getContractDate(d){return d.contractDate||d.date}
 function escapeHtml(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function getDdayText(m){if(!m)return'';var t=new Date();t.setHours(0,0,0,0);var md=new Date(m);md.setHours(0,0,0,0);var dd=Math.ceil((md-t)/864e5);if(dd===0)return' <span class="dday-badge dday-today">D-DAY</span>';if(dd>0&&dd<=7)return' <span class="dday-badge dday-soon">D-'+dd+'</span>';return''}
-function getCallStatusBadge(c){if(!c)return'<span class="call-badge call-none">-</span>';var b='call-none';var label=c;if(c==='부재중')b='call-absent';else if(c==='연속부재 문자전송'){b='call-absent';label='문자전송';}else if(c==='장난DB')b='call-joke';else if(c==='재통화요청')b='call-recall';else if(c==='통화완료')b='call-done';return'<span class="call-badge '+b+'">'+label+'</span>'}
+function getCallStatusBadge(c){if(!c)return'<span class="call-badge call-none">-</span>';var b='call-none';var label=c;if(c==='부재중'||c==='통화불가 종료'){b='call-absent';label=(c==='통화불가 종료'?'통화불가':c);}else if(c==='연속부재 문자전송'){b='call-absent';label='문자전송';}else if(c==='장난DB')b='call-joke';else if(c==='재통화요청')b='call-recall';else if(c==='통화완료')b='call-done';return'<span class="call-badge '+b+'">'+label+'</span>'}
 function copyPhone(p){navigator.clipboard.writeText(p).then(function(){showToast('📞 '+p+' 복사됨!')}).catch(function(){window.location.href='tel:'+p})}
 function formatCurrency(input){var ss=input.selectionStart;var ol=input.value.length;var v=input.value.replace(/,/g,'');if(!v){input.value='';return}var n=parseInt(v);if(isNaN(n)){input.value='';return}input.value=n.toLocaleString();var nl=input.value.length;input.setSelectionRange(ss+(nl-ol),ss+(nl-ol))}
 
@@ -1999,7 +1999,7 @@ function showMeetingList(){var b=document.getElementById('meeting-alert-badge');
 function renderFilters(){
     var c=document.getElementById('list-filter-container');if(!c)return;
     var sh='<input type="text" id="search-keyword" placeholder="업체명 검색" style="flex:1;min-width:200px;padding:10px;border:1px solid #ddd;border-radius:8px" onkeyup="currentPage=1;renderList()">';
-    var callF='<select id="filter-call" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select>';
+    var callF='<select id="filter-call" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="통화불가 종료">통화불가 종료</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select>';
     if(currentUser.role==='admin'){
         c.innerHTML=sh+'<select id="filter-year" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-month" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-source" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option></select>'+callF+'<select id="filter-status" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 진행상태</option><option value="대기">⏳ 대기</option><option value="진행중">🏃 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option><option value="frozen">🔒 재배정(동결)</option></select><select id="filter-member" style="padding:10px;border:1px solid #2563eb;color:#2563eb;font-weight:bold;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 팀원 보기</option></select>';
         var ms=document.getElementById('filter-member');sortMemberNames(members,'').forEach(function(m){ms.innerHTML+='<option value="'+m.name+'">'+m.name+'</option>'});
@@ -5027,6 +5027,7 @@ function showBriefingMemberDetail(memberName){
   function getCallStatusDisplay(v){
     v=String(v||'').trim();
     if(v==='연속부재 문자전송') return '문자전송';
+    if(v==='통화불가 종료') return '통화불가';
     return v||'-';
   }
   function parseDateSafe(v){
@@ -5258,13 +5259,23 @@ function showBriefingMemberDetail(memberName){
     var ms=document.getElementById('input-meet-status');
     var mw=document.getElementById('meet-date-wrap');
     var mi=document.getElementById('input-meet-date');
+    var statusSel=document.getElementById('input-status');
     if(!sel||!grp) return;
     var isDone=sel.value==='통화완료';
+    var isUnavailableEnd=sel.value==='통화불가 종료';
     grp.style.display=isDone?'block':'none';
     if(!isDone){
       if(ms) ms.value='';
       if(mw) mw.style.display='none';
       if(mi) mi.value='';
+    }
+    if(statusSel){
+      var nowStatus=normalizeStatus(statusSel.value||'선택');
+      if(isUnavailableEnd){
+        statusSel.value='종료';
+      }else if(nowStatus==='종료' && sel.value!=='통화불가 종료' && sel.value!=='통화완료'){
+        statusSel.value='선택';
+      }
     }
   };
   var __oldToggleMeetDateField=window.toggleMeetDateField;
@@ -5425,7 +5436,7 @@ function showBriefingMemberDetail(memberName){
   window.getCallStatusBadge=function(c){
     if(!c) return '<span class="call-badge call-none">-</span>';
     var b='call-none', label=getCallStatusDisplay(c);
-    if(c==='부재중') b='call-absent';
+    if(c==='부재중' || c==='통화불가 종료') b='call-absent';
     else if(c==='연속부재 문자전송') b='call-text';
     else if(c==='장난DB') b='call-joke';
     else if(c==='재통화요청') b='call-recall';
@@ -5437,7 +5448,7 @@ function showBriefingMemberDetail(memberName){
     var c=document.getElementById('list-filter-container'); if(!c) return;
     var sh='<input type="text" id="search-keyword" placeholder="업체명 검색" style="flex:1;min-width:200px;padding:10px;border:1px solid #ddd;border-radius:8px" onkeyup="currentPage=1;renderList()">';
     var callF='<select id="filter-call" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()">'+
-      '<option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="연속부재 문자전송">연속부재 문자전송</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select>';
+      '<option value="all">전체 통화</option><option value="">미확인</option><option value="부재중">부재중</option><option value="연속부재 문자전송">연속부재 문자전송</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option><option value="통화불가 종료">통화불가 종료</option></select>';
     var statusF='<select id="filter-status" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()">'+
       '<option value="all">전체 진행상태</option><option value="상담 진행중">🏃 상담 진행중</option><option value="가망고객">🌟 가망고객</option><option value="계약">🎉 계약</option><option value="종료">❌ 종료</option><option value="청철/실효">⛔ 청철/실효</option><option value="frozen">🔒 재배정(동결)</option></select>';
     var common=sh+'<select id="filter-year" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-month" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"></select><select id="filter-source" style="padding:10px;border:1px solid #ddd;border-radius:8px" onchange="currentPage=1;renderList()"><option value="all">전체 출처</option><option value="회사DB">회사 DB</option><option value="개인DB">개인 DB</option><option value="팀DB">팀 DB</option><option value="추장호DB">추장호 DB</option><option value="기타DB">🎸 기타 DB</option><option value="쉐어받음">쉐어 받음</option></select>'+callF+statusF;
@@ -5508,7 +5519,7 @@ function showBriefingMemberDetail(memberName){
         }else if(d.callStatus&&d.callStatus!==''){
           // ④ callStatus 표시 (status 스타일)
           var _csColor='#64748b';var _csBg='#f1f5f9';
-          if(d.callStatus==='부재중'){_csColor='#d97706';_csBg='#fef3c7';}
+          if(d.callStatus==='부재중' || d.callStatus==='통화불가 종료'){_csColor='#d97706';_csBg='#fef3c7';}
           else if(d.callStatus==='연속부재 문자전송'){_csColor='#b45309';_csBg='#fef3c7';}
           else if(d.callStatus==='장난DB'){_csColor='#dc2626';_csBg='#fee2e2';}
           else if(d.callStatus==='재통화요청'){_csColor='#2563eb';_csBg='#dbeafe';}
