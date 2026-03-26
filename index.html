@@ -597,7 +597,6 @@ body{flex-direction:column;overflow:auto}
     <!-- ═══ DB 리스트 뷰 ═══ -->
     <div class="page-content" id="view-list">
         <div id="my-alert-panel" style="display:none;margin-bottom:20px">
-            <div style="display:flex;gap:15px;flex-wrap:wrap" id="my-alert-cards"></div>
             <div id="my-goal-progress" style="display:none;margin-bottom:15px" class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                     <span style="font-weight:800;font-size:14px">🎯 이번달 목표</span>
@@ -663,6 +662,8 @@ body{flex-direction:column;overflow:auto}
         <div class="card" style="padding:12px"><h4 style="margin-bottom:8px">📅 월별 매출 추이 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></h4><div class="table-container"><table id="yoy-detail-table" style="font-size:12px"><thead><tr><th style="padding:4px 6px">구분</th><th style="padding:4px 3px">1월</th><th style="padding:4px 3px">2월</th><th style="padding:4px 3px">3월</th><th style="padding:4px 3px">4월</th><th style="padding:4px 3px">5월</th><th style="padding:4px 3px">6월</th><th style="padding:4px 3px">7월</th><th style="padding:4px 3px">8월</th><th style="padding:4px 3px">9월</th><th style="padding:4px 3px">10월</th><th style="padding:4px 3px">11월</th><th style="padding:4px 3px">12월</th><th style="padding:4px 6px">합계</th></tr></thead><tbody id="yoy-detail-body"></tbody></table></div><div style="margin-top:12px;height:200px"><canvas id="revenue-chart"></canvas></div></div>
         <div class="card"><h4>📋 월별 DB 출처별 성과 <span style="font-size:12px;color:#64748b;font-weight:normal">(계약일 기준)</span></h4><div class="table-container"><table id="month-kpi-table"><thead><tr><th>구분</th><th>1월</th><th>2월</th><th>3월</th><th>4월</th><th>5월</th><th>6월</th><th>7월</th><th>8월</th><th>9월</th><th>10월</th><th>11월</th><th>12월</th><th>합계</th></tr></thead><tbody id="month-kpi-body"></tbody></table></div></div>
         <div id="member-perf-section" style="display:none"><div class="card"><h4>📈 나의 성과 현황표</h4><div class="table-container"><table class="perf-table"><thead><tr><th>구분</th><th>DB배정</th><th>미팅</th><th>가망</th><th>계약</th><th>전환율</th><th>청철/실효</th><th>매출</th></tr></thead><tbody id="member-perf-body"></tbody></table></div></div></div>
+        <!-- ★ v33.3: 경고 카드 (실적상세분석 하단) -->
+        <div style="display:flex;gap:15px;flex-wrap:wrap;margin-top:20px" id="my-alert-cards"></div>
     </div>
 
     <!-- ═══ 히스토리 뷰 ═══ -->
@@ -4022,6 +4023,7 @@ function renderBriefing(){
         var leadTime=getContractLeadTime(m.name,ty,isAll?null:tm,isAll);
         var cpr=getCPRContracts(m.name,ty,isAll?null:tm,isAll);
         var cprRev=cpr.reduce(function(a,c){return a+c.amount},0);
+        var lapseCnt=(typeof getLapseCountForMember==="function")?getLapseCountForMember(m.name,ty,tm,isAll):0;
         var streak=getConsecutiveContractMonths(m.name);
         // 3개월 이상 미계약 여부
         var hasRecentContract=false;
@@ -4040,16 +4042,18 @@ function renderBriefing(){
             stale:staleCount,noContact:noContactCnt,noContactNew:noContactNew,noContactRe:noContactRe,
             noContactList:noContactList,callDoneList:callDoneList,
             reProgressRate:reProgressRate,goldenTime:goldenTime,leadTime:leadTime,
-            cprCount:cpr.length,cprRev:cprRev,streak:streak,hasRecentContract:hasRecentContract,
+            lapse:lapseCnt,cprCount:cpr.length,cprRev:cprRev,streak:streak,hasRecentContract:hasRecentContract,
             goalAmount:goalAmount,goalPct:goalPct};
     });
     stats.sort(function(a,b){return b.rev-a.rev});
-    // MVP 선정 (통화시도+미팅 최다)
+    // ★ v33.3: MVP 선정 (종합 점수제: 통화완료1 + 미팅2 + 가망3 + 계약4 + 실효-5)
     var mvpEl=document.getElementById('briefing-mvp');
     if(mvpEl&&stats.length>0){
-        var mvpSorted=stats.slice().sort(function(a,b){return(b.callAttempt+b.meet)-(a.callAttempt+a.meet)});
+        stats.forEach(function(s){s.mvpScore=(s.callDone||0)*1+(s.meet||0)*2+(s.prospect||0)*3+(s.contract||0)*4-(s.lapse||0)*5;});
+        var mvpSorted=stats.slice().sort(function(a,b){return b.mvpScore-a.mvpScore});
         var mvp=mvpSorted[0];
-        mvpEl.innerHTML='<div style="font-size:28px">🏆</div><div style="font-weight:900;font-size:18px;color:#92400e">'+(isAll?'올해':'이번달')+' MVP: '+mvp.name+' 팀장</div><div style="font-size:12px;color:#78350f;margin-top:4px">통화시도 '+mvp.callAttempt+'건 + 미팅 '+mvp.meet+'건 = 총 '+(mvp.callAttempt+mvp.meet)+'건 행동력!</div>';
+        var scoreDetail='통화완료'+(mvp.callDone||0)+'×1 + 미팅'+(mvp.meet||0)+'×2 + 가망'+(mvp.prospect||0)+'×3 + 계약'+(mvp.contract||0)+'×4'+(mvp.lapse>0?' - 실효'+(mvp.lapse||0)+'×5':'');
+        mvpEl.innerHTML='<div style="font-size:28px">🏆</div><div style="font-weight:900;font-size:18px;color:#92400e">'+(isAll?'올해':'이번달')+' MVP: '+mvp.name+' 팀장 <span style="font-size:14px;color:#d97706">('+mvp.mvpScore+'점)</span></div><div style="font-size:11px;color:#78350f;margin-top:4px">'+scoreDetail+'</div>';
     }
     // 실적 레이스
     var maxRev=stats.length>0?stats[0].rev:1;if(maxRev<1)maxRev=1;
@@ -5829,6 +5833,16 @@ function showBriefingMemberDetail(memberName){
         raceHtml2+='</div>';
       });
       raceEl.innerHTML=raceHtml2;
+    }
+
+    // ★ v33.3: MVP 재렌더 (IIFE — 종합 점수제, lapse 정확 반영)
+    var mvpEl2=document.getElementById('briefing-mvp');
+    if(mvpEl2&&stats.length>0){
+      stats.forEach(function(s){s.mvpScore=(s.callDone||0)*1+(s.meet||0)*2+(s.prospect||0)*3+(s.contract||0)*4-(s.lapse||0)*5;});
+      var mvpSorted2=stats.slice().sort(function(a,b){return b.mvpScore-a.mvpScore});
+      var mvp2=mvpSorted2[0];
+      var sd2='통화완료'+(mvp2.callDone||0)+'×1 + 미팅'+(mvp2.meet||0)+'×2 + 가망'+(mvp2.prospect||0)+'×3 + 계약'+(mvp2.contract||0)+'×4'+(mvp2.lapse>0?' - 실효'+(mvp2.lapse||0)+'×5':'');
+      mvpEl2.innerHTML='<div style="font-size:28px">🏆</div><div style="font-weight:900;font-size:18px;color:#92400e">'+(isAll?'올해':'이번달')+' MVP: '+mvp2.name+' 팀장 <span style="font-size:14px;color:#d97706">('+mvp2.mvpScore+'점)</span></div><div style="font-size:11px;color:#78350f;margin-top:4px">'+sd2+'</div>';
     }
 
         var thead=document.getElementById('briefing-heatmap-head'), tbody=document.getElementById('briefing-heatmap-body');
