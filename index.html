@@ -141,6 +141,8 @@ tr:hover{background-color:#f8fafc;cursor:pointer}
 .panel-left{flex:7;padding:30px;overflow-y:auto;border-right:1px solid var(--border)}
 .panel-right{flex:3;padding:30px;display:flex;flex-direction:column;background:#fff}
 .form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.form-grid .form-group{min-width:0;overflow:hidden}
+.form-group input[type="date"]{max-width:100%;box-sizing:border-box;-webkit-appearance:none;min-height:40px}
 .form-group label{display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px}
 .form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;transition:.2s}
 .dynamic-section{display:none;background:#fff;border:1px solid var(--border);padding:20px;border-radius:12px;margin-top:15px}
@@ -260,9 +262,9 @@ tr:hover{background-color:#f8fafc;cursor:pointer}
 .fav-header-star{cursor:pointer;font-size:14px;color:#f59e0b;transition:.15s;user-select:none;-webkit-user-select:none;padding:2px 4px;border-radius:4px}
 .fav-header-star:hover{background:#fef3c7}
 .fav-header-star.filtering{background:#fef08a;color:#dc2626;font-weight:900;box-shadow:0 0 0 2px #fbbf24}
-.fav-modal-star{cursor:pointer;font-size:22px;color:#cbd5e1;transition:color .15s,transform .15s;user-select:none;-webkit-user-select:none;padding:4px 8px}
-.fav-modal-star:hover{transform:scale(1.15)}
-.fav-modal-star.active{color:#ef4444;text-shadow:0 0 8px rgba(239,68,68,.4)}
+.fav-modal-star{cursor:pointer;font-size:15px;font-weight:700;color:#94a3b8;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 16px;transition:all .2s;user-select:none;-webkit-user-select:none;display:inline-flex;align-items:center;gap:6px}
+.fav-modal-star:hover{background:#fef3c7;border-color:#fbbf24;color:#f59e0b}
+.fav-modal-star.active{color:#ef4444;background:#fef2f2;border-color:#fca5a5;text-shadow:0 0 8px rgba(239,68,68,.3)}
 /* ★ v25.0 신규: 동결 DB 스타일 */
 .frozen-row{background:#f1f5f9!important;opacity:.7}
 .frozen-row td{color:#94a3b8!important;text-decoration:line-through}
@@ -1066,14 +1068,10 @@ body{flex-direction:column;overflow:auto}
                     </div>
                 </div>
 
-                <!-- ★ v33.3: 즐겨찾기 별표 (모달) -->
-                <div id="modal-fav-area" style="display:none;margin-bottom:10px">
-                    <span id="modal-fav-star" class="fav-modal-star" onclick="toggleFavorite(this.dataset.favId)" title="즐겨찾기">★</span>
-                    <span style="font-size:13px;color:#64748b;font-weight:600;vertical-align:middle">즐겨찾기</span>
-                </div>
-                <!-- 팀원 재배정 요청 버튼 -->
-                <div id="reassign-req-area" style="display:none;margin-bottom:15px;text-align:right">
-                    <button class="btn btn-warning" onclick="requestRedistribution()" style="box-shadow:0 4px 6px -1px rgba(0,0,0,.1)"><i class="fa-solid fa-rotate"></i> 🔄 재배정 요청하기</button>
+                <!-- 팀원 재배정 요청 + 즐겨찾기 (같은 선상) -->
+                <div id="reassign-req-area" style="display:none;margin-bottom:15px;align-items:center;justify-content:space-between">
+                    <button id="btn-reassign-req" class="btn btn-warning" onclick="requestRedistribution()" style="box-shadow:0 4px 6px -1px rgba(0,0,0,.1);display:none"><i class="fa-solid fa-rotate"></i> 🔄 재배정 요청하기</button>
+                    <span id="modal-fav-star" class="fav-modal-star" data-fav-id="" onclick="toggleFavorite(this.dataset.favId)" title="즐겨찾기">★ 즐겨찾기</span>
                 </div>
 
                 <!-- 요약 카드 -->
@@ -1098,7 +1096,7 @@ body{flex-direction:column;overflow:auto}
                     <div class="stage-collapsible" id="stage1-body">
                     <div style="background:#f8fafc;padding:12px;margin-bottom:15px;border-radius:8px;font-size:14px"><span style="color:#64748b">담당자:</span> <span id="display-member" style="font-weight:bold"></span></div>
                     <div class="form-grid">
-                        <div class="form-group"><label>접수일</label><input type="date" id="input-date" onclick="this.showPicker()"></div>
+                        <div class="form-group"><label>접수일</label><input type="date" id="input-date" onclick="try{this.showPicker()}catch(e){}"></div>
                         <div class="form-group"><label>DB 출처</label><select id="input-source" onchange="updateShareFields();toggleGradeField();calculateShare()"><option value="회사DB">🏢 회사 DB</option><option value="개인DB">👤 개인 DB</option><option value="팀DB">👥 팀 DB</option><option value="추장호DB">🎯 추장호 DB</option><option value="기타DB">🎸 기타 DB</option></select></div>
                         <div class="form-group" id="group-source-desc" style="display:none"><label>DB 부가설명</label><input type="text" id="input-source-desc" placeholder="예) 한국FP센터, 이유몰 등"></div>
                         <div class="form-group" id="group-grade-prov"><label>제공 등급</label><select id="input-grade-prov"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
@@ -1120,9 +1118,9 @@ body{flex-direction:column;overflow:auto}
                     <div class="stage-collapsible" id="stage2-body">
                     <div class="form-grid">
                         <div class="form-group"><label>통화여부</label><select id="input-call-status" onchange="toggleRecallField();toggleMeetStatusVisibility()"><option value="">선택</option><option value="부재중">부재중</option><option value="연속부재 문자전송">연속부재 문자전송</option><option value="장난DB">장난DB</option><option value="재통화요청">재통화요청</option><option value="통화완료">통화완료</option></select></div>
-                        <div class="form-group" id="recall-date-wrap" style="display:none"><label>재통화 예정일 <span style="font-size:11px;color:#64748b">(비우면 다음날 알림)</span></label><input type="date" id="input-recall-date" onclick="this.showPicker()"></div>
+                        <div class="form-group" id="recall-date-wrap" style="display:none"><label>재통화 예정일 <span style="font-size:11px;color:#64748b">(비우면 다음날 알림)</span></label><input type="date" id="input-recall-date" onclick="try{this.showPicker()}catch(e){}"></div>
                         <div class="form-group" id="meet-status-group" style="display:none"><label>미팅진행여부 <span style="color:#ef4444;font-size:11px">* 통화완료 후 필수</span></label><select id="input-meet-status" onchange="toggleMeetDateField()"><option value="">선택</option><option value="진행">진행</option><option value="종료">종료</option></select></div>
-                        <div class="form-group" id="meet-date-wrap" style="display:none"><label>미팅 일정</label><input type="date" id="input-meet-date" onclick="this.showPicker()"></div>
+                        <div class="form-group" id="meet-date-wrap" style="display:none"><label>미팅 일정</label><input type="date" id="input-meet-date" onclick="try{this.showPicker()}catch(e){}"></div>
                         <div class="form-group"><label>대표 신용점수</label><select id="input-credit"><option value="">미확인</option><option value="900이상">900점 이상</option><option value="800이상">800점 이상</option><option value="700이상">700점 이상</option><option value="700미만">700점 미만</option><option value="사고이력">사고 이력</option></select></div>
                         <div class="form-group"><label>연매출 (백만원)</label><input type="text" id="input-annual-rev" onkeyup="formatCurrency(this)"></div>
                         <div class="form-group"><label>세금 체납여부</label><select id="input-tax"><option value="완납">완납</option><option value="분납중">분납중</option><option value="연체중">연체중</option><option value="기타">기타</option></select></div>
@@ -1191,7 +1189,7 @@ body{flex-direction:column;overflow:auto}
                         <div id="active-contract-form">
                             <div style="font-size:12px;font-weight:800;color:#047857;margin-bottom:10px" id="active-contract-label">📝 1번째 계약 입력</div>
                             <div class="form-grid" style="grid-template-columns:1fr 1fr auto">
-                                <div class="form-group"><label>계약일</label><input type="date" id="input-contract-date" onclick="this.showPicker()"></div>
+                                <div class="form-group"><label>계약일</label><input type="date" id="input-contract-date" onclick="try{this.showPicker()}catch(e){}"></div>
                                 <div class="form-group"><label>계약 상품</label><input type="text" id="input-product" placeholder="예)교보경정"></div>
                                 <div class="form-group" id="lapse-action-area" style="display:none;align-self:end"><button type="button" id="btn-trigger-lapse" onclick="triggerLapseMode()" style="padding:8px 14px;background:#9333ea;color:#fff;font-weight:700;font-size:12px;border-radius:8px;border:none;cursor:pointer;white-space:nowrap"><i class="fa-solid fa-ban"></i> 청철/실효</button></div>
                                 <div class="form-group" style="grid-column:1/-1"><label>계약 금액 (원)</label><input type="text" id="input-amount" placeholder="원단위 까지 표기" onkeyup="formatCurrency(this);calculateShare()"></div>
@@ -2180,12 +2178,12 @@ function openModal(id,rowNum){
     var frozenBanner=document.getElementById('frozen-banner-area');
     var actionBtns=document.getElementById('modal-action-buttons');
     reqArea.style.display='none';adminPanel.style.display='none';frozenBanner.style.display='none';var assignArea=document.getElementById('admin-assign-area');if(assignArea)assignArea.style.display='none';expandAllStages();contractSlots=[];var _hBtn=document.getElementById('btn-roadmap-header');if(_hBtn)_hBtn.style.display='flex';
+    // ★ 팀원 본인 DB는 항상 즐겨찾기 영역 표시 (재배정 버튼은 숨김 상태)
+    if(currentUser&&currentUser.role!=='admin'){reqArea.style.display='flex';var _br2=document.getElementById('btn-reassign-req');if(_br2)_br2.style.display='none';}
     var rrBannerInit=document.getElementById('reassign-received-banner');if(rrBannerInit)rrBannerInit.style.display='none';
     actionBtns.style.display='flex';
     // ★ v33.3: 즐겨찾기 별표 초기화
-    var _favArea=document.getElementById('modal-fav-area');
     var _favModalStar=document.getElementById('modal-fav-star');
-    if(_favArea)_favArea.style.display=(currentUser&&currentUser.role!=='admin')?'block':'none';
     // 모든 입력 활성화
     document.querySelectorAll('#modal .panel-left input,#modal .panel-left select,#modal .panel-left textarea').forEach(function(el){el.disabled=false});
     document.getElementById('hist-input').disabled=false;
@@ -2255,8 +2253,10 @@ if(d.isReassigned&&d.member===currentUser.name&&!d.isFrozen){
                 var ts2=document.getElementById('admin-reassign-target');
                 ts2.innerHTML='<option value="">재배정할 팀원 선택</option><option value="__QUEUE__">📋 재배정 대기함</option>';
                 sortMemberNames(members,d.member).forEach(function(m){ts2.innerHTML+='<option value="'+m.name+'">'+m.name+' 팀장</option>'});
-            }else if(d.member===currentUser.name&&d.status!=='계약'&&!d.isReassigned){
-                reqArea.style.display='block';
+            }else if(d.member===currentUser.name&&!d.isReassigned){
+                reqArea.style.display='flex';
+                var _btnReq=document.getElementById('btn-reassign-req');
+                if(_btnReq)_btnReq.style.display=(d.status!=='계약')?'inline-flex':'none';
             }
         }
 
@@ -2402,7 +2402,7 @@ function buildContractSlotHTML(idx,slot){
         '<div class="contract-num">'+n+'번째 계약</div>'+
         (idx>0?'<button class="remove-contract-btn" onclick="removeContractSlot('+idx+')" title="삭제">×</button>':'')+
         '<div class="form-grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+
-            '<div class="form-group"><label>계약일</label><input type="date" class="cs-date-'+idx+'" value="'+(slot.date||'')+'" onclick="this.showPicker()" oninput="recalcSlot('+idx+')"></div>'+
+            '<div class="form-group"><label>계약일</label><input type="date" class="cs-date-'+idx+'" value="'+(slot.date||'')+'" onclick="try{this.showPicker()}catch(e){}" oninput="recalcSlot('+idx+')"></div>'+
             '<div class="form-group"><label>계약 상품</label><input type="text" class="cs-prod-'+idx+'" value="'+(slot.product||'')+'" placeholder="예)교보경정"></div>'+
             '<div class="form-group" style="grid-column:1/-1"><label>계약 금액 (원)</label>'+
             '<input type="text" class="cs-amt-'+idx+'" value="'+(slot.totalAmount?slot.totalAmount.toLocaleString():'')+'" placeholder="원단위" onkeyup="formatCurrencyEl(this);recalcSlot('+idx+')"></div>'+
@@ -3188,7 +3188,16 @@ function renderYoYSummaryTable(){var tbody=document.querySelector('#yoy-summary-
     if(smL>0||smT>0)list.push({name:'🗣️ SM',last:smL,this:smT,thisCnt:0,isSpecial:true});var cjL=getSpecialPartnerRevenue('추장호',thisY-1,null);var cjT=getSpecialPartnerRevenue('추장호',thisY,null);if(cjL>0||cjT>0)list.push({name:'🎯 추장호',last:cjL,this:cjT,thisCnt:0,isSpecial:true});list.sort(function(a,b){if(a.isSpecial!==b.isSpecial)return a.isSpecial?1:-1;return b.this-a.this});var normalRank=0;list.forEach(function(d){if(!d.isSpecial)normalRank++;var rank=d.isSpecial?'-':normalRank;var crownHtml='';if(!d.isSpecial&&normalRank===1)crownHtml='<span style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(234,179,8,.5))">👑</span> ';else if(!d.isSpecial&&normalRank===2)crownHtml='<span style="font-size:18px;filter:grayscale(.3) brightness(1.3)">👑</span> ';else if(!d.isSpecial&&normalRank===3)crownHtml='<span style="font-size:16px;filter:sepia(1) saturate(3) hue-rotate(350deg)">👑</span> ';var nameStyle=!d.isSpecial&&normalRank<=3?' style="font-weight:800;font-size:15px"':'';var rowBg='';if(!d.isSpecial&&normalRank===1)rowBg=' style="background:linear-gradient(90deg,#fef9c3,#fef3c7,white)"';else if(!d.isSpecial&&normalRank===2)rowBg=' style="background:linear-gradient(90deg,#f1f5f9,#e2e8f0,white)"';else if(!d.isSpecial&&normalRank===3)rowBg=' style="background:linear-gradient(90deg,#fff7ed,#fed7aa,white)"';if(d.isSpecial)rowBg=' style="background:#fffbeb"';var cleanName=d.name.replace(/[^\w\s가-힣]/gi,'').trim();var nameHtml='<span style="cursor:pointer;text-decoration:underline" onclick="goToMemberYearlyContracts(\''+cleanName+'\')" title="'+cleanName+' 계약 내역 보기">'+crownHtml+d.name+'</span>';var cntHtml=d.isSpecial?'-':'<span style="cursor:pointer;text-decoration:underline;color:#10b981;font-weight:bold" onclick="goToMemberYearlyContracts(\''+cleanName+'\')" title="'+cleanName+' 계약 내역 보기">'+d.thisCnt+'건</span>';var growthPct=d.last>0?Math.round((d.this-d.last)/d.last*100):(d.this>0?100:0);var growthColor=growthPct>0?'#16a34a':growthPct<0?'#dc2626':'#64748b';var growthSign=growthPct>0?'+':'';tbody.innerHTML+='<tr'+rowBg+'><td>'+rank+'</td><td'+nameStyle+'>'+nameHtml+'</td><td>'+cntHtml+'</td><td>'+d.last.toLocaleString()+'</td><td style="font-weight:bold;color:#2563eb">'+d.this.toLocaleString()+'</td><td>'+(d.this-d.last).toLocaleString()+'</td><td style="font-weight:bold;color:'+growthColor+'">'+growthSign+growthPct+'%</td></tr>'})}
 function renderYoYDetail(){var thisY=new Date().getFullYear();var lastY=thisY-1;var thisData=Array(12).fill(0);var lastData=Array(12).fill(0);if(currentUser.role==='admin'){dbList.forEach(function(d){if(d.status!=='계약'||d.isFrozen)return;getDBContracts(d).forEach(function(c){if(c.isLapsed)return;var p=parseDBDate(c.date||d.contractDate||d.date);var amt=c.totalAmount||0;if(c.shareList&&Array.isArray(c.shareList)){c.shareList.forEach(function(s){if(!s.partner||!s.partner.trim())return;if(isExternalPartner(s.partner)&&s.amount>0)amt-=s.amount;})}if(p.year===thisY)thisData[p.month-1]+=amt;if(p.year===lastY)lastData[p.month-1]+=amt;});})}else{dbList.filter(function(d){return d.member===currentUser.name&&!d.isFrozen&&d.status==='계약';}).forEach(function(d){getDBContracts(d).forEach(function(c){var p=parseDBDate(c.date||d.contractDate||d.date);var amt=c.amount||0;if(p.year===thisY)thisData[p.month-1]+=amt;if(p.year===lastY)lastData[p.month-1]+=amt;});});getVirtualShareEntries(currentUser.name).forEach(function(se){var p=parseDBDate(se.contractDate);if(p.year===thisY)thisData[p.month-1]+=se.amount;if(p.year===lastY)lastData[p.month-1]+=se.amount;})}var thisTotal=thisData.reduce(function(a,b){return a+b},0);var lastTotal=lastData.reduce(function(a,b){return a+b},0);var diffData=thisData.map(function(v,i){return v-lastData[i]});var diffTotal=thisTotal-lastTotal;document.getElementById('val-last-total').innerText=lastTotal.toLocaleString();document.getElementById('val-this-total').innerText=thisTotal.toLocaleString();document.getElementById('val-growth').innerText=(thisTotal-lastTotal).toLocaleString();function fmtDelta(v){if(!v)return '-';return (v>0?'+':'')+v.toLocaleString()}var html='<tr><td>'+lastY+'년</td>';lastData.forEach(function(v){html+='<td>'+v.toLocaleString()+'</td>'});html+='<td style="font-weight:bold">'+lastTotal.toLocaleString()+'</td></tr>';html+='<tr style="background:#eff6ff"><td>'+thisY+'년</td>';thisData.forEach(function(v){html+='<td>'+v.toLocaleString()+'</td>'});html+='<td style="font-weight:bold;color:blue">'+thisTotal.toLocaleString()+'</td></tr>';html+='<tr style="background:#fffbeb"><td style="font-weight:700;color:#b45309">증감액</td>';diffData.forEach(function(v){var c=v>0?'#16a34a':v<0?'#dc2626':'#94a3b8';html+='<td style="font-weight:700;color:'+c+'">'+fmtDelta(v)+'</td>'});var tc=diffTotal>0?'#16a34a':diffTotal<0?'#dc2626':'#94a3b8';html+='<td style="font-weight:800;color:'+tc+'">'+fmtDelta(diffTotal)+'</td></tr>';document.getElementById('yoy-detail-body').innerHTML=html;renderRevenueChart(lastData,thisData,lastY,thisY)}
 function renderRevenueChart(lastData,thisData,lastY,thisY){try{var canvas=document.getElementById('revenue-chart');if(!canvas)return;if(revenueChartInstance)revenueChartInstance.destroy();if(typeof Chart==='undefined')return;var ctx=canvas.getContext('2d');revenueChartInstance=new Chart(ctx,{type:'bar',data:{labels:['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'],datasets:[{label:lastY+'년',data:lastData,backgroundColor:'rgba(148,163,184,.5)',borderColor:'#94a3b8',borderWidth:1,borderRadius:4},{label:thisY+'년',data:thisData,backgroundColor:'rgba(59,130,246,.7)',borderColor:'#2563eb',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:12,weight:'bold'}}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+ctx.parsed.y.toLocaleString()+'원'}}}},scales:{y:{beginAtZero:true,ticks:{callback:function(v){return(v/10000).toLocaleString()+'만'}}},x:{grid:{display:false}}}}})}catch(e){console.error('Chart render error:',e)}}
-function renderMonthlyKPI(){var ty=new Date().getFullYear();var d=(currentUser.role==='admin')?dbList.filter(function(x){return!x.isFrozen;}):dbList.filter(function(x){return x.member===currentUser.name&&!x.isFrozen;});d=d.filter(function(x){return x.status==='계약';});var sources=['회사DB','개인DB','팀DB','추장호DB','기타DB','재배정DB'];var data={};sources.forEach(function(s){data[s]=Array(12).fill().map(function(){return{cnt:0,amt:0};});});d.forEach(function(x){var src=x.source||'';if(sources.indexOf(src)===-1&&src!=='재배정DB')src='기타DB';getDBContracts(x).forEach(function(c){var p=parseDBDate(c.date||x.contractDate||x.date);if(p.year!==ty)return;var amt=c.totalAmount||0;if(data[src]){data[src][p.month-1].cnt++;data[src][p.month-1].amt+=amt;}if(x.isReassigned&&data['재배정DB']){data['재배정DB'][p.month-1].cnt++;data['재배정DB'][p.month-1].amt+=amt;}});});var tb=document.getElementById('month-kpi-table').querySelector('tbody');tb.innerHTML='';sources.forEach(function(src){var rowHtml='<td style="font-weight:bold">'+(src==='재배정DB'?'🔄 '+src:src)+'</td>';var totalCnt=0,totalAmt=0;for(var i=0;i<12;i++){var c=data[src][i].cnt,a=data[src][i].amt;totalCnt+=c;totalAmt+=a;rowHtml+='<td>'+(c>0?'<b>'+c+'</b><br><span style="font-size:10px;color:#2563eb">'+a.toLocaleString()+'</span>':'<span style="color:#eee">-</span>')+'</td>';}rowHtml+='<td style="background:#f1f5f9;font-weight:bold">'+totalCnt+'건<br><span style="color:#2563eb">'+totalAmt.toLocaleString()+'</span></td>';tb.innerHTML+='<tr>'+rowHtml+'</tr>';});}
+function renderMonthlyKPI(){var ty=new Date().getFullYear();var d=(currentUser.role==='admin')?dbList.filter(function(x){return!x.isFrozen;}):dbList.filter(function(x){return x.member===currentUser.name&&!x.isFrozen;});d=d.filter(function(x){return x.status==='계약';});var sources=['회사DB','개인DB','팀DB','추장호DB','기타DB','재배정DB','쉐어'];var data={};sources.forEach(function(s){data[s]=Array(12).fill().map(function(){return{cnt:0,amt:0};});});d.forEach(function(x){var src=x.source||'';if(sources.indexOf(src)===-1&&src!=='재배정DB')src='기타DB';getDBContracts(x).forEach(function(c){var p=parseDBDate(c.date||x.contractDate||x.date);if(p.year!==ty)return;var amt=c.totalAmount||0;if(data[src]){data[src][p.month-1].cnt++;data[src][p.month-1].amt+=amt;}if(x.isReassigned&&data['재배정DB']){data['재배정DB'][p.month-1].cnt++;data['재배정DB'][p.month-1].amt+=amt;}});});
+// ★ v33.3: 팀원은 쉐어 받은 건도 출처별 성과에 포함
+if(currentUser.role!=='admin'){
+    getVirtualShareEntries(currentUser.name).forEach(function(ve){
+        var p=parseDBDate(ve.contractDate);
+        if(p.year!==ty)return;
+        if(data['쉐어']){data['쉐어'][p.month-1].cnt++;data['쉐어'][p.month-1].amt+=ve.amount||0;}
+    });
+}
+var tb=document.getElementById('month-kpi-table').querySelector('tbody');tb.innerHTML='';sources.forEach(function(src){var rowHtml='<td style="font-weight:bold">'+(src==='재배정DB'?'🔄 '+src:src==='쉐어'?'🤝 '+src:src)+'</td>';var totalCnt=0,totalAmt=0;for(var i=0;i<12;i++){var c=data[src][i].cnt,a=data[src][i].amt;totalCnt+=c;totalAmt+=a;rowHtml+='<td>'+(c>0?'<b>'+c+'</b><br><span style="font-size:10px;color:#2563eb">'+a.toLocaleString()+'</span>':'<span style="color:#eee">-</span>')+'</td>';}rowHtml+='<td style="background:#f1f5f9;font-weight:bold">'+totalCnt+'건<br><span style="color:#2563eb">'+totalAmt.toLocaleString()+'</span></td>';tb.innerHTML+='<tr>'+rowHtml+'</tr>';});}
 function renderMemberPerformance(){var tbody=document.getElementById('member-perf-body');if(!tbody)return;tbody.innerHTML='';
 var now=new Date();var thisYear=now.getFullYear();var thisMonth=now.getMonth()+1;
 var myDB=dbList.filter(function(d){return d.member===currentUser.name&&!d.isFrozen});
@@ -3197,8 +3206,8 @@ function calcPeriod(periodDB,allDB,y,m){
     var total=periodDB.length;
     var reassign=periodDB.filter(function(d){return d.isReassigned}).length;
     var normal=total-reassign;
-    var meet=periodDB.filter(function(d){return d.meetDate}).length;
-    var meetR=periodDB.filter(function(d){return d.meetDate&&d.isReassigned}).length;
+    var meet=periodDB.filter(function(d){return d.meetStatus==='진행'}).length;
+    var meetR=periodDB.filter(function(d){return d.meetStatus==='진행'&&d.isReassigned}).length;
     var prosp=periodDB.filter(function(d){return d.status==='가망고객'}).length;
     var prospR=periodDB.filter(function(d){return d.status==='가망고객'&&d.isReassigned}).length;
     var contractDB=allDB.filter(function(d){if(d.status!=='계약')return false;var cd=getContractDate(d);var p=parseDBDate(cd);if(m){return p.year===y&&p.month===m}return p.year===y});
