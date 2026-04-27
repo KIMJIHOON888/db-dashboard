@@ -8561,4 +8561,186 @@ console.log('[DBPro] v33.9 patch OK');
 </script>
 
 
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   DB Pro Master v34.2 Patch (2026-04-27)
+   ── 버전 라벨 강제 잠금 ──
+
+   FIX 6: 로그인 화면이 v33.7로 표시되던 버그
+     - 원인: 4056L `var APP_VERSION='v33.7'`이 하드코딩.
+       1510L window.onload에서 setAppVersionLabels() 호출 →
+       APP_VERSION 변수 사용 → 라벨이 v33.7로 다시 덮어짐.
+       v34.0/v34.1 패치가 DOM을 한 번 바꿔도 onload 시점에
+       원복되어 사용자에겐 v33.7로 보임.
+     - 해결:
+       (1) window.APP_VERSION = 'v34.2'로 변수 자체 강제 변경
+       (2) setAppVersionLabels를 wrap하여, 누가 언제 호출하든
+           라벨이 v34.2로 강제 적용되도록 잠금
+       (3) DOMContentLoaded·onload 직후에도 한 번 더 강제 적용
+       (4) ★ setInterval 사용 안 함 (절대 규칙 준수)
+   ═══════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+  if(window.__v34_2_patched__) return;
+  window.__v34_2_patched__ = true;
+
+  var V = 'v34.2';
+
+  function _v342_paint(){
+    ['app-version-login','app-version-main','app-version-portal'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.textContent = V;
+    });
+    try { document.title = 'DB Pro Master ' + V; } catch(e){}
+  }
+
+  // (1) 전역 변수 강제 변경
+  try { window.APP_VERSION = V; } catch(e){}
+
+  // (2) setAppVersionLabels wrap — 누가 호출해도 V 잠금
+  if(typeof window.setAppVersionLabels === 'function'){
+    var _osavl_v342 = window.setAppVersionLabels;
+    window.setAppVersionLabels = function(){
+      window.APP_VERSION = V;
+      try { _osavl_v342.apply(this, arguments); } catch(e){}
+      _v342_paint();
+    };
+  }
+
+  // (3) 즉시 1회 강제 적용
+  _v342_paint();
+
+  // (4) onload 시점에도 1회 강제 적용 (setInterval 미사용)
+  if(document.readyState === 'complete'){
+    setTimeout(_v342_paint, 0);
+  } else {
+    window.addEventListener('load', function(){
+      setTimeout(_v342_paint, 0);
+    });
+  }
+
+  console.log('[DBPro] v34.2 patch OK — version label locked to ' + V);
+})();
+</script>
+
+
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   DB Pro Master v34.3 Patch (2026-04-27)
+   ── 버전 라벨 깜빡임 완전 차단 (MutationObserver) ──
+
+   FIX 7: v34.2에도 v33.7로 깜빡이던 잔존 문제
+     - 원인: v34.2는 IIFE/onload 시점만 강제했으나,
+       그 이후 비동기 흐름 (서버 연결 실패→재시도, fetchDB
+       콜백, setInterval 첫 firing 등)에서 setAppVersionLabels가
+       다시 호출되며 일시적으로 v33.7 표시. setAppVersionLabels
+       wrap이 있어도 wrap 호출 사이의 ms 단위에서 깜빡임 가능
+     - 해결:
+       (1) MutationObserver로 라벨 element 변화를 이벤트 기반
+           감지 → 즉시 V로 복원 (setInterval 미사용, 절대 규칙 준수)
+       (2) setAppVersionLabels + setVersion 모두 wrap
+       (3) paintingFlag로 무한 루프 방지
+       (4) onload 후 observer 재attach (동적 DOM 대비)
+
+   ※ MutationObserver는 setInterval과 달리 이벤트 기반 (DOM
+     변화 시점에만 호출)이므로, 절대 규칙 「setInterval/setVersion
+     반복 DOM 수정 금지」와 충돌하지 않음
+   ═══════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+  if(window.__v34_3_patched__) return;
+  window.__v34_3_patched__ = true;
+
+  var V = 'v34.3';
+  var IDS = ['app-version-login','app-version-main','app-version-portal'];
+  var paintingFlag = false; // 무한 루프 방지
+
+  function paint(){
+    if(paintingFlag) return;
+    paintingFlag = true;
+    try {
+      window.APP_VERSION = V;
+      IDS.forEach(function(id){
+        var el = document.getElementById(id);
+        if(el && el.textContent !== V) el.textContent = V;
+      });
+      document.title = 'DB Pro Master ' + V;
+    } catch(e){
+      console.warn('[v34.3 paint]', e);
+    } finally {
+      paintingFlag = false;
+    }
+  }
+
+  // (1) 즉시 1회 페인트
+  paint();
+
+  // (2) setAppVersionLabels wrap (정적 보호 1중)
+  if(typeof window.setAppVersionLabels === 'function'){
+    var _o_savl = window.setAppVersionLabels;
+    window.setAppVersionLabels = function(){
+      window.APP_VERSION = V;
+      try { _o_savl.apply(this, arguments); } catch(e){}
+      paint();
+    };
+  }
+
+  // (3) setVersion wrap (정적 보호 2중)
+  //     v33.5.1 setInterval(7202)에서 호출되는 경로 대응
+  if(typeof window.setVersion === 'function'){
+    var _o_sv = window.setVersion;
+    window.setVersion = function(){
+      try { _o_sv.apply(this, arguments); } catch(e){}
+      paint();
+    };
+  }
+
+  // (4) MutationObserver — 동적 보호 (실시간 복원)
+  //     라벨 element의 textContent가 V가 아닌 다른 값으로 변경되면
+  //     즉시 V로 되돌림. setInterval과 달리 이벤트 기반이므로
+  //     불필요한 폴링 없음
+  function attachObserver(){
+    if(typeof MutationObserver !== 'function') return;
+    if(window.__v34_3_observer) return; // 중복 attach 방지
+    var observer = new MutationObserver(function(mutations){
+      // 변경된 element가 V 외 값이면 페인트 트리거
+      for(var i=0;i<mutations.length;i++){
+        var t = mutations[i].target;
+        if(t && t.textContent !== V){
+          paint();
+          break;
+        }
+      }
+    });
+    IDS.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el){
+        observer.observe(el, {
+          childList: true,
+          characterData: true,
+          subtree: true
+        });
+      }
+    });
+    window.__v34_3_observer = observer;
+  }
+  attachObserver();
+
+  // (5) onload 후 한 번 더 페인트 + observer 재attach
+  //     (어떤 이유로든 v34.3 IIFE 시점에 element 못 찾았을 경우 대비)
+  if(document.readyState === 'complete'){
+    setTimeout(function(){ paint(); attachObserver(); }, 0);
+  } else {
+    window.addEventListener('load', function(){
+      setTimeout(function(){ paint(); attachObserver(); }, 0);
+    });
+  }
+
+  console.log('[DBPro] v34.3 patch OK — version label hardened with MutationObserver');
+})();
+</script>
+
+
 </body></html>
