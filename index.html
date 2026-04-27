@@ -8302,6 +8302,8 @@ console.log('[DBPro] v33.9 patch OK');
    ═══════════════════════════════════════════════════════ */
 (function(){
   'use strict';
+  if(window.__v34_0_patched__) return;
+  window.__v34_0_patched__ = true;
 
   // ─── 헬퍼 1: 다양한 날짜 형식 파싱 ──────────────────
   // toLocaleString(ko-KR) 형식 "2026. 4. 27. 오후 3:30:45"도 안전 파싱
@@ -8465,6 +8467,96 @@ console.log('[DBPro] v33.9 patch OK');
   }catch(e){}
 
   console.log('[DBPro] v34.0 patch OK — source change + followup alerts fixed');
+})();
+</script>
+
+
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   DB Pro Master v34.1 Patch (2026-04-27)
+   ── 장기관점 무결성 강화 (3가지 잠재 버그 선제 수정) ──
+
+   FIX 3 (시간대 버그 — KST 자정~오전 9시 사이에 어제 날짜 반환):
+     - 원인: _dateOnlyStr이 setHours(0,0,0,0) 후 toISOString()
+       사용. KST(UTC+9)에서 자정은 UTC 전날 15:00이라
+       toISOString이 전날을 반환. 한국 사용자가 어떤 시간이든
+       toISOString 부분에 의해 9시간 차이가 발생할 수 있음
+     - 영향: _todayStr / _sameDate / _isBeforeDate / _addDaysStr
+       모두 영향. 후속조치/장기 미진행/미팅 알림 로직 전반의
+       날짜 비교가 불안정. 새벽 시간 사용자에게 알림이 어제거나
+       내일 날짜로 표시됨
+     - 해결: _dateOnlyStr·_addDaysStr를 로컬 연/월/일 직접 추출
+       방식으로 오버라이드 (toISOString 회피)
+
+   FIX 4 (_isFinishedDB가 '청철/실효' 누락):
+     - 원인: '계약'·'종료'만 finished로 판정
+     - 영향: 청철된 DB에 followupType이 남아있으면 후속조치 박스에
+       계속 등장. 계약했다 청철된 건도 미팅 알림에 다시 등장 가능
+     - 해결: '청철/실효' 추가하는 wrapper 적용
+
+   FIX 5 (v34 패치 가드 플래그 부재):
+     - 원인: v34.0에 __xxx__ 가드 없어 재로딩 시 오버라이드 무한 중첩
+     - 해결: 모든 v34 패치에 가드 플래그 적용. 재로딩되더라도
+       1회만 wrapping
+
+   ── 보고만 하고 미수정한 항목 (Supabase 이전 시 점검 권장) ──
+   - URL.createObjectURL 누수 (8227L): 모달 자주 열면 누적
+   - id 중복 가능성 (Date.now() ms 정밀도): 자동 입력 시 위험
+   - 이벤트 리스너 정리(removeEventListener) 부재
+   ═══════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+  if(window.__v34_1_patched__) return;
+  window.__v34_1_patched__ = true;
+
+  // ── FIX 3: 시간대 안전한 _dateOnlyStr / _addDaysStr ───
+  // (toISOString 회피, 로컬 연/월/일 직접 추출)
+  function _v341_dateOnlyStr(v){
+    if(!v) return '';
+    var d = new Date(v);
+    if(isNaN(d.getTime())) return '';
+    var y = d.getFullYear();
+    var mo = String(d.getMonth()+1);
+    if(mo.length<2) mo = '0'+mo;
+    var dd = String(d.getDate());
+    if(dd.length<2) dd = '0'+dd;
+    return y+'-'+mo+'-'+dd;
+  }
+  function _v341_addDaysStr(base, days){
+    var d = base ? new Date(base) : new Date();
+    if(isNaN(d.getTime())) d = new Date();
+    d.setDate(d.getDate() + (parseInt(days,10)||0));
+    return _v341_dateOnlyStr(d);
+  }
+  // 전역에 직접 재할당 (var로 선언된 함수도 window 슬롯에 있음)
+  if(typeof window._dateOnlyStr === 'function'){
+    window._dateOnlyStr = _v341_dateOnlyStr;
+  }
+  if(typeof window._addDaysStr === 'function'){
+    window._addDaysStr = _v341_addDaysStr;
+  }
+  // _todayStr는 _dateOnlyStr를 호출하므로 자동 보정됨
+
+  // ── FIX 4: _isFinishedDB에 '청철/실효' 추가 ───────────
+  if(typeof window._isFinishedDB === 'function'){
+    window._isFinishedDB = function(db){
+      var s = String((db && (db.status || db.currentStatus)) || '');
+      return s === '계약' || s === '종료' || s === '청철/실효';
+    };
+  }
+
+  // ── 버전 라벨 갱신 ───────────────────────────────────
+  try{
+    window.APP_VERSION = 'v34.1';
+    ['app-version-login','app-version-main','app-version-portal'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.textContent = 'v34.1';
+    });
+    document.title = 'DB Pro Master v34.1';
+  }catch(e){}
+
+  console.log('[DBPro] v34.1 patch OK — timezone + finishedDB + guard flags');
 })();
 </script>
 
