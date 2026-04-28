@@ -8653,7 +8653,7 @@ console.log('[DBPro] v33.9 patch OK');
   if(window.__v34_3_patched__) return;
   window.__v34_3_patched__ = true;
 
-  var V = 'v34.3';
+  var V = 'v34.4';
   var IDS = ['app-version-login','app-version-main','app-version-portal'];
   var paintingFlag = false; // 무한 루프 방지
 
@@ -8738,7 +8738,215 @@ console.log('[DBPro] v33.9 patch OK');
     });
   }
 
-  console.log('[DBPro] v34.3 patch OK — version label hardened with MutationObserver');
+  console.log('[DBPro] v34.3+ patch OK — version label hardened (locked to v34.4 via MutationObserver)');
+})();
+</script>
+
+
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   DB Pro Master v34.4 Patch (2026-04-27)
+
+   FIX A — 장기 미진행/장기 가망 알림이 메모 추가 후에도 안 사라짐
+     - 진짜 원인 (3차 시뮬로 발견):
+       4574L `new Date(d.logs[0].time)` 코드가 한글 toLocaleString
+       형식("2026. 5. 1. 오후 3:30:45")을 파싱 못함 → Invalid Date.
+       v34.0 wrapper로 logs를 보강해도 그 time도 toLocaleString이라
+       역시 Invalid Date. 결국 fallback으로 d.date(접수일) 사용 →
+       접수 후 14일 지났으면 무조건 알림 표시되어 영영 안 사라짐.
+     - 해결:
+       (1) renderMyAlerts wrapper에서 logs[0].time을 ISO 형식으로
+           강제 변환 — 한글 형식이든 어떤 형식이든 안전하게 파싱
+       (2) 추가로 logs[0]이 없거나 파싱 실패 시 lastContractCheckAt,
+           recallDate, meetDate 중 가장 최근 활동시각으로 보강
+
+   FIX B — 모달 우측 패널 스크롤바 부재 (작은 노트북 불편)
+     - 원인: .panel-right CSS에 overflow-y 없음. 좌측 .panel-left만
+       overflow-y:auto 있음. 우측은 녹음파일 패널 + 타임라인이
+       세로로 길어지면 화면 밑으로 잘림
+     - 해결: panel-right에 overflow-y:auto 강제 적용 (CSS injection)
+
+   FIX C — URL.createObjectURL 누수 (장기 운영 시 메모리 증가)
+     - 원인: _renderAud()가 호출될 때마다 URL.createObjectURL 생성하나
+       revoke 안 함. 모달 자주 여닫으면 누적
+     - 해결: 모달 닫기 시 우측 패널의 audio src 정리
+
+   FIX D — 녹음파일 audio 플레이어 너비 제한 완화
+     - 원인: max-width:140px 제한으로 작은 노트북에서 컨트롤이 잘림
+     - 해결: 컨테이너 폭에 맞춰 자동 확장
+   ═══════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+  if(window.__v34_4_patched__) return;
+  window.__v34_4_patched__ = true;
+
+  // ═══════════════════════════════════════════════════
+  // FIX A: 안전한 logs[0].time 파싱
+  //   - 한글 toLocaleString, ISO, YYYY-MM-DD 모두 지원
+  // ═══════════════════════════════════════════════════
+  function safeParseLogTime(s){
+    if(!s) return 0;
+    if(s instanceof Date){ var v=s.getTime(); return isNaN(v)?0:v; }
+    if(typeof s === 'number') return s;
+    var str = String(s).trim();
+    if(!str) return 0;
+    // 1) 표준 파서
+    var t = Date.parse(str);
+    if(!isNaN(t)) return t;
+    // 2) 한국어 toLocaleString: "2026. 4. 28. 오후 3:30:45" or "2026. 4. 28. PM 3:30:45"
+    var m = str.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*(오전|오후|AM|PM)?\s*(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+    if(m){
+      var y=parseInt(m[1],10), mo=parseInt(m[2],10)-1, d=parseInt(m[3],10);
+      var h=parseInt(m[5]||'0',10), mi=parseInt(m[6]||'0',10), se=parseInt(m[7]||'0',10);
+      var ampm = m[4]||'';
+      if((ampm==='오후'||ampm==='PM') && h<12) h+=12;
+      if((ampm==='오전'||ampm==='AM') && h===12) h=0;
+      return new Date(y,mo,d,h,mi,se).getTime();
+    }
+    // 3) YYYY-M-D / YYYY.M.D / YYYY/M/D
+    var m2 = str.match(/(\d{4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})/);
+    if(m2){
+      return new Date(parseInt(m2[1],10), parseInt(m2[2],10)-1, parseInt(m2[3],10)).getTime();
+    }
+    return 0;
+  }
+  window._v344SafeParseLog = safeParseLogTime;
+
+  // 가장 최근 활동시각 (logs / lastContractCheckAt / recallDate / meetDate / date 중 최대)
+  function bestActivityTime(d){
+    if(!d) return 0;
+    var t = 0;
+    if(d.logs && d.logs.length>0 && d.logs[0] && d.logs[0].time){
+      var lt = safeParseLogTime(d.logs[0].time);
+      if(lt > t) t = lt;
+    }
+    if(d.lastContractCheckAt){
+      var lt = safeParseLogTime(d.lastContractCheckAt);
+      if(lt > t) t = lt;
+    }
+    if(d.recallDate){
+      var lt = safeParseLogTime(d.recallDate);
+      if(lt > t) t = lt;
+    }
+    if(d.meetDate){
+      var lt = safeParseLogTime(d.meetDate);
+      if(lt > t) t = lt;
+    }
+    if(t === 0 && d.date){
+      var lt = safeParseLogTime(d.date);
+      if(lt > t) t = lt;
+    }
+    return t;
+  }
+
+  // renderMyAlerts wrapper — logs[0].time을 안전한 ISO 형식으로 임시 치환
+  if(typeof window.renderMyAlerts === 'function'){
+    var _outerRMA_v344 = window.renderMyAlerts;
+    window.renderMyAlerts = function(){
+      var rollback = [];
+      try{
+        var arr = window.dbList||[];
+        for(var i=0;i<arr.length;i++){
+          var d = arr[i];
+          if(!d || !d.id) continue;
+          var actT = bestActivityTime(d);
+          if(actT > 0){
+            // 원본 logs 백업 후, ISO 문자열로 time 갖는 가상 log를 [0]에 삽입
+            // → 4574L의 new Date(time)이 ISO를 안전하게 파싱
+            rollback.push({d:d, orig:d.logs});
+            var iso = new Date(actT).toISOString();
+            d.logs = [{
+              time: iso,
+              text: '(자동 활동 감지)',
+              writer: 'system',
+              type: 'system',
+              _virtual: true
+            }].concat(d.logs||[]);
+          }
+        }
+        return _outerRMA_v344.apply(this, arguments);
+      } finally {
+        for(var j=0;j<rollback.length;j++){
+          rollback[j].d.logs = rollback[j].orig;
+        }
+      }
+    };
+  }
+
+  // ═══════════════════════════════════════════════════
+  // FIX B: 우측 패널 스크롤바 + FIX D: audio 너비 완화
+  //   CSS injection
+  // ═══════════════════════════════════════════════════
+  function injectCSS(){
+    if(document.getElementById('v344-style')) return;
+    var style = document.createElement('style');
+    style.id = 'v344-style';
+    style.textContent = [
+      '/* v34.4 우측 패널 스크롤 활성화 */',
+      '.modal-window .panel-right{overflow-y:auto !important;}',
+      '/* v34.4 audio 플레이어 너비 완화 (140px → 컨테이너 맞춤) */',
+      '.aud-item audio{max-width:none !important; width:100% !important; min-width:160px;}',
+      '/* v34.4 녹음 항목 줄바꿈 허용 (좁은 화면 대응) */',
+      '.aud-item{flex-wrap:wrap; gap:6px;}',
+      '.aud-item .aud-nm{flex:1 1 100%; word-break:break-all; font-size:11px;}',
+      ''
+    ].join('\n');
+    (document.head||document.documentElement).appendChild(style);
+  }
+  injectCSS();
+  // DOM 준비 후 한 번 더 (head가 늦게 잡히는 케이스 대비)
+  if(document.readyState !== 'complete'){
+    window.addEventListener('load', injectCSS);
+  }
+
+  // ═══════════════════════════════════════════════════
+  // FIX C: 모달 닫기 시 URL.createObjectURL 누수 정리
+  // ═══════════════════════════════════════════════════
+  function cleanupAudioURLs(){
+    try{
+      ['audio-incall-list','audio-meeting-list'].forEach(function(id){
+        var box = document.getElementById(id);
+        if(!box) return;
+        var audios = box.querySelectorAll('audio source, audio');
+        audios.forEach(function(el){
+          try{
+            var src = el.src || (el.querySelector && el.querySelector('source') && el.querySelector('source').src);
+            if(src && src.indexOf('blob:')===0){
+              URL.revokeObjectURL(src);
+            }
+          }catch(e){}
+        });
+      });
+    }catch(e){ console.warn('[v34.4 cleanup]', e); }
+  }
+
+  if(typeof window.closeModal === 'function'){
+    var _origCloseModal_v344 = window.closeModal;
+    window.closeModal = function(){
+      var ret = _origCloseModal_v344.apply(this, arguments);
+      // 모달이 실제로 닫힌 경우에만 정리 (저장 확인 prompt에서 취소되면 안 닫힘)
+      setTimeout(function(){
+        var modal = document.getElementById('modal');
+        if(modal && modal.style.display === 'none') cleanupAudioURLs();
+      }, 100);
+      return ret;
+    };
+  }
+
+  // ═══════════════════════════════════════════════════
+  // 버전 라벨
+  // ═══════════════════════════════════════════════════
+  try{
+    window.APP_VERSION = 'v34.4';
+    ['app-version-login','app-version-main','app-version-portal'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.textContent = 'v34.4';
+    });
+    document.title = 'DB Pro Master v34.4';
+  }catch(e){}
+
+  console.log('[DBPro] v34.4 patch OK — followup alert + scroll + URL cleanup + audio width');
 })();
 </script>
 
