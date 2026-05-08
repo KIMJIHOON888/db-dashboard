@@ -5961,6 +5961,42 @@ function showBriefingMemberDetail(memberName){
         '<td>'+goalHtml+'</td>'+
         '</tr>';
     });
+
+    /* === [추가] 합계 행 === */
+    if(rows.length>0){
+      var sumDbNew=0,sumDbRe=0,sumMeet=0,sumContract=0,sumLapse=0,sumRev=0,sumGoal=0;
+      rows.forEach(function(r){
+        sumDbNew+=(r.dbNew||r.dbTotal||0);
+        sumDbRe+=(r.dbRe||0);
+        sumMeet+=(r.meet||0);
+        sumContract+=(r.contract||0);
+        sumLapse+=(r.lapse||0);
+        sumRev+=(r.revenue||0);
+        sumGoal+=(r.goal||0);
+      });
+      var sumDbAll=sumDbNew+sumDbRe;
+      var sumMeetRate=sumDbAll>0?Math.round(sumMeet/sumDbAll*100):0;
+      var sumContRate=sumMeet>0?Math.round(sumContract/sumMeet*100):0;
+      var sumGoalPct=sumGoal>0?Math.round(sumRev/sumGoal*100):0;
+      var sumGoalHtml=sumGoal>0
+        ?'<div class="goal-mini"><div class="goal-mini-top"><span style="font-weight:800;color:#2563eb">'+sumGoalPct+'%</span></div><div class="goal-mini-track"><div class="goal-mini-fill" style="width:'+Math.min(100,sumGoalPct)+'%;background:#2563eb"></div></div><div class="goal-mini-text">'+Math.round(sumRev/10000).toLocaleString()+'만 / '+Math.round(sumGoal/10000).toLocaleString()+'만</div></div>'
+        :'<span class="goal-mini-empty">목표 미설정</span>';
+      var sumMrColor=sumMeetRate>=30?'#10b981':sumMeetRate>=15?'#f59e0b':'#ef4444';
+      var sumCrColor=sumContRate>=30?'#10b981':sumContRate>=15?'#f59e0b':'#ef4444';
+      tbody.innerHTML+='<tr style="background:linear-gradient(90deg,#f0f9ff,#e0f2fe);border-top:2px solid #0ea5e9;font-weight:800">'+
+        '<td style="font-weight:900;color:#0369a1">합계</td>'+
+        '<td style="font-weight:900;color:#0369a1">총 '+rows.length+'명</td>'+
+        '<td style="font-weight:900;color:#0369a1">'+fmtNR(sumDbNew,sumDbRe)+'</td>'+
+        '<td style="font-weight:900;color:#0369a1">'+sumMeet+'</td>'+
+        '<td style="font-weight:900;color:'+sumMrColor+'">'+sumMeetRate+'%</td>'+
+        '<td style="font-weight:900;color:'+(sumContract>0?'#10b981':'#94a3b8')+'">'+sumContract+'</td>'+
+        '<td style="font-weight:900;color:'+sumCrColor+'">'+sumContRate+'%</td>'+
+        '<td style="font-weight:900;color:'+(sumLapse>0?'#9333ea':'#94a3b8')+'">'+sumLapse+'</td>'+
+        '<td style="font-weight:900;color:#10b981">100%</td>'+
+        '<td style="font-weight:900;color:#0369a1">'+sumRev.toLocaleString()+'원</td>'+
+        '<td>'+sumGoalHtml+'</td>'+
+        '</tr>';
+    }
   }
 
   var __oldRenderAdminDashboard=window.renderAdminDashboard;
@@ -7926,6 +7962,38 @@ function _patchTeamTable(){
       '<td style="font-weight:800;color:#2563eb">'+r.rev.toLocaleString()+'원</td>'+
       '<td>'+gH+'</td></tr>';
   });
+
+  /* === [추가] 합계 행 === */
+  if(rows.length>0){
+    var sumDbN=0,sumDbR=0,sumMt=0,sumCt=0,sumLapse=0,sumRev=0,sumGoal=0;
+    rows.forEach(function(r){
+      sumDbN+=r.dbN; sumDbR+=r.dbR;
+      sumMt+=r.mt; sumCt+=r.ct;
+      sumLapse+=r.lapse; sumRev+=r.rev;
+      sumGoal+=r.goal;
+    });
+    var sumDb=sumDbN+sumDbR;
+    var sumMtRate=sumDb>0?Math.round(sumMt/sumDb*100):0;
+    var sumCtRate=sumMt>0?Math.round(sumCt/sumMt*100):0;
+    var sumGoalPct=sumGoal>0?Math.round(sumRev/sumGoal*100):0;
+    var sumGH=sumGoal>0
+      ?'<div class="goal-mini"><div class="goal-mini-top"><span style="font-weight:800;color:#2563eb">'+sumGoalPct+'%</span></div><div class="goal-mini-track"><div class="goal-mini-fill" style="width:'+Math.min(100,sumGoalPct)+'%;background:#2563eb"></div></div><div class="goal-mini-text">'+Math.round(sumRev/10000).toLocaleString()+'만 / '+Math.round(sumGoal/10000).toLocaleString()+'만</div></div>'
+      :'<span class="goal-mini-empty">목표 미설정</span>';
+    var sumMrc=sumMtRate>=30?'#10b981':sumMtRate>=15?'#f59e0b':'#ef4444';
+    var sumCrc=sumCtRate>=30?'#10b981':sumCtRate>=15?'#f59e0b':'#ef4444';
+    tbody.innerHTML+='<tr style="background:linear-gradient(90deg,#f0f9ff,#e0f2fe);border-top:2px solid #0ea5e9;font-weight:800">'+
+      '<td style="font-weight:900;color:#0369a1">합계</td>'+
+      '<td style="font-weight:900;color:#0369a1">총 '+rows.length+'명</td>'+
+      '<td style="font-weight:900;color:#0369a1">'+_nr(sumDbN,sumDbR)+'</td>'+
+      '<td style="font-weight:900;color:#0369a1">'+sumMt+'</td>'+
+      '<td style="font-weight:900;color:'+sumMrc+'">'+sumMtRate+'%</td>'+
+      '<td style="font-weight:900;color:'+(sumCt>0?'#10b981':'#94a3b8')+'">'+sumCt+'</td>'+
+      '<td style="font-weight:900;color:'+sumCrc+'">'+sumCtRate+'%</td>'+
+      '<td style="font-weight:900;color:'+(sumLapse>0?'#9333ea':'#94a3b8')+'">'+sumLapse+'</td>'+
+      '<td style="font-weight:900;color:#10b981">100%</td>'+
+      '<td style="font-weight:900;color:#0369a1">'+sumRev.toLocaleString()+'원</td>'+
+      '<td>'+sumGH+'</td></tr>';
+  }
 
   /* 대시보드 청철/실효 카드 업데이트 */
   var lTotal=0;
