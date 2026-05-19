@@ -8134,13 +8134,30 @@ function _mPh(r){if(!r)return '';var d=String(r).replace(/[^0-9]/g,'');if(!d)ret
 function _mDt(r){if(!r)return '';var s=String(r).trim();var m=s.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);if(m)return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);m=s.match(/(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})/);if(m)return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);return '';}
 function _mInd(r){if(!r)return '';var s=String(r).replace(/_/g,' ').toLowerCase();if(s.indexOf('제조')>=0)return '제조';if(s.indexOf('건설')>=0)return '건설';if(s.indexOf('도소매')>=0)return '도소매';if(s.indexOf('서비스')>=0)return '서비스';if(s.indexOf('it')>=0)return 'IT';if(s.indexOf('음식')>=0)return '음식점';if(s.indexOf('운수')>=0||s.indexOf('물류')>=0)return '운수업';return '기타';}
 function _mRev(r){if(!r)return '미확인';var s=String(r).replace(/_/g,' ');if(/1억\s*미만/.test(s))return '1억미만';if(/1억/.test(s)&&/3억/.test(s))return '1억~3억';if(/3억/.test(s))return '3억이상';if(/5억/.test(s))return '5억이상';if(/10억/.test(s))return '10억이상';if(/30억/.test(s))return '30억이상';return '미확인';}
-function _mTax(r){if(!r)return '완납';var s=String(r).replace(/_/g,' ').trim();if(s==='아니오'||s==='없음'||s==='완납')return '완납';if(s==='예'||s==='있음'||/체납|연체/.test(s))return '연체중';if(/분납/.test(s))return '분납중';return '완납';}
-function _parseMeta(t){if(!t||!t.trim())return null;var p=t.trim().split('\t');if(p.length<8)p=t.trim().split(/\s{2,}/);if(p.length<8)return null;p=p.map(function(x){return x.trim();});return{date:p[0]||'',campaign:p[1]||'',platform:p[2]||'',tax:p[3]||'',bizType:p[4]||'',industry:p[5]||'',revenue:p[6]||'',phone:p[7]||'',company:p[8]||'',phone2:p[9]||'',ceo:p[10]||'',grade:p[13]||p[p.length-1]||''};}
+function _mTax(r){if(!r)return '완납';var s=String(r).replace(/_/g,' ').trim();if(s==='아니오'||s==='아니요'||s==='없음'||s==='완납')return '완납';if(s==='예'||s==='있음'||/체납|연체/.test(s))return '연체중';if(/분납/.test(s))return '분납중';return '완납';}
+function _parseMeta(t){if(!t||!t.trim())return null;var p=t.trim().split('\t');if(p.length<8)p=t.trim().split(/\s{2,}/);if(p.length<8)return null;p=p.map(function(x){return x.trim();});return{date:p[0]||'',campaign:p[1]||'',platform:p[2]||'',tax:p[3]||'',bizType:p[4]||'',industry:p[5]||'',revenue:p[6]||'',phone:p[7]||'',company:p[8]||'',phone2:p[9]||'',ceo:p[10]||'',grade:p[13]||p[p.length-1]||'',_fmt:'excel'};}
+/* ── Meta 답변 양식 파서 (대표자>전화번호>사업자유형(건너뜀)>업종>매출>회사명>세금체납) ── */
+function _parseMetaLead(t){
+  if(!t||!t.trim())return null;
+  if(t.indexOf('\uD83D\uDD0D')<0&&t.indexOf('🔍')<0)return null; // 🔍 없으면 이 양식 아님
+  var p=t.trim().split(/\t|\s{2,}/).map(function(x){return x.replace(/🔍/g,'').trim();}).filter(function(x){return x;});
+  if(p.length<6)return null;
+  // p[0]=대표자, p[1]=전화번호, p[2]=사업자유형(건너뜀), p[3]=업종, p[4]=매출, p[5]=회사명, p[6]=세금체납
+  return{date:'',campaign:'',platform:'',tax:p[6]||'',bizType:'',industry:p[3]||'',revenue:p[4]||'',phone:p[1]||'',company:p[5]||'',phone2:'',ceo:p[0]||'',grade:'',_fmt:'lead'};
+}
+/* ── 자동 양식 감지 ── */
+function _detectAndParse(t){
+  if(!t)return null;
+  var line=t.split('\n')[0].trim();
+  if(line.indexOf('\uD83D\uDD0D')>=0||line.indexOf('🔍')>=0){var dl=_parseMetaLead(line);if(dl)return dl;}
+  var de=_parseMeta(line);if(de)return de;
+  return null;
+}
 function _applyMeta(d){
     if(!d)return 0;var c=0;
     function sv(id,v){var e=document.getElementById(id);if(e&&v){e.value=v;c++;}}
     sv('input-date',_mDt(d.date));
-    sv('input-source','회사DB');
+    sv('input-source', d._fmt==='lead' ? '개인DB' : '회사DB');
     if(typeof toggleGradeField==='function')toggleGradeField();
     if(d.company)sv('input-company',d.company.replace(/_/g,' '));
     if(d.ceo)sv('input-ceo',d.ceo.replace(/_/g,' '));
@@ -8153,10 +8170,13 @@ function _applyMeta(d){
     return c;
 }
 function _pvMeta(d){
-    if(!d)return '<div style="color:#dc2626;font-weight:700">\u26a0\ufe0f 인식 실패</div>';
+    if(!d)return '<div style="color:#dc2626;font-weight:700">\u26a0\ufe0f 인식 실패 — 지원 양식을 확인해주세요</div>';
     var ph=_mPh(d.phone||d.phone2);
-    var rows=[['신청일',_mDt(d.date)||'-'],['업체명',(d.company||'-').replace(/_/g,' ')],['대표자',(d.ceo||'-').replace(/_/g,' ')],['연락처',ph||'-'],['업종',_mInd(d.industry)],['체납',_mTax(d.tax)+' \u2190 '+(d.tax||'-')],['매출규모',_mRev(d.revenue)],['등급',d.grade||'-'],['DB출처','회사DB']];
-    var h='<div style="display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:13px;margin:12px 0;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">';
+    var fmt=d._fmt==='lead'
+        ? '<div style="display:inline-block;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:800;margin-bottom:10px">📋 Meta 답변 양식 감지됨</div>'
+        : '<div style="display:inline-block;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:800;margin-bottom:10px">📊 기존 엑셀 양식 감지됨</div>';
+    var rows=[['신청일',_mDt(d.date)||'-'],['업체명',(d.company||'-').replace(/_/g,' ')],['대표자',(d.ceo||'-').replace(/_/g,' ')],['연락처',ph||'-'],['업종',_mInd(d.industry)],['체납',_mTax(d.tax)+' \u2190 '+(d.tax||'-')],['매출규모',_mRev(d.revenue)],['등급',d.grade||'-'],['DB출처',d._fmt==='lead'?'개인DB':'회사DB']];
+    var h=fmt+'<div style="display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:13px;margin:12px 0;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">';
     rows.forEach(function(r){var ok=r[1]&&r[1]!=='-';h+='<div style="color:#64748b;font-weight:700;text-align:right">'+r[0]+'</div><div style="color:'+(ok?'#2563eb':'#94a3b8')+';font-weight:600'+(ok?';background:#eff6ff;padding:2px 6px;border-radius:4px':'')+'">'+r[1]+'</div>';});
     return h+'</div>';
 }
@@ -8168,7 +8188,7 @@ window.openMetaPastePopup=function(){
     document.body.appendChild(ov);
     ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
     var ta=document.getElementById('meta-ta');
-    function upd(){var t=ta.value.trim();var pv=document.getElementById('meta-pv');var ok=document.getElementById('meta-ok');if(!t){pv.innerHTML='';ok.disabled=true;return;}var d=_parseMeta(t.split('\n')[0]);pv.innerHTML=_pvMeta(d);ok.disabled=!d;window.__md=d;}
+    function upd(){var t=ta.value.trim();var pv=document.getElementById('meta-pv');var ok=document.getElementById('meta-ok');if(!t){pv.innerHTML='';ok.disabled=true;return;}var d=_detectAndParse(t);pv.innerHTML=_pvMeta(d);ok.disabled=!d;window.__md=d;}
     ta.addEventListener('input',upd);ta.addEventListener('paste',function(){setTimeout(upd,50);});
     setTimeout(function(){ta.focus();},100);
 };
