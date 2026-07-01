@@ -1961,7 +1961,8 @@ input, select, textarea { font-family: inherit; }
   if(/[?&]sso=/.test(location.search)){
     var d=document.createElement('div'); d.id='sso-cover';
     d.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b142e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;';
-    d.innerHTML='<div style="font-size:34px;margin-bottom:14px;">\uD83D\uDEAA</div><div style="font-size:18px;font-weight:700;">\uD574\uB2F9\uD300 \uC774\uB3D9\uC911\u2026</div><div style="font-size:13px;opacity:.7;margin-top:8px;">\uC7A0\uC2DC\uB9CC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694</div>';
+    var _tp=''; try{ _tp=((new URLSearchParams(location.search)).get('t')||'').replace(/[<>"'&]/g,'').slice(0,20); }catch(e){}
+    d.innerHTML='<div style="font-size:34px;margin-bottom:14px;">\uD83D\uDEAA</div><div style="font-size:18px;font-weight:700;">'+(_tp?_tp+' ':'')+'\uC791\uC5C5\uC2E4 \uC774\uB3D9\uC911\u2026</div><div style="font-size:13px;opacity:.7;margin-top:8px;">\uC7A0\uC2DC\uB9CC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694</div>';
     (document.body||document.documentElement).appendChild(d);
     setTimeout(function(){ var c=document.getElementById('sso-cover'); if(c&&c.parentNode) c.parentNode.removeChild(c); }, 8000); /* 안전장치: 실패해도 8초 후 해제 */
   }
