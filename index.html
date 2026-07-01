@@ -4552,6 +4552,17 @@ function resetPassword(u){
             var _meRow = _me2 && _me2.data;
             if (_meRow && _meRow.status === 'approved') {
               window.currentUser = _meRow;
+              /* [v36 SSO 팀 스코프] 관리자·BM이 특정 팀 작업실로 진입하면 그 팀 담당자 시점으로 v35를 염
+                 → 팀원·DB·실적이 그 팀 것만 로드 (지금 3팀 보이듯). 전체 통계는 v36 대시보드가 담당.
+                 팀원·SM은 원래 본인 팀이라 영향 없음. t 파라미터 없으면(직접 로그인) 관리자 원래 권한 그대로 */
+              try {
+                var _vt = ((new URLSearchParams(window.location.search)).get('t')||'').trim();
+                if (_vt && (_meRow.role === 'system_admin' || _meRow.role === 'branch_manager')) {
+                  _meRow.team = _vt;
+                  _meRow.role = 'team_manager';
+                  console.log('[v36 SSO] 관리자 -> ' + _vt + ' 작업실 진입 (팀 스코프)');
+                }
+              } catch(_e){}
               try { sb.from('app_users').update({ last_login_at: new Date().toISOString() }).eq('id', _meRow.id).then(function(){}).catch(function(){}); } catch(_e){}
               enterMain(_meRow);
               if (typeof enterAppMain === 'function') enterAppMain(_meRow);
@@ -4563,7 +4574,7 @@ function resetPassword(u){
         if (!_ssoOk) console.warn('[v36 SSO] 토큰 무효/만료/미승인 - 일반 로그인으로');
       } catch(_e){ console.warn('[v36 SSO] 복원 예외:', _e && _e.message); }
       // URL에서 ?sso 제거 (기록·재사용 방지)
-      try { var _uu = new URL(window.location.href); _uu.searchParams.delete('sso'); window.history.replaceState({}, document.title, _uu.pathname + _uu.search + _uu.hash); } catch(_e){}
+      try { var _uu = new URL(window.location.href); _uu.searchParams.delete('sso'); _uu.searchParams.delete('t'); window.history.replaceState({}, document.title, _uu.pathname + _uu.search + _uu.hash); } catch(_e){}
       // 가림막 처리: 성공=메인 렌더 후 제거하고 init 종료 / 실패=제거 후 아래 기존 로그인 흐름 진행
       var _cov = document.getElementById('sso-cover');
       if (_ssoOk) { setTimeout(function(){ if(_cov && _cov.parentNode) _cov.parentNode.removeChild(_cov); }, 200); return; }
