@@ -1955,6 +1955,19 @@ input, select, textarea { font-family: inherit; }
 </head>
 <body>
 
+<!-- ═══ [v36 SSO] ?sso 접속 시에만 로그인창 노출 방지 가림막 (일반 접속엔 코드 자체를 건너뜀) ═══ -->
+<script>
+(function(){ try{
+  if(/[?&]sso=/.test(location.search)){
+    var d=document.createElement('div'); d.id='sso-cover';
+    d.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b142e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;';
+    d.innerHTML='<div style="font-size:34px;margin-bottom:14px;">\uD83D\uDEAA</div><div style="font-size:18px;font-weight:700;">\uD574\uB2F9\uD300 \uC774\uB3D9\uC911\u2026</div><div style="font-size:13px;opacity:.7;margin-top:8px;">\uC7A0\uC2DC\uB9CC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694</div>';
+    (document.body||document.documentElement).appendChild(d);
+    setTimeout(function(){ var c=document.getElementById('sso-cover'); if(c&&c.parentNode) c.parentNode.removeChild(c); }, 8000); /* 안전장치: 실패해도 8초 후 해제 */
+  }
+}catch(e){} })();
+</script>
+
 <!-- ═══ 로그인 화면 ═══ -->
 <div id="login-screen" class="auth-screen">
   <div class="auth-box">
@@ -4521,23 +4534,41 @@ function resetPassword(u){
 
   if(!sb){ showScreen('login'); return; }
 
-  // ═══ [v36 SSO] 통합UI 작업실 무클릭 입장: URL ?sso 1회용 토큰으로 세션 복원 (additive, 기존 흐름 불변) ═══
+  // ═══ [v36 SSO] 통합UI 작업실 무클릭 입장: ?sso 토큰으로 세션 복원 + 직접 메인 진입 (로그인창 스킵). 기존 흐름 불변 ═══
   try {
     var _ssoTok = (new URLSearchParams(window.location.search)).get('sso');
     if (_ssoTok) {
-      var _rd = await sb.rpc('redeem_sso_token', { p_token: _ssoTok });
-      var _sess = _rd && _rd.data && _rd.data[0];
-      if (_sess && _sess.access_token && _sess.refresh_token) {
-        await sb.auth.setSession({ access_token: _sess.access_token, refresh_token: _sess.refresh_token });
-        console.log('[v36 SSO] 세션 복원 성공 - 자동 로그인');
-      } else {
-        console.warn('[v36 SSO] 토큰 무효/만료/사용됨');
-      }
+      var _ssoOk = false;
+      try {
+        var _rd = await sb.rpc('redeem_sso_token', { p_token: _ssoTok });
+        var _sess = _rd && _rd.data && _rd.data[0];
+        if (_sess && _sess.access_token && _sess.refresh_token) {
+          await sb.auth.setSession({ access_token: _sess.access_token, refresh_token: _sess.refresh_token });
+          var _s2 = await sb.auth.getSession();
+          var _u2 = _s2 && _s2.data && _s2.data.session && _s2.data.session.user;
+          if (_u2) {
+            var _me2 = await sb.from('app_users').select('*').eq('auth_id', _u2.id).single();
+            var _meRow = _me2 && _me2.data;
+            if (_meRow && _meRow.status === 'approved') {
+              window.currentUser = _meRow;
+              try { sb.from('app_users').update({ last_login_at: new Date().toISOString() }).eq('id', _meRow.id).then(function(){}).catch(function(){}); } catch(_e){}
+              enterMain(_meRow);
+              if (typeof enterAppMain === 'function') enterAppMain(_meRow);
+              _ssoOk = true;
+              console.log('[v36 SSO] 세션 복원 + 자동 로그인 성공');
+            }
+          }
+        }
+        if (!_ssoOk) console.warn('[v36 SSO] 토큰 무효/만료/미승인 - 일반 로그인으로');
+      } catch(_e){ console.warn('[v36 SSO] 복원 예외:', _e && _e.message); }
       // URL에서 ?sso 제거 (기록·재사용 방지)
-      try { var _u = new URL(window.location.href); _u.searchParams.delete('sso'); window.history.replaceState({}, document.title, _u.pathname + _u.search + _u.hash); } catch(_e){}
+      try { var _uu = new URL(window.location.href); _uu.searchParams.delete('sso'); window.history.replaceState({}, document.title, _uu.pathname + _uu.search + _uu.hash); } catch(_e){}
+      // 가림막 처리: 성공=메인 렌더 후 제거하고 init 종료 / 실패=제거 후 아래 기존 로그인 흐름 진행
+      var _cov = document.getElementById('sso-cover');
+      if (_ssoOk) { setTimeout(function(){ if(_cov && _cov.parentNode) _cov.parentNode.removeChild(_cov); }, 200); return; }
+      if (_cov && _cov.parentNode) _cov.parentNode.removeChild(_cov);
     }
-  } catch(e) { console.warn('[v36 SSO] 복원 실패:', e); }
-  // 이후 아래 기존 getSession()이 복원된 세션을 잡아 자동으로 메인 진입
+  } catch(e) { console.warn('[v36 SSO] 처리 실패:', e); }
 
   // v35.1.72 김지훈: 외부 포털 흐름에 우선권 양보 (백지 사고 영구 fix)
   // 사고: init()이 sb.auth.getSession() 후 enterMain 호출 -> 외부 포털 화면 덮어씀 (백지)
