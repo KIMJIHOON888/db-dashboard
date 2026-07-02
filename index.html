@@ -8431,6 +8431,10 @@ async function openDBModal(id, rowNum) {
 
   // 모달 표시
   $('db-modal').classList.add('active');
+  /* [메모 박스 크기 누수 수정] db-modal은 재사용 요소라, 한 업체에서 textarea를 드래그로 키우면
+     인라인 height가 그 요소에 남아 다른 업체를 열어도 커진 채로 보임(전화이슈 메모 등).
+     열 때마다 모달 안 모든 textarea의 인라인 높이를 비워 CSS 기본(min-height)으로 초기화. additive, 삭제 0. */
+  try { document.querySelectorAll('#db-modal textarea').forEach(function(_t){ _t.style.height = ''; }); } catch(_e){}
   
   // v35.1.72 김지훈: 외부 포털 Phase 3-B - 읽기 전용 UI 강화 (v34.4 line 2321 패턴 동등)
   // 사고: v35.1.48 권한 분기는 버튼 클릭 시 토스트 차단만 되어, 입력 폼은 자유롭게 사용 가능
@@ -19528,6 +19532,127 @@ window.updateMessageBadge = updateMessageBadge;
       if(nav){ if(unreadCount>0) nav.classList.add('has-unread'); else nav.classList.remove('has-unread'); }
     }catch(e){ console.warn('[updateMessageBadge team-scope]', e); }
   };
+})();
+
+/* ===== [전 팀 중복 DB 감지 + 리치 경고 팝업] =====
+   버그: checkDuplicateDB가 팀 필터된 appState.records만 검색 → 다른 팀 중복 못 잡음(4팀 확장 시도 동일).
+   해결: 전 팀 db_records를 별도 캐시로 로드 → 래핑된 checkDuplicateDB가 이 캐시를 검색(모든 팀 감지).
+   개선: assignDBToMember(관리자 배정)에서 볼드 지원 커스텀 확인 팝업(팀/담당/진행상황 + '진행중인 담당자에게 문의 바랍니다.').
+   원본(checkDuplicateDB 3078, confirm 8570)은 보존 — 래핑 + 플래그로 처리(삭제 0). */
+window.__allDbForDup = [];
+window.__loadAllDbForDup = async function(){
+  try{
+    if(typeof sb==='undefined'||!sb) return;
+    var all=[], from=0, page=1000;
+    for(var guard=0; guard<50; guard++){
+      var r = await sb.from('db_records').select('id,company,ceo,phone,member,team,status,is_frozen').range(from, from+page-1);
+      if(r.error){ console.warn('[전 팀 중복 캐시] 조회 오류:', r.error.message); break; }
+      var rows = r.data||[];
+      all = all.concat(rows);
+      if(rows.length < page) break;
+      from += page;
+    }
+    window.__allDbForDup = all;
+    console.log('[전 팀 중복 캐시] '+all.length+'건 로드 (모든 팀 기준)');
+  }catch(e){ console.warn('[전 팀 중복 캐시] 예외:', e); }
+};
+/* checkDuplicateDB 래핑 — 전 팀 캐시에서 검색(원본 매칭 로직 동일) */
+(function(){
+  window.checkDuplicateDB = function(company, ceo, phone, currentId){
+    try{
+      if(window.__dupConfirmed) return null; /* 리치 팝업에서 이미 확인 → 원본 중복 confirm 스킵 */
+      if(!company && !phone) return null;
+      var src = (window.__allDbForDup && window.__allDbForDup.length) ? window.__allDbForDup : ((typeof appState!=='undefined'&&appState.records)||[]);
+      var np = phoneDigits(phone), nc = normalizeCompanyKey(company), nce = normalizePersonKey(ceo);
+      return src.find(function(d){
+        if(String(d.id)===String(currentId)) return false;
+        if(d.is_frozen||d.isFrozen) return false;
+        var dp = phoneDigits(d.phone||'');
+        if(np && dp && dp===np) return true;
+        var sc = nc && normalizeCompanyKey(d.company||'')===nc;
+        var sce = nce && normalizePersonKey(d.ceo||'')===nce;
+        return !!(sc && sce);
+      }) || null;
+    }catch(e){ console.warn('[checkDuplicateDB 전팀]', e); return null; }
+  };
+})();
+/* loadDBRecords 후 전 팀 캐시 갱신(로그인·새로고침마다, fire-and-forget) */
+(function(){
+  var _origLoad = window.loadDBRecords;
+  if(typeof _origLoad === 'function'){
+    window.loadDBRecords = async function(){
+      var r = await _origLoad.apply(this, arguments);
+      try{ window.__loadAllDbForDup(); }catch(_e){}
+      return r;
+    };
+  }
+})();
+/* 두 버튼 확인 팝업(async, 볼드 지원) */
+window.showDupConfirm = function(bodyHtml){
+  return new Promise(function(resolve){
+    document.querySelectorAll('[data-dup-confirm="1"]').forEach(function(el){ el.remove(); });
+    var ov=document.createElement('div');
+    ov.setAttribute('data-dup-confirm','1');
+    ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:10006;background:rgba(0,0,0,.45)';
+    var box=document.createElement('div');
+    box.setAttribute('data-dup-confirm','1');
+    box.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10007;background:#fff;border:3px solid #ef4444;border-radius:16px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:440px;width:92%';
+    box.innerHTML='<div style="font-size:38px;text-align:center;margin-bottom:8px">\u26a0\ufe0f</div>'
+      +'<div style="font-weight:900;font-size:16px;color:#dc2626;text-align:center;margin-bottom:14px">\uc911\ubcf5 DB \uacbd\uace0</div>'
+      +'<div style="font-size:13px;color:#334155;line-height:1.7">'+bodyHtml+'</div>'
+      +'<div style="display:flex;gap:10px;justify-content:center;margin-top:18px">'
+      +'<button id="_dc_cancel" type="button" style="padding:10px 24px;background:#e2e8f0;color:#334155;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">\ucde8\uc18c</button>'
+      +'<button id="_dc_ok" type="button" style="padding:10px 24px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">\uadf8\ub798\ub3c4 \ubc30\uc815</button>'
+      +'</div>';
+    document.body.appendChild(ov); document.body.appendChild(box);
+    var done=function(v){ box.remove(); ov.remove(); resolve(v); };
+    ov.onclick=function(){ done(false); };
+    box.querySelector('#_dc_cancel').onclick=function(){ done(false); };
+    box.querySelector('#_dc_ok').onclick=function(){ done(true); };
+  });
+};
+/* assignDBToMember 래핑 — 전 팀 중복 시 리치 팝업 → '그래도 배정' 시에만 원본 진행 */
+(function(){
+  var _origAssign = window.assignDBToMember;
+  if(typeof _origAssign === 'function'){
+    window.assignDBToMember = async function(){
+      try{
+        var esc = (typeof escapeHtml==='function') ? escapeHtml : function(x){return x==null?'':String(x);};
+        var cvEl=document.getElementById('input-company'), ceoEl=document.getElementById('input-ceo'), phEl=document.getElementById('input-phone'), idEl=document.getElementById('edit-id');
+        var cv=cvEl?cvEl.value:'', ceo=ceoEl?ceoEl.value:'', ph=phEl?phEl.value:'', cid=idEl?(idEl.value||''):'';
+        if(cv || ph){
+          if(!window.__allDbForDup || !window.__allDbForDup.length){ await window.__loadAllDbForDup(); } /* 안전: 캐시 비었으면 즉시 로드 */
+          var dup = window.checkDuplicateDB(cv, ceo, ph, cid);
+          if(dup && !dup.is_reassigned && !dup.isReassigned){
+            var np=phoneDigits(ph), dp=phoneDigits(dup.phone||'');
+            var reason=(dp===np && np)?('\uc5f0\ub77d\ucc98 \uc911\ubcf5: '+esc(ph)):'\uc5c5\uccb4\uba85/\ub300\ud45c\uc790 \uc911\ubcf5';
+            var team=dup.team?esc(dup.team):'-';
+            var member=dup.member?esc(dup.member):'-';
+            var stt=(dup.status||(dup.raw&&dup.raw.status));
+            var status=stt?esc(stt):'-';
+            var body=''
+              +'<div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
+              +  '<div style="margin-bottom:7px"><b style="color:#dc2626">['+team+']</b> \ub2f4\ub2f9\uc790: <b>'+member+'</b></div>'
+              +  '<div style="margin-bottom:7px">\uc5c5\uccb4\uba85: <b>'+esc(dup.company||'-')+'</b></div>'
+              +  '<div style="margin-bottom:7px">\ub300\ud45c\uc790: '+esc(dup.ceo||'-')+' &nbsp;|&nbsp; \uc5f0\ub77d\ucc98: '+esc(dup.phone||'-')+'</div>'
+              +  '<div>\uc9c4\ud589\uc0c1\ud669: <b>'+status+'</b></div>'
+              +'</div>'
+              +'<div style="color:#64748b">\uc0ac\uc720: '+reason+'</div>'
+              +'<div style="color:#64748b;margin-top:2px">\uc720\uc0ac\ud55c DB\uac00 \uc774\ubbf8 \uc874\uc7ac\ud569\ub2c8\ub2e4.</div>'
+              +'<div style="margin-top:12px;padding:11px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;font-weight:900;color:#dc2626;text-align:center">\uc9c4\ud589\uc911\uc778 \ub2f4\ub2f9\uc790\uc5d0\uac8c \ubb38\uc758 \ubc14\ub78d\ub2c8\ub2e4.</div>';
+            var ok = await window.showDupConfirm(body);
+            if(!ok) return; /* 취소 → 저장 중단 */
+            window.__dupConfirmed = true; /* 원본의 native 중복 confirm 스킵 */
+          }
+        }
+      }catch(e){ console.warn('[중복 사전체크]', e); }
+      try{
+        return await _origAssign.apply(this, arguments);
+      } finally {
+        window.__dupConfirmed = false;
+      }
+    };
+  }
 })();
 
 // Realtime 구독 (새 메시지 도착)
