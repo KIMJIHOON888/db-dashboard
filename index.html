@@ -19592,21 +19592,22 @@ window.__loadAllDbForDup = async function(){
   }
 })();
 /* 두 버튼 확인 팝업(async, 볼드 지원) */
-window.showDupConfirm = function(bodyHtml){
+window.showDupConfirm = function(bodyHtml, okLabel){
   return new Promise(function(resolve){
+    okLabel = okLabel || '\uadf8\ub798\ub3c4 \ubc30\uc815'; /* 기본: 그래도 배정 */
     document.querySelectorAll('[data-dup-confirm="1"]').forEach(function(el){ el.remove(); });
     var ov=document.createElement('div');
     ov.setAttribute('data-dup-confirm','1');
     ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:10006;background:rgba(0,0,0,.45)';
     var box=document.createElement('div');
     box.setAttribute('data-dup-confirm','1');
-    box.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10007;background:#fff;border:3px solid #ef4444;border-radius:16px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:440px;width:92%';
+    box.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10007;background:#fff;border:3px solid #ef4444;border-radius:16px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:440px;width:92%;max-height:92vh;overflow-y:auto';
     box.innerHTML='<div style="font-size:38px;text-align:center;margin-bottom:8px">\u26a0\ufe0f</div>'
       +'<div style="font-weight:900;font-size:16px;color:#dc2626;text-align:center;margin-bottom:14px">\uc911\ubcf5 DB \uacbd\uace0</div>'
       +'<div style="font-size:13px;color:#334155;line-height:1.7">'+bodyHtml+'</div>'
       +'<div style="display:flex;gap:10px;justify-content:center;margin-top:18px">'
       +'<button id="_dc_cancel" type="button" style="padding:10px 24px;background:#e2e8f0;color:#334155;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">\ucde8\uc18c</button>'
-      +'<button id="_dc_ok" type="button" style="padding:10px 24px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">\uadf8\ub798\ub3c4 \ubc30\uc815</button>'
+      +'<button id="_dc_ok" type="button" style="padding:10px 24px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:14px">'+okLabel+'</button>'
       +'</div>';
     document.body.appendChild(ov); document.body.appendChild(box);
     var done=function(v){ box.remove(); ov.remove(); resolve(v); };
@@ -19657,6 +19658,49 @@ window.showDupConfirm = function(bodyHtml){
       }
     };
   }
+})();
+
+/* ===== [saveDBModal 래핑 — 저장 경로도 전 팀 중복 리치 팝업으로] =====
+   신규 등록(수정 아님)일 때 전 팀 캐시로 중복 검사 → 있으면 리치 팝업('취소'/'그래도 저장').
+   '그래도 저장' 시 __dupConfirmed=true 로 원본의 native 중복 confirm(그래도 저장?) 자동 스킵.
+   배정 경로 래퍼와 동일 패턴 · 원본 함수 무삭제(래핑만). */
+(function(){
+  var _origSave = window.saveDBModal;
+  if(typeof _origSave !== 'function') return;
+  window.saveDBModal = async function(){
+    try{
+      var esc = (typeof escapeHtml==='function') ? escapeHtml : function(x){return x==null?'':String(x);};
+      if(typeof modalState!=='undefined' && modalState && !modalState.currentId){  /* 신규 등록만 */
+        var fd = (typeof collectModalFormData==='function') ? collectModalFormData() : null;
+        if(fd && (fd.company || fd.phone)){
+          if(!window.__allDbForDup || !window.__allDbForDup.length){ try{ await window.__loadAllDbForDup(); }catch(_e){} }
+          var np = (typeof phoneDigits==='function') ? phoneDigits(fd.phone||'') : String(fd.phone||'').replace(/\D/g,'');
+          var dup = window.checkDuplicateDB(fd.company, fd.ceo, np, '');
+          if(dup){
+            var dp = (typeof phoneDigits==='function') ? phoneDigits(dup.phone||'') : String(dup.phone||'').replace(/\D/g,'');
+            var reason=(dp===np && np)?('\uc5f0\ub77d\ucc98 \uc911\ubcf5: '+esc(fd.phone||np)):'\uc5c5\uccb4\uba85/\ub300\ud45c\uc790 \uc911\ubcf5';
+            var team=dup.team?esc(dup.team):'-', member=dup.member?esc(dup.member):'-';
+            var stt=(dup.status||(dup.raw&&dup.raw.status)); var status=stt?esc(stt):'-';
+            var body=''
+              +'<div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
+              +  '<div style="margin-bottom:7px"><b style="color:#dc2626">['+team+']</b> \ub2f4\ub2f9\uc790: <b>'+member+'</b></div>'
+              +  '<div style="margin-bottom:7px">\uc5c5\uccb4\uba85: <b>'+esc(dup.company||'-')+'</b></div>'
+              +  '<div style="margin-bottom:7px">\ub300\ud45c\uc790: '+esc(dup.ceo||'-')+' &nbsp;|&nbsp; \uc5f0\ub77d\ucc98: '+esc(dup.phone||'-')+'</div>'
+              +  '<div>\uc9c4\ud589\uc0c1\ud669: <b>'+status+'</b></div>'
+              +'</div>'
+              +'<div style="color:#64748b">\uc0ac\uc720: '+reason+'</div>'
+              +'<div style="color:#64748b;margin-top:2px">\uc720\uc0ac\ud55c DB\uac00 \uc774\ubbf8 \uc874\uc7ac\ud569\ub2c8\ub2e4.</div>'
+              +'<div style="margin-top:12px;padding:11px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;font-weight:900;color:#dc2626;text-align:center">\uc9c4\ud589\uc911\uc778 \ub2f4\ub2f9\uc790\uc5d0\uac8c \ubb38\uc758 \ubc14\ub78d\ub2c8\ub2e4.</div>';
+            var ok = await window.showDupConfirm(body, '\uadf8\ub798\ub3c4 \uc800\uc7a5'); /* 그래도 저장 */
+            if(!ok) return; /* 취소 → 저장 중단 */
+            window.__dupConfirmed = true; /* 원본 native 중복 confirm 스킵 */
+          }
+        }
+      }
+    }catch(e){ console.warn('[중복 사전체크·저장]', e); }
+    try{ return await _origSave.apply(this, arguments); }
+    finally{ window.__dupConfirmed = false; }
+  };
 })();
 
 /* ===== [메모 박스 자동 늘어남 + 업체별 크기 기억] =====
