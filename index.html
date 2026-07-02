@@ -19498,6 +19498,38 @@ function updateMessageBadge() {
 }
 window.updateMessageBadge = updateMessageBadge;
 
+/* ===== [v36 SSO 팀 스코프 / 소통 펄스 보정] =====
+   버그: 관리자가 특정 팀 작업실에 있어도, 펄스 배지가 '관리자에게 온 미읽음 전체'를 세서
+         다른 팀(예:3팀 김찬욱) 메시지 때문에 1·2·4팀 작업실에서도 펄스가 켜짐.
+   해결: renderMsgContacts와 동일 기준으로 '본인 팀 팀원이 보낸 미읽음'만 카운트(관리자급 한정).
+         팀원 로그인은 기존 로직 그대로 유지(회귀 방지). 원본 updateMessageBadge는 보존, 여기서 덮어씀. */
+(function(){
+  window.updateMessageBadge = function(){
+    try{
+      var me = window.currentUser;
+      if(!me || !window._allMessages){ return; }
+      var isAdminLike = (me.role==='team_manager' || me.role==='branch_manager' || me.role==='system_admin');
+      var unreadCount;
+      if(isAdminLike){
+        var teamNames = ((typeof appState!=='undefined' && appState && appState.members) ? appState.members : [])
+          .filter(function(m){ return m && m.name && m.role==='member' && m.team===me.team; })
+          .map(function(m){ return m.name; });
+        unreadCount = window._allMessages.filter(function(m){
+          return m.to_name===me.name && m.from_name!==me.name && !m.is_read && teamNames.indexOf(m.from_name)>=0;
+        }).length;
+      } else {
+        unreadCount = window._allMessages.filter(function(m){
+          return m.to_name===me.name && m.from_name!==me.name && !m.is_read;
+        }).length;
+      }
+      var badge = document.getElementById('msg-badge');
+      if(badge){ badge.style.display = (unreadCount>0)?'inline-block':'none'; badge.innerText=''; }
+      var nav = document.getElementById('nav-comm');
+      if(nav){ if(unreadCount>0) nav.classList.add('has-unread'); else nav.classList.remove('has-unread'); }
+    }catch(e){ console.warn('[updateMessageBadge team-scope]', e); }
+  };
+})();
+
 // Realtime 구독 (새 메시지 도착)
 async function subscribeToNewMessages() {
   try {
