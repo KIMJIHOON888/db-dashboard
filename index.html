@@ -4566,6 +4566,12 @@ function resetPassword(u){
               try { sb.from('app_users').update({ last_login_at: new Date().toISOString() }).eq('id', _meRow.id).then(function(){}).catch(function(){}); } catch(_e){}
               enterMain(_meRow);
               if (typeof enterAppMain === 'function') enterAppMain(_meRow);
+              /* [v36 승인 바로가기] #members 해시로 진입하면 팀원관리 화면을 바로 연다 */
+              try{
+                if((window.location.hash||'') === '#members'){
+                  setTimeout(function(){ try{ if(typeof navTo==='function') navTo('members'); }catch(_e){} }, 500);
+                }
+              }catch(_e){}
               _ssoOk = true;
               console.log('[v36 SSO] 세션 복원 + 자동 로그인 성공');
             }
@@ -19549,9 +19555,22 @@ window.__loadAllDbForDup = async function(){
     if(typeof sb==='undefined'||!sb) return;
     var all=[], from=0, page=1000;
     for(var guard=0; guard<50; guard++){
-      var r = await sb.from('db_records').select('id,company,ceo,phone,member,team,status,is_frozen').range(from, from+page-1);
+      var r = await sb.from('db_records').select('id,company,ceo,phone,member,team,status,is_frozen,raw').range(from, from+page-1);
       if(r.error){ console.warn('[전 팀 중복 캐시] 조회 오류:', r.error.message); break; }
-      var rows = r.data||[];
+      /* normalizeDBRecord와 동일하게 raw(JSON) 값을 우선 병합 — 진행상황은 raw.status에 있음 */
+      var rows = (r.data||[]).map(function(d){
+        var rw = d.raw || {};
+        return {
+          id: d.id,
+          company: rw.company || d.company || '',
+          ceo: rw.ceo || d.ceo || '',
+          phone: rw.phone || d.phone || '',
+          member: rw.member || d.member || '',
+          team: rw.team || d.team || '',
+          status: rw.status || d.status || '',
+          is_frozen: d.is_frozen || rw.isFrozen || false
+        };
+      });
       all = all.concat(rows);
       if(rows.length < page) break;
       from += page;
@@ -20436,6 +20455,184 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
     </div>
   </div>
 </div>
+
+<!-- ===== [v34.4 회귀 복원] NO 페이지당 1~30 · 상세 리스트번호 · 재배정 드롭다운 팀필터 (원본 무삭제·래퍼) ===== -->
+<script>
+(function(){
+  /* [버그1·2] DB목록: NO를 페이지마다 1~30으로 리셋 + tr data-rownum 동기화(상세창 "N번 업체명")
+     v34.4는 idx+1을 썼는데 v35에서 start+idx+1(연속)로 회귀 → 후처리로 원복.
+     + id→번호 맵을 만들어 openDBModal이 rowNum 미전달이어도 목록 클릭 시 번호가 뜨게 보강(방탄) */
+  (function(){
+    var _orig = window.renderListPage;
+    if(typeof _orig === 'function'){
+      window.renderListPage = function(){
+        var r = _orig.apply(this, arguments);
+        try{
+          var tb = document.getElementById('list-body');
+          if(tb){
+            window.__rowNumById = {};
+            var trs = tb.querySelectorAll('tr[data-action="open-record"]');
+            for(var i=0;i<trs.length;i++){
+              var n = i + 1;                       /* 페이지 내 순번 1~30 (v34.4 동일) */
+              trs[i].setAttribute('data-rownum', n);
+              var noCell = trs[i].querySelector('td.col-no');
+              if(noCell) noCell.textContent = n;
+              var rid = trs[i].getAttribute('data-id');
+              if(rid) window.__rowNumById[String(rid)] = n;
+            }
+          }
+        }catch(e){ console.warn('[NO 번호 복원]', e && e.message); }
+        return r;
+      };
+    }
+  })();
+
+  /* [버그2 완전방탄] openDBModal: rowNum(인자 또는 목록맵)이 있으면, 모달이 열린 뒤
+     요약카드 업체명(sum-company)에 "N번 "을 강제로 보장한다. 내부 체인 상태와 무관하게 확실히 표시.
+     목록에 없는 레코드(월별 히스토리 등)는 맵에 없어 번호 미표시(v34.4 정책 유지). */
+  (function(){
+    var _origOpen = window.openDBModal;
+    if(typeof _origOpen === 'function'){
+      window.openDBModal = async function(id, rowNum){
+        try{
+          if((rowNum === undefined || rowNum === null) && id && window.__rowNumById){
+            var mapped = window.__rowNumById[String(id)];
+            if(mapped) rowNum = mapped;
+          }
+        }catch(e){}
+        var r = await _origOpen.call(this, id, rowNum);
+        try{
+          if(rowNum){
+            var el = document.getElementById('sum-company');
+            if(el){
+              var base = (el.textContent || '').replace(/^\s*\d+\uBC88\s*/, '');   /* 기존 "N번 " 제거 후 */
+              el.textContent = rowNum + '\uBC88 ' + base;                          /* "N번 업체명" 보장 */
+            }
+          }
+        }catch(e){}
+        return r;
+      };
+    }
+  })();
+
+  /* [버그3+퇴사자] 모달 '다른 팀원에게 재배정' 드롭다운:
+     - 승인된 활성 팀원만 (퇴사자/거절자 제외) — v35에 status 필터가 없어 퇴사자가 노출되던 문제
+     - SM(team_manager)은 본인 팀만, BM·시스템관리자는 전 팀 */
+  (function(){
+    var _orig = window.populateAdminReassignSelect;
+    if(typeof _orig === 'function'){
+      window.populateAdminReassignSelect = async function(){
+        var r = await _orig.apply(this, arguments);
+        try{
+          var me = window.currentUser || {};
+          var sel = document.getElementById('admin-reassign-target');
+          if(sel && typeof sb!=='undefined' && sb){
+            var query = sb.from('app_users').select('name, team, status').eq('status', 'approved');
+            if(me.role === 'team_manager') query = query.eq('team', me.team);   /* SM=본인 팀만 */
+            var q = await query;
+            var allowed = {}; (q.data||[]).forEach(function(u){ if(u && u.name) allowed[u.name] = true; });
+            var opts = sel.querySelectorAll('option');
+            for(var i=opts.length-1;i>=0;i--){
+              var v = opts[i].value;
+              if(!v || v === '__pending__') continue;   /* 안내·재배정 대기함 옵션 유지 */
+              if(!allowed[v]) opts[i].parentNode.removeChild(opts[i]);
+            }
+          }
+        }catch(e){ console.warn('[재배정 드롭다운 팀·퇴사 필터]', e && e.message); }
+        return r;
+      };
+    }
+  })();
+})();
+</script>
+
+<!-- ===== [v35 통합UI 연동: 신입 승인 보정 · 로그아웃→v36 · v36 복귀 버튼] 원본 무삭제(래핑/캡처/주입) ===== -->
+<script>
+(function(){
+  var V36_URL = 'https://kimjihoon888.github.io/dbpro-v36-ui/';
+
+  /* [6] 신입 승인 버그 보정: [신입 뱃지] 미체크로 승인하면 신입 해제 확정.
+     (가입 시 is_new=true 였더라도 미체크 승인 시 is_new=false로 덮어써 배지 제거) */
+  (function(){
+    var _origApprove = window.approveUser;
+    if(typeof _origApprove === 'function'){
+      window.approveUser = async function(uid){
+        var cb = document.getElementById('new-'+uid);
+        var wantNew = !!(cb && cb.checked);
+        var r = await _origApprove.apply(this, arguments);
+        try{
+          if(!wantNew && typeof sb!=='undefined' && sb){
+            await sb.from('app_users').update({ is_new:false }).eq('id', uid);
+            if(typeof loadAdminData==='function'){ try{ await loadAdminData(); }catch(_){} }
+          }
+        }catch(e){ console.warn('[신입 해제 보정]', e && e.message); }
+        return r;
+      };
+    }
+  })();
+
+  /* [5] 로그아웃 → v36 로그인 화면으로. 두 로그아웃 버튼 클릭을 캡처 단계에서 가로채
+     원본 doLogout(=v35 재로드) 대신 v36로 이동. 원본 함수·바인딩 무수정 */
+  async function _logoutToV36(){
+    try{ if(typeof unsubscribeNewDBAssignments==='function') await unsubscribeNewDBAssignments(); }catch(e){}
+    try{ if(typeof unsubscribeNewMessages==='function') await unsubscribeNewMessages(); }catch(e){}
+    try{ if(typeof sb!=='undefined' && sb) await sb.auth.signOut(); }catch(e){}
+    try{ window.currentUser=null; if(window.appState) appState.records=[]; }catch(e){}
+    location.href = V36_URL + '?logout=1';
+  }
+  document.addEventListener('click', function(e){
+    try{
+      var t = e.target && e.target.closest ? e.target.closest('#btn-logout, #btn-logout-sidebar') : null;
+      if(t){ e.preventDefault(); e.stopImmediatePropagation(); _logoutToV36(); }
+    }catch(_){}
+  }, true);
+
+  /* [4] 좌측 사이드바 하단, 로그아웃 위(옆)에 [🏠 바로가기] 버튼 주입 → v36 대시보드로 복귀 */
+  var BACK_ENABLED = false;   /* ★ 배포 완료 + v36 새 주소 확정되면 true로 바꾸면 바로가기 활성화 */
+  function injectBackToV36(){
+    try{
+      var lo = document.getElementById('btn-logout-sidebar');
+      if(!lo || !lo.parentNode) return;
+      if(document.getElementById('btn-back-v36')) return;
+      var b = document.createElement('button');
+      b.id = 'btn-back-v36'; b.type = 'button'; b.className = lo.className;
+      /* 노란색(눈에 잘 띄게). 차단 상태면 살짝 흐리게 */
+      b.style.cssText = 'margin-bottom:6px;color:#7c4a03;background:#fde047;border:1px solid #ca8a04;font-weight:800;'
+        + (BACK_ENABLED ? '' : 'opacity:.85;');
+      b.innerHTML = '<i class="fa-solid fa-house"></i> 바로가기';
+      b.title = BACK_ENABLED ? 'v36 대시보드로 이동' : '배포 완료 후 활성화 예정';
+      b.addEventListener('click', function(){
+        if(!BACK_ENABLED){
+          if(typeof showToast==='function') showToast('바로가기는 v36 배포 완료 후 활성화됩니다.', 'info');
+          else alert('바로가기는 v36 배포 완료 후 활성화됩니다.');
+          return;
+        }
+        location.href = V36_URL;
+      });
+      lo.parentNode.insertBefore(b, lo);
+    }catch(e){}
+  }
+  if(document.readyState!=='loading') setTimeout(injectBackToV36, 300);
+  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(injectBackToV36, 300); });
+})();
+</script>
+
+<!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
+<script>
+(function(){
+  var VER35='v35.2.89';
+  function setVer35(){
+    try{
+      document.title = 'DB Pro Master ' + VER35;
+      document.querySelectorAll('.auth-version').forEach(function(e){ e.textContent = VER35; });
+      document.querySelectorAll('.temp-title').forEach(function(e){
+        if(/DB Pro Master/.test(e.textContent)){ e.innerHTML = e.innerHTML.replace(/v35\.[0-9]+\.[0-9]+/, VER35); }
+      });
+    }catch(_){}
+  }
+  if(document.readyState!=='loading') setVer35(); else document.addEventListener('DOMContentLoaded', setVer35);
+})();
+</script>
 
 </body>
 </html>
