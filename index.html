@@ -8431,10 +8431,14 @@ async function openDBModal(id, rowNum) {
 
   // 모달 표시
   $('db-modal').classList.add('active');
-  /* [메모 박스 크기 누수 수정] db-modal은 재사용 요소라, 한 업체에서 textarea를 드래그로 키우면
-     인라인 height가 그 요소에 남아 다른 업체를 열어도 커진 채로 보임(전화이슈 메모 등).
-     열 때마다 모달 안 모든 textarea의 인라인 높이를 비워 CSS 기본(min-height)으로 초기화. additive, 삭제 0. */
-  try { document.querySelectorAll('#db-modal textarea').forEach(function(_t){ _t.style.height = ''; }); } catch(_e){}
+  /* [메모 박스 자동 늘어남 + 업체별 크기 기억] 모달 표시(값 세팅은 위 fillModalForm에서 완료) 후 실행.
+     - 저장된 수동 크기(업체별)가 있으면 복원, 없으면 내용에 맞춰 자동 확장(넘치면 스크롤바).
+     - db-modal 재사용에 따른 크기 누수도 함께 방지(업체별 키). additive, 삭제 0. */
+  try {
+    if(window.__setupMemoHandlers) window.__setupMemoHandlers();
+    var _memoCid = modalState.currentId;
+    requestAnimationFrame(function(){ try{ if(window.__restoreMemoSizes) window.__restoreMemoSizes(_memoCid); }catch(e){} });
+  } catch(_e){}
   
   // v35.1.72 김지훈: 외부 포털 Phase 3-B - 읽기 전용 UI 강화 (v34.4 line 2321 패턴 동등)
   // 사고: v35.1.48 권한 분기는 버튼 클릭 시 토스트 차단만 되어, 입력 폼은 자유롭게 사용 가능
@@ -19653,6 +19657,56 @@ window.showDupConfirm = function(bodyHtml){
       }
     };
   }
+})();
+
+/* ===== [메모 박스 자동 늘어남 + 업체별 크기 기억] =====
+   요청: 전화이슈 메모 등 모달 textarea가 글 양에 따라 일정 크기까지 자동 확장, 넘으면 스크롤바.
+         + 사용자가 드래그로 키우면 그 업체에 한해 크기 기억(다른 업체엔 누수 X).
+   db-modal이 재사용 요소라 업체별 키(field+업체id)로 저장/복원 → 크기 누수도 방지. 원본 삭제 0. */
+(function(){
+  var MAX = 400; /* 자동 확장 최대 높이(px). 초과 시 스크롤바 */
+  function targets(){ return Array.prototype.slice.call(document.querySelectorAll('#db-modal textarea')); }
+  function grow(t){
+    if(t.dataset.manual==='1'){ t.style.overflowY='auto'; return; } /* 수동 크기: 스크롤바만 */
+    t.style.height='auto';
+    var sh=t.scrollHeight;
+    var h=Math.min(sh, MAX);
+    t.style.height=h+'px';
+    t.style.overflowY=(sh>MAX)?'auto':'hidden';
+    t.__lastH=Math.round(t.offsetHeight);
+  }
+  window.__setupMemoHandlers=function(){
+    targets().forEach(function(t){
+      if(t.__memoInit) return;
+      t.__memoInit=true;
+      t.addEventListener('input', function(){ grow(t); });
+      /* 드래그로 크기 변경 감지 → 업체별 저장 */
+      t.addEventListener('mouseup', function(){
+        var hNow=Math.round(t.offsetHeight);
+        if(t.__lastH!=null && Math.abs(hNow-t.__lastH)>5){
+          t.dataset.manual='1'; t.style.overflowY='auto'; t.__lastH=hNow;
+          if(t.__memoKey){ try{ localStorage.setItem(t.__memoKey, String(hNow)); }catch(e){} }
+        }
+      });
+    });
+  };
+  window.__restoreMemoSizes=function(cid){
+    cid=(cid==null?'':String(cid));
+    targets().forEach(function(t){
+      t.__memoKey = cid ? ('__memoH_'+t.id+'_'+cid) : '';
+      t.dataset.manual='';
+      t.style.height=''; t.style.overflowY='';
+      var saved = t.__memoKey ? localStorage.getItem(t.__memoKey) : null;
+      if(saved && parseInt(saved,10)>0){
+        t.dataset.manual='1';
+        t.style.height=parseInt(saved,10)+'px';
+        t.style.overflowY='auto';
+        t.__lastH=parseInt(saved,10);
+      } else {
+        grow(t); /* 내용에 맞춰 자동 확장 */
+      }
+    });
+  };
 })();
 
 // Realtime 구독 (새 메시지 도착)
