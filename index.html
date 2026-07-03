@@ -20588,7 +20588,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
   }, true);
 
   /* [4] 좌측 사이드바 하단, 로그아웃 위(옆)에 [🏠 바로가기] 버튼 주입 → v36 대시보드로 복귀 */
-  var BACK_ENABLED = false;   /* ★ 배포 완료 + v36 새 주소 확정되면 true로 바꾸면 바로가기 활성화 */
+  var BACK_ENABLED = true;    /* ★ 배포 완료 + v36 새 주소 확정되면 true로 바꾸면 바로가기 활성화 (활성화됨) */
   function injectBackToV36(){
     try{
       var lo = document.getElementById('btn-logout-sidebar');
@@ -20620,7 +20620,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.89';
+  var VER35='v35.2.90';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
