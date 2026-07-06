@@ -6093,7 +6093,11 @@ function renderList() {
     const bDate = bReassigned || b.contractDate || b.date;
     const dA = new Date(aDate).getTime() || 0;
     const dB = new Date(bDate).getTime() || 0;
-    return dB - dA;
+    if (dB !== dA) return dB - dA;
+    // v35.2.93: 같은 날짜면 입력 시각(created_at) 최신순 2차 정렬 → 재로그인해도 입력 순서 유지 (created_at 없으면 기존 순서 그대로)
+    const cA = new Date((a._supabaseRow && a._supabaseRow.created_at) || (aRaw && aRaw.created_at) || 0).getTime() || 0;
+    const cB = new Date((b._supabaseRow && b._supabaseRow.created_at) || (bRaw && bRaw.created_at) || 0).getTime() || 0;
+    return cB - cA;
   });
 
   appState.filteredRecords = filtered;
@@ -20620,7 +20624,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.92';
+  var VER35='v35.2.93';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20637,7 +20641,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.92';
+  var VER35='v35.2.93';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
