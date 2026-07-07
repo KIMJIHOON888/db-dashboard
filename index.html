@@ -9476,7 +9476,7 @@ function fillModalForm(rec) {
   $('input-ceo').value = rec.ceo || '';
   $('input-phone').value = rec.phone || '';
   $('input-industry').value = rec.industry || '';
-  $('input-revenue').value = rec.revenue || '미확인';
+  $('input-revenue').value = (typeof _mRev==='function' ? _mRev(rec.revenue) : (rec.revenue || '미확인'));  // v35.2.94: 매출 표준화(3억~10억미만→3억이상 등)
   $('input-region').value = rec.region || '';
 
   $('input-call-status').value = rec.callStatus || '';
@@ -20173,7 +20173,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
                         <div class="form-group"><label>연락처</label><input type="text" id="input-phone" placeholder="010-0000-0000"></div>
                         <div class="form-group"><label>업종</label><select id="input-industry"><option value="">선택</option><option value="제조">제조</option><option value="건설">건설</option><option value="도소매">도소매</option><option value="서비스">서비스</option><option value="IT">IT</option><option value="음식점">음식점</option><option value="운수업">운수업</option><option value="기타">기타</option></select></div>
                         <div class="form-group"><label>매출 규모</label><select id="input-revenue"><option value="미확인">미확인</option><option value="1억미만">1억 미만</option><option value="1억~3억">1억~3억</option><option value="3억이상">3억 이상</option><option value="5억이상">5억 이상</option><option value="10억이상">10억 이상</option><option value="30억이상">30억 이상</option></select></div>
-                        <div class="form-group"><label>지역</label><select id="input-region"><option value="">선택</option><option value="서울">서울</option><option value="경기">경기</option><option value="인천">인천</option><option value="부산">부산</option><option value="대구">대구</option><option value="광주">광주</option><option value="대전">대전</option><option value="울산">울산</option><option value="세종">세종</option><option value="강원">강원</option><option value="충북">충북</option><option value="충남">충남</option><option value="전북">전북</option><option value="전남">전남</option><option value="경북">경북</option><option value="경남">경남</option><option value="제주">제주</option></select></div>
+                        <div class="form-group"><label>세금 체납여부</label><select id="input-tax"><option value="완납">완납</option><option value="분납중">분납중</option><option value="연체중">연체중</option><option value="기타">기타</option></select></div>
                     </div>
                     </div>
                 </div>
@@ -20191,7 +20191,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
                         <div class="form-group" id="meet-date-wrap" style="display:none"><label>미팅 일정</label><input type="date" id="input-meet-date"></div>
                         <div class="form-group"><label>대표 신용점수</label><select id="input-credit"><option value="">미확인</option><option value="900이상">900점 이상</option><option value="800이상">800점 이상</option><option value="700이상">700점 이상</option><option value="700미만">700점 미만</option><option value="사고이력">사고 이력</option></select></div>
                         <div class="form-group"><label>연매출 (백만원)</label><input type="text" id="input-annual-rev"></div>
-                        <div class="form-group"><label>세금 체납여부</label><select id="input-tax"><option value="완납">완납</option><option value="분납중">분납중</option><option value="연체중">연체중</option><option value="기타">기타</option></select></div>
+                        <div class="form-group"><label>지역</label><select id="input-region"><option value="">선택</option><option value="서울">서울</option><option value="경기">경기</option><option value="인천">인천</option><option value="부산">부산</option><option value="대구">대구</option><option value="광주">광주</option><option value="대전">대전</option><option value="울산">울산</option><option value="세종">세종</option><option value="강원">강원</option><option value="충북">충북</option><option value="충남">충남</option><option value="전북">전북</option><option value="전남">전남</option><option value="경북">경북</option><option value="경남">경남</option><option value="제주">제주</option></select></div>
                     </div>
                     <div class="form-group" style="margin-top:15px">
                         <label><i class="fas fa-phone-volume" style="color:#f59e0b"></i> 전화이슈 메모</label>
@@ -20624,7 +20624,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.93';
+  var VER35='v35.2.94';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20641,7 +20641,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.93';
+  var VER35='v35.2.94';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
