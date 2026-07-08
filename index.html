@@ -3089,6 +3089,7 @@ function normalizePersonKey(name) {
   return String(name || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
 }
 // v34.4 line 4911~4926 그대로: appState.records 기준
+function markRetiredName(n){ if(!n) return '-'; var st=window.__retiredNames; return (st && st.has && st.has(n)) ? (n+'(퇴사자)') : n; }
 function checkDuplicateDB(company, ceo, phone, currentId) {
   if (!company && !phone) return null;
   var normalizedPhone = phoneDigits(phone);
@@ -5714,7 +5715,7 @@ function renderFilters() {
   let memberHTML = '';
   if (isAdmin) {
     // v35.2.84: '퇴사자 이관DB' 옵션 추가 — 선택 시 __퇴사자DB__ 이관분만 조회 (연/월 필터 연동)
-    memberHTML = '<select id="filter-member" class="filter-member-select"><option value="all">전체 팀원 보기</option><option value="__퇴사자DB__">🚪 퇴사자 이관DB</option></select>';
+    memberHTML = '<select id="filter-member" class="filter-member-select"><option value="all">전체 팀원 보기</option></select>';
   }
 
   // v35.1.18: 상단 "즐겨찾기만" 버튼 제거 — 헤더 ★ 컬럼이 동일 기능 (v34.4 line 5750 동등 복원)
@@ -5761,7 +5762,7 @@ function renderFilters() {
     const memberSel = document.getElementById('filter-member');
     // 자신의 팀 또는 전체 팀의 멤버 목록 가져오기
     fetchMembersForFilter().then(memberNames => {
-      memberSel.innerHTML = '<option value="all">전체 팀원 보기</option><option value="__퇴사자DB__">🚪 퇴사자 이관DB</option>'
+      memberSel.innerHTML = '<option value="all">전체 팀원 보기</option>'
         + memberNames.map(n => '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>').join('');
       // v35.1.80: 사고 fix — fetchMembers 비동기 완료 전 _pendingListFilter.member 설정 시도 → 옵션 없어 무시되던 함정
       //   해결: 옵션 채워진 후 _pendingMemberAfterFetch에 보관된 값 다시 적용 + renderList 재호출
@@ -5784,7 +5785,7 @@ function renderFilters() {
 async function fetchMembersForFilter() {
   const me = window.currentUser;
   let q = sb.from('app_users').select('name,team,role,status').neq('status','retired');
-  if (me.role === 'team_manager') q = q.eq('team', me.team);
+  if (me.team) q = q.eq('team', me.team);  /* v35.2.96: me.team(진입팀/소속팀) 있으면 그 팀만 */
   const { data } = await q.order('name');
   if (!data) return [];
   // v35.2.84: 영업자(member/SM/BM)는 모두 드롭다운에 표시. 시스템 관리자만 제외.
@@ -6783,6 +6784,8 @@ function exportToExcel() {
 //   해결: 본인 명의 SELECT 후, 추가로 raw.shareList에 본인 이름 있는 계약 DB도 SELECT
 //   주의: RLS 정책도 함께 확장 필요 (Supabase 대시보드)
 async function loadDBRecords() {
+  // v35.2.95: 퇴사자 이름 캐시 (중복 알림 담당자 '(퇴사자)' 표기용)
+  try{ const {data:_rtn}=await sb.from('app_users').select('name').eq('status','retired'); window.__retiredNames=new Set((_rtn||[]).map(function(x){return x.name;})); }catch(_e){ if(!window.__retiredNames) window.__retiredNames=new Set(); }
   const me = window.currentUser;
   
   // === Step 1: 본인 명의 (또는 팀/전체) DB SELECT — 기존 로직 유지 ===
@@ -7103,7 +7106,7 @@ async function loadReassignMembers(forceReload) {
   try {
     const me = window.currentUser;
     let q = sb.from('app_users').select('id, name, role, team, status').eq('status', 'approved');
-    if (me && me.role === 'team_manager') q = q.eq('team', me.team);
+    if (me && me.team) q = q.eq('team', me.team);  /* v35.2.96: 진입팀/소속팀 기준 */
     const { data, error } = await q.order('name');
     if (error) throw error;
     window.reassignMembersCache = (data || []).filter(u => u && u.name);
@@ -8419,9 +8422,9 @@ async function openDBModal(id, rowNum) {
       if (ats) {
         ats.innerHTML = '<option value="">배정할 팀원 선택</option>';
         try {
-          const { data: amData, error: amErr } = await sb.from('app_users').select('name, role').order('name', { ascending: true });
+          const { data: amData, error: amErr } = await sb.from('app_users').select('name, role, team, status').order('name', { ascending: true });
           if (amErr) throw amErr;
-          const ops = (amData || []).filter(u => u.name && isAssignableMember(u.role) && u.name !== me.name);
+          const ops = (amData || []).filter(u => u.name && isAssignableMember(u.role) && u.name !== me.name && u.status === 'approved' && (!me.team || u.team === me.team));
           ops.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
           ops.forEach(u => {
             ats.innerHTML += '<option value="' + escapeHtml(u.name) + '">' + escapeHtml(u.name) + ' 팀장</option>';
@@ -8646,7 +8649,7 @@ async function assignDBToMember() {
     const _normPh = phoneDigits(normalizedPhone);
     const _dupPh = phoneDigits(_dupCheck.phone || '');
     const _dupReason = (_dupPh === _normPh && _normPh) ? ('연락처 중복: ' + normalizedPhone) : '업체명/대표자 중복';
-    if (!confirm('⚠️ 중복 DB 경고!\n\n업체명: ' + (_dupCheck.company || '-') + '\n대표자: ' + (_dupCheck.ceo || '-') + '\n연락처: ' + (_dupCheck.phone || '-') + '\n담당: ' + (_dupCheck.member || '-') + '\n사유: ' + _dupReason + '\n\n유사한 DB가 이미 존재합니다.\n그래도 배정하시겠습니까?')) return;
+    if (!confirm('⚠️ 중복 DB 경고!\n\n업체명: ' + (_dupCheck.company || '-') + '\n대표자: ' + (_dupCheck.ceo || '-') + '\n연락처: ' + (_dupCheck.phone || '-') + '\n담당: ' + markRetiredName(_dupCheck.member) + '\n사유: ' + _dupReason + '\n\n유사한 DB가 이미 존재합니다.\n그래도 배정하시겠습니까?')) return;
   }
 
   if (!confirm('[' + targetMem + '] 팀장에게 "' + cv + '" DB를 배정하시겠습니까?')) return;
@@ -10158,7 +10161,7 @@ async function saveDBModal(shouldClose) {
         + '업체명: ' + (_dupCheck.company || '-') + '\n'
         + '대표자: ' + (_dupCheck.ceo || '-') + '\n'
         + '연락처: ' + (_dupCheck.phone || '-') + '\n'
-        + '담당: ' + (_dupCheck.member || '-') + '\n'
+        + '담당: ' + markRetiredName(_dupCheck.member) + '\n'
         + '사유: ' + _dupReason + '\n\n'
         + '유사한 DB가 이미 존재합니다.\n그래도 저장하시겠습니까?';
       if (!confirm(_confirmMsg)) return;
@@ -19655,7 +19658,7 @@ window.showDupConfirm = function(bodyHtml, okLabel){
             var np=phoneDigits(ph), dp=phoneDigits(dup.phone||'');
             var reason=(dp===np && np)?('\uc5f0\ub77d\ucc98 \uc911\ubcf5: '+esc(ph)):'\uc5c5\uccb4\uba85/\ub300\ud45c\uc790 \uc911\ubcf5';
             var team=dup.team?esc(dup.team):'-';
-            var member=dup.member?esc(dup.member):'-';
+            var member=dup.member?esc(markRetiredName(dup.member)):'-';
             var stt=(dup.status||(dup.raw&&dup.raw.status));
             var status=stt?esc(stt):'-';
             var body=''
@@ -20532,7 +20535,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
           var sel = document.getElementById('admin-reassign-target');
           if(sel && typeof sb!=='undefined' && sb){
             var query = sb.from('app_users').select('name, team, status').eq('status', 'approved');
-            if(me.role === 'team_manager') query = query.eq('team', me.team);   /* SM=본인 팀만 */
+            if(me.team) query = query.eq('team', me.team);   /* v35.2.96: me.team 있으면 그 팀만(진입팀/소속팀) */
             var q = await query;
             var allowed = {}; (q.data||[]).forEach(function(u){ if(u && u.name) allowed[u.name] = true; });
             var opts = sel.querySelectorAll('option');
@@ -20624,7 +20627,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.94';
+  var VER35='v35.2.96';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20641,7 +20644,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.94';
+  var VER35='v35.2.96';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
