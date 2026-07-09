@@ -8649,7 +8649,7 @@ async function assignDBToMember() {
     const _normPh = phoneDigits(normalizedPhone);
     const _dupPh = phoneDigits(_dupCheck.phone || '');
     const _dupReason = (_dupPh === _normPh && _normPh) ? ('연락처 중복: ' + normalizedPhone) : '업체명/대표자 중복';
-    if (!confirm('⚠️ 중복 DB 경고!\n\n업체명: ' + (_dupCheck.company || '-') + '\n대표자: ' + (_dupCheck.ceo || '-') + '\n연락처: ' + (_dupCheck.phone || '-') + '\n담당: ' + markRetiredName(_dupCheck.member) + '\n사유: ' + _dupReason + '\n\n유사한 DB가 이미 존재합니다.\n그래도 배정하시겠습니까?')) return;
+    if (!confirm('⚠️ 중복 DB 경고!\n\n업체명: ' + (_dupCheck.company || '-') + '\n대표자: ' + (_dupCheck.ceo || '-') + '\n연락처: ' + (_dupCheck.phone || '-') + '\n담당: ' + markRetiredName(_dupCheck.member) + '\n사유: ' + _dupReason + '\n\n유사한 DB가 이미 존재합니다.\n\n기존 담당자와 상의 후 결정하세요.\n[확인]=받은 것으로 카운팅 · [취소]=받지 않음(+1 제외)\n\n그래도 배정하시겠습니까?')) return;
   }
 
   if (!confirm('[' + targetMem + '] 팀장에게 "' + cv + '" DB를 배정하시겠습니까?')) return;
@@ -19554,7 +19554,7 @@ window.updateMessageBadge = updateMessageBadge;
 /* ===== [전 팀 중복 DB 감지 + 리치 경고 팝업] =====
    버그: checkDuplicateDB가 팀 필터된 appState.records만 검색 → 다른 팀 중복 못 잡음(4팀 확장 시도 동일).
    해결: 전 팀 db_records를 별도 캐시로 로드 → 래핑된 checkDuplicateDB가 이 캐시를 검색(모든 팀 감지).
-   개선: assignDBToMember(관리자 배정)에서 볼드 지원 커스텀 확인 팝업(팀/담당/진행상황 + '진행중인 담당자에게 문의 바랍니다.').
+   개선: assignDBToMember(관리자 배정)에서 볼드 지원 커스텀 확인 팝업(팀/담당/진행상황 + '기존 담당자와 상의 후 진행 여부를 결정하세요.<br><span style="font-weight:600;font-size:12px;color:#7f1d1d">[그래도 배정] = DB 받은 것으로 카운팅 · [취소] = 받지 않은 것으로 처리(+1 제외)</span>').
    원본(checkDuplicateDB 3078, confirm 8570)은 보존 — 래핑 + 플래그로 처리(삭제 0). */
 window.__allDbForDup = [];
 window.__loadAllDbForDup = async function(){
@@ -20627,7 +20627,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.96';
+  var VER35='v35.2.97';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20644,7 +20644,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.96';
+  var VER35='v35.2.97';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
