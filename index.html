@@ -3206,7 +3206,7 @@ function resetLoginFailCount(){
 function newBadgeHtml(user){
   if(!user || !user.is_new || !user.joined_at) return '';
   const days = Math.floor((Date.now() - new Date(user.joined_at).getTime())/86400000);
-  if(days >= 90) return '';
+  if(days >= 120) return '';  // v35.2.98: 신입 뱃지 3개월(90일)→4개월(120일)
   const color = days < 30 ? '#dc2626' : (days < 60 ? '#ea580c' : '#facc15');
   const tcolor = days < 60 ? '#fff' : '#7c2d12';
   return `<span class="badge-new" style="background:${color};color:${tcolor}" title="${user.joined_at} 입사 (${days+1}일 차)">신입</span>`;
@@ -3797,6 +3797,8 @@ async function loadAdminData(){
       if(root){
         root.querySelector('.btn-edit').addEventListener('click', ()=>editUser(u));
         root.querySelector('.btn-toggle-new').addEventListener('click', ()=>toggleNew(u));
+        { var _be=root.querySelector('.btn-toggle-expert'); if(_be) _be.addEventListener('click', ()=>toggleExpert(u)); }
+        { var _bs=root.querySelector('.btn-toggle-sidejob'); if(_bs) _bs.addEventListener('click', ()=>toggleSidejob(u)); }
         root.querySelector('.btn-retire').addEventListener('click', ()=>retireUser(u));
         root.querySelector('.btn-reset').addEventListener('click', ()=>resetPassword(u));
       }
@@ -3903,7 +3905,9 @@ function renderUserRow(u){
       </div>
       <div class="user-actions">
         <button class="btn-mini btn-edit"><i class="fa-solid fa-pen"></i> 편집</button>
-        <button class="btn-mini btn-toggle btn-toggle-new">${u.is_new?'신입 해제':'신입 지정'}</button>
+        <button class="btn-mini btn-toggle btn-toggle-new">${u.is_new?'신입 ✓':'신입'}</button>
+        <button class="btn-mini btn-toggle btn-toggle-expert">${u.badge_expert?'전문 ✓':'전문가'}</button>
+        <button class="btn-mini btn-toggle btn-toggle-sidejob">${u.badge_sidejob?'부업 ✓':'부업자'}</button>
         <button class="btn-mini btn-reset">비번 초기화</button>
         <button class="btn-mini btn-retire">퇴사처리</button>
       </div>
@@ -4142,6 +4146,26 @@ async function toggleNew(u){
     const { error } = await sb.from('app_users').update(updates).eq('id', u.id);
     if(error) throw error;
     showToast(u.is_new ? '신입 해제됨' : '신입으로 지정됨', 'success');
+    await loadAdminData();
+  } catch(e){ showToast('실패: ' + translateError(e.message), 'error'); }
+}
+
+// 전문가 토글 (badge_expert · 무기한 유지, 해제 시까지)
+async function toggleExpert(u){
+  try {
+    const { error } = await sb.from('app_users').update({ badge_expert: !u.badge_expert }).eq('id', u.id);
+    if(error) throw error;
+    showToast(u.badge_expert ? '전문 해제됨' : '전문으로 지정됨', 'success');
+    await loadAdminData();
+  } catch(e){ showToast('실패: ' + translateError(e.message), 'error'); }
+}
+
+// 부업자 토글 (badge_sidejob · 무기한 유지, 해제 시까지)
+async function toggleSidejob(u){
+  try {
+    const { error } = await sb.from('app_users').update({ badge_sidejob: !u.badge_sidejob }).eq('id', u.id);
+    if(error) throw error;
+    showToast(u.badge_sidejob ? '부업 해제됨' : '부업으로 지정됨', 'success');
     await loadAdminData();
   } catch(e){ showToast('실패: ' + translateError(e.message), 'error'); }
 }
@@ -4575,6 +4599,8 @@ function resetPassword(u){
               }catch(_e){}
               _ssoOk = true;
               console.log('[v36 SSO] 세션 복원 + 자동 로그인 성공');
+              // [v35.2.99] SSO 자동 로그인도 일반 로그인과 동일하게 월 목표 미설정 체크 (member만 대상 · 매니저는 함수 내부에서 자동 제외)
+              setTimeout(function(){ try { if(typeof checkMonthlyGoal === 'function') checkMonthlyGoal(); } catch(e){ console.warn('[checkMonthlyGoal-SSO]', e); } }, 800);
             }
           }
         }
@@ -20627,7 +20653,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.97';
+  var VER35='v35.2.99';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20644,7 +20670,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.2.97';
+  var VER35='v35.2.99';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
