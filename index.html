@@ -458,6 +458,65 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,Roboto,
 #main-table .col-fav .star { font-size: 18px; color: #cbd5e1; transition: .2s; }
 #main-table .col-fav .star.active { color: #fbbf24; }
 
+/* v35.3.08: DB 목록 모바일 카드형 (≤768px 전용, #main-table 스코프) — 가로스크롤 제거, 외근 조회 편의.
+   PC(≥769px)는 이 블록 밖이라 완전 불변. JS·데이터 무관(순수 CSS). */
+@media (max-width: 768px) {
+  #main-table { min-width: 0 !important; width: 100%; font-size: 14px; border-collapse: collapse; }
+  #main-table thead { display: none; }                 /* 헤더행 숨김 (카드라 불필요) */
+  #main-table, #main-table tbody { display: block; width: 100%; }
+  #main-table tbody tr {
+    display: block;
+    position: relative;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  }
+  #main-table tbody tr.is-frozen { background: #fef2f2; }
+  #main-table tbody td {
+    display: inline-block;
+    border: none !important;
+    padding: 3px 6px 3px 0 !important;
+    text-align: left !important;
+    vertical-align: middle;
+    font-size: 12.5px;
+    color: #475569;
+  }
+  /* 업체명 = 카드 헤드라인 (한 줄 전체, 크게) */
+  #main-table tbody td.col-company {
+    display: block;
+    width: 100%;
+    font-size: 17px !important;
+    font-weight: 800;
+    color: #0f172a;
+    text-align: left !important;
+    padding: 0 40px 8px 0 !important;
+    margin-bottom: 6px;
+    border-bottom: 1px dashed #eef2f7 !important;
+  }
+  /* 연락처 = 강조 + 탭 편의 */
+  #main-table tbody td.col-phone {
+    display: block;
+    width: 100%;
+    font-size: 15px;
+    padding: 6px 0 !important;
+  }
+  #main-table tbody td.col-phone::before { content: "📞 "; }
+  /* 번호는 작게 */
+  #main-table tbody td.col-no { color: #94a3b8; font-size: 11px; }
+  /* 즐겨찾기 별은 카드 우상단 고정 */
+  #main-table tbody td.col-fav {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 0 !important;
+    width: auto;
+  }
+  #main-table tbody td.col-fav .star { font-size: 22px; }
+}
+
 /* ═══ 뱃지 (v34.4 정확한 색상) ═══ */
 .badge {
   display: inline-block;
@@ -1217,7 +1276,30 @@ input, select, textarea { font-family: inherit; }
   .panel-left, .panel-right { flex: none; padding: 16px; }
   .panel-right { border-top: 4px solid #f1f5f9; padding-bottom: 100px; }
 }
-/* === Phase 3-B: 다중계약/쉐어/청철 - v34.4 line 158~203 그대로 === */
+/* v35.3.07: 모바일 입력 모달 최적화 — 외근 저장버튼 도달불가 fix (기존 규칙 무손상, 추가만) */
+@media (max-width: 768px) {
+  /* ① 모달 바디 전체를 하나로 세로 스크롤 → 하단 저장버튼까지 항상 도달 가능 */
+  .modal-window .modal-body { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+  .modal-window .panel-left,
+  .modal-window .panel-right { overflow-y: visible !important; }
+  /* ② 저장/삭제 버튼바를 화면 하단에 고정 → 스크롤 없이도 언제나 저장 가능 */
+  #modal-action-buttons {
+    position: sticky;
+    bottom: 0;
+    margin-top: 16px !important;
+    padding: 12px 14px;
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -4px 14px rgba(0,0,0,.08);
+    z-index: 6;
+  }
+  #btn-modal-save { min-height: 52px; font-size: 16px; font-weight: 800; }
+  #btn-modal-delete { min-height: 52px; }
+  /* ③ 입력 필드 터치 높이 확대 + iOS 자동확대 방지(16px) → 업체명 등 입력 수월 */
+  .modal-window .form-group input,
+  .modal-window .form-group select,
+  .modal-window .form-group textarea { min-height: 46px; font-size: 16px; }
+}
 .add-contract-btn {
   width: 100%;
   padding: 10px;
@@ -10777,10 +10859,13 @@ async function loadShareMembers() {
   if (window.shareMembersCache.length > 0) return window.shareMembersCache;
   try {
     const { data, error } = await sb.from('app_users')
-      .select('name, role')
+      .select('name, role, team, status')
       .order('name', { ascending: true });
     if (error) throw error;
-    window.shareMembersCache = (data || []).filter(u => u.name && u.role !== 'system_admin');  // v35.2.84: 시스템관리자는 쉐어 대상 아님
+    // v35.3.06: 시스템관리자·DB관리자 제외 + 퇴사/거절자 제외 (쉐어 대상 아님) · team은 팀별 그룹핑용
+    window.shareMembersCache = (data || []).filter(u => u.name
+      && u.role !== 'system_admin' && u.role !== 'db_manager'
+      && u.status !== 'retired' && u.status !== 'rejected');
     return window.shareMembersCache;
   } catch (err) {
     console.error('[loadShareMembers] 실패:', err);
@@ -17752,14 +17837,29 @@ async function updateShareFields() {
 
   // 팀원 목록 로드 (Supabase 비동기)
   var members = await loadShareMembers();
-  var memberOptions = sortMemberNames(members, cm);
 
-  var seen = {};
+  // v35.3.06: 팀별 그룹(1·2·3·4팀 optgroup) + 팀 내 가나다순. 본인·중복 제외. (회사/db관리자/퇴사자는 loadShareMembers/preset에서 제외)
+  var _byTeam = {};
+  var _seen = {};
+  members.forEach(function(m) {
+    if (!m || !m.name || _seen[m.name]) return;
+    if (m.name === cm) return;                 // 본인(원주인) 제외 — 기존 sortMemberNames 동작 유지
+    _seen[m.name] = 1;
+    var _tk = m.team || '기타';
+    (_byTeam[_tk] = _byTeam[_tk] || []).push(m.name);
+  });
+  var _teamOrder = ['1팀', '2팀', '3팀', '4팀'];
+  Object.keys(_byTeam).forEach(function(t) { if (_teamOrder.indexOf(t) < 0) _teamOrder.push(t); });  // 그 외 팀은 뒤에
   var baseOptions = '<option value="">선택</option>';
-  memberOptions.forEach(function(m) {
-    if (!m || !m.name || seen[m.name]) return;
-    seen[m.name] = 1;
-    baseOptions += '<option value="' + escapeHtml(m.name) + '">' + escapeHtml(m.name) + ' 팀장</option>';
+  _teamOrder.forEach(function(t) {
+    var _names = _byTeam[t];
+    if (!_names || !_names.length) return;
+    _names.sort(function(a, b) { return a.localeCompare(b, 'ko'); });  // 팀 내 가나다순
+    baseOptions += '<optgroup label="' + escapeHtml(t) + '">';
+    _names.forEach(function(n) {
+      baseOptions += '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + ' 팀장</option>';
+    });
+    baseOptions += '</optgroup>';
   });
 
   var sourcePreset = {
@@ -17769,10 +17869,11 @@ async function updateShareFields() {
   var preset = sourcePreset[src] || null;
   console.log('[updateShareFields] preset=', preset);
 
-  sels.forEach(function(sel) {
+  sels.forEach(function(sel, idx) {
     if (!sel) return;
     var extra = '';
-    if (preset) {
+    // v35.3.06: 회사/SM은 출처(source)로 자동 결정되는 1번 슬롯에만 표시 — 수동 쉐어 슬롯(2·3)에서는 목록에서 제거
+    if (preset && idx === 0) {
       extra = '<option value="' + preset.partner + '">' + preset.label + '</option>';
     }
     sel.innerHTML = '<option value="">선택</option>' + extra + baseOptions.replace('<option value="">선택</option>', '');
@@ -20672,7 +20773,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.05';
+  var VER35='v35.3.08';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20689,7 +20790,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.05';
+  var VER35='v35.3.08';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
