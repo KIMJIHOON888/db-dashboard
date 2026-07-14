@@ -19740,16 +19740,26 @@ window.__loadAllDbForDup = async function(){
     // v35.3.10: RLS가 팀원=본인·SM=자기팀만 SELECT 허용 → 크로스팀 중복 미감지.
     //   중복검사 전용 SECURITY DEFINER RPC(get_dup_check_data)로 전 팀 최소필드 조회(전 인원 감지).
     //   RPC 미생성 환경 호환: 실패 시 기존 직접 SELECT로 폴백(회귀 0).
-    var rp = await sb.rpc('get_dup_check_data');
-    if(!rp.error && rp.data){
-      window.__allDbForDup = (rp.data||[]).map(function(d){ return {
+    // v35.3.11: RPC도 PostgREST 1000행 상한이 있어 .range()로 1000건씩 전부 페이지네이션 (1000 잘림 fix)
+    var acc=[], from=0, page=1000, usedRpc=false, rpcErr=null;
+    for(var g=0; g<80; g++){
+      var rp = await sb.rpc('get_dup_check_data').range(from, from+page-1);
+      if(rp.error){ rpcErr=rp.error; break; }
+      usedRpc=true;
+      var chunk=(rp.data||[]);
+      acc=acc.concat(chunk.map(function(d){ return {
         id:d.id, company:d.company||'', ceo:d.ceo||'', phone:d.phone||'',
         member:d.member||'', team:d.team||'', status:d.status||'', is_frozen:!!d.is_frozen
-      };});
-      console.log('[전 팀 중복 캐시] '+window.__allDbForDup.length+'건 로드 (RPC · 전 팀 기준)');
+      };}));
+      if(chunk.length < page) break;
+      from += page;
+    }
+    if(usedRpc && acc.length>0){
+      window.__allDbForDup = acc;
+      console.log('[전 팀 중복 캐시] '+acc.length+'건 로드 (RPC · 전 팀 기준)'+(rpcErr?' [일부 페이지 경고]':''));
       return;
     }
-    if(rp.error) console.warn('[전 팀 중복 캐시] RPC 미사용/오류 → 직접조회 폴백:', rp.error.message);
+    if(rpcErr) console.warn('[전 팀 중복 캐시] RPC 미사용/오류 → 직접조회 폴백:', rpcErr.message);
     /* ── 폴백: 기존 직접 SELECT (RLS 제한 범위) ── */
     var all=[], from=0, page=1000;
     for(var guard=0; guard<50; guard++){
@@ -20817,7 +20827,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.10';
+  var VER35='v35.3.11';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20834,7 +20844,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.10';
+  var VER35='v35.3.11';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
