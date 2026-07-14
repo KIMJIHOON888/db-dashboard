@@ -2846,9 +2846,12 @@ input, select, textarea { font-family: inherit; }
       <div class="card" id="ext-detail-box">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;flex-wrap:wrap;gap:8px">
           <h4 style="margin:0">📋 외부DB 전체 목록 <span id="ext-filter-label" style="font-size:12px;color:#3b82f6;font-weight:normal"></span></h4>
-          <button id="ext-reset-filter" class="btn btn-secondary" style="display:none;font-size:12px;padding:6px 12px" onclick="extPartnerFilter=null;extMetricFilter='';renderExternalDB()">전체 보기</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input id="ext-search" type="text" placeholder="🔍 업체명·전화·담당자·제휴업체 검색" oninput="window.extSearchTerm=this.value;window.extCurrentPage=1;renderExternalDB()" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;min-width:220px">
+            <button id="ext-reset-filter" class="btn btn-secondary" style="display:none;font-size:12px;padding:6px 12px" onclick="extPartnerFilter=null;extMetricFilter='';renderExternalDB()">전체 보기</button>
+          </div>
         </div>
-        <div class="table-container"><table><thead><tr><th>접수일</th><th>제휴업체</th><th>담당팀원</th><th>업체명</th><th>통화</th><th>진행상태</th><th>매출</th></tr></thead><tbody id="ext-detail-body"></tbody></table></div>
+        <div class="table-container"><table><thead><tr><th>접수일</th><th>제휴업체</th><th>담당팀원</th><th>업체명</th><th>전화</th><th>통화</th><th>진행상태</th><th>매출</th></tr></thead><tbody id="ext-detail-body"></tbody></table></div>
         <div id="ext-pagination" style="display:none;margin-top:12px;text-align:center;padding:10px">
           <button class="btn btn-secondary" onclick="changeExtPage(-1)" id="ext-prev" style="margin-right:8px">← 이전</button>
           <span id="ext-page-info" style="font-weight:bold;color:#334155;margin:0 12px"></span>
@@ -2960,8 +2963,11 @@ input, select, textarea { font-family: inherit; }
                         <h3 style="margin:0;color:#0f172a"><i class="fa-solid fa-building"></i> 현재 외부 DB 현황 <span id="external-portal-list-label" style="font-size:12px;color:#64748b;font-weight:700"></span></h3>
                         <div style="font-size:12px;color:#64748b;font-weight:700">배정일 기준으로 표시되며, 상세 정보는 읽기 전용으로만 볼 수 있습니다.</div>
                     </div>
+                    <div style="margin-bottom:12px">
+                        <input id="external-portal-search" type="text" placeholder="🔍 업체명·전화번호·담당자 검색" oninput="window.externalPortalSearch=this.value;window.externalPortalPage=1;setupExternalPortal()" style="width:100%;max-width:360px;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px">
+                    </div>
                     <div id="external-portal-table-nav" class="external-top-nav external-top-nav-light"></div>
-                    <div class="table-container"><table><thead><tr><th>배정일</th><th>제휴업체</th><th>담당팀원</th><th>업체명</th><th>통화</th><th>진행상태</th><th>매출</th></tr></thead><tbody id="external-portal-body"></tbody></table></div>
+                    <div class="table-container"><table><thead><tr><th>배정일</th><th>제휴업체</th><th>담당팀원</th><th>업체명</th><th>전화</th><th>통화</th><th>진행상태</th><th>매출</th></tr></thead><tbody id="external-portal-body"></tbody></table></div>
                 </div>
             </div>
         </div>
@@ -13376,6 +13382,17 @@ function setupExternalPortal(){
     }).join('');
   }
   
+  // v35.3.09: 담당자 포털 통합 검색 — 업체명·전화번호·담당자 (전화는 숫자만 비교)
+  var _pQ = (window.externalPortalSearch || '').trim().toLowerCase();
+  if(_pQ){
+    var _pQd = _pQ.replace(/[^0-9]/g, '');
+    filtered = filtered.filter(function(d){
+      var hay = ((_pgetField(d,'company')||'') + ' ' + (_pgetField(d,'member')||'') + ' ' + (_pgetField(d,'sourceDesc')||'')).toLowerCase();
+      if(hay.indexOf(_pQ) >= 0) return true;
+      var ph = (_pgetField(d,'phone')||'').replace(/[^0-9]/g, '');
+      return !!_pQd && ph.indexOf(_pQd) >= 0;
+    });
+  }
   // 테이블 (정렬 + 페이지)
   var sorted = filtered.slice().sort(function(a, b){ return getAssignmentPortalTime(b) - getAssignmentPortalTime(a); });
   var totalPages = Math.max(1, Math.ceil(sorted.length / EXTERNAL_PORTAL_PAGE_SIZE));
@@ -13388,7 +13405,7 @@ function setupExternalPortal(){
   
   var bodyEl = document.getElementById('external-portal-body');
   if(sorted.length === 0){
-    if(bodyEl) bodyEl.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">해당 조건의 업체 데이터가 없습니다.</td></tr>';
+    if(bodyEl) bodyEl.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#94a3b8">해당 조건의 업체 데이터가 없습니다.</td></tr>';
     var navEmpty = document.getElementById('external-portal-table-nav');
     if(navEmpty) navEmpty.innerHTML = '';
     return true;
@@ -13406,6 +13423,7 @@ function setupExternalPortal(){
       var company = _pgetField(d, 'company') || '-';
       var sourceDesc = _pgetField(d, 'sourceDesc') || '';
       var callStatus = _pgetField(d, 'callStatus');
+      var phone = _pgetField(d, 'phone') || '';
       var callBadge = (typeof getCallStatusBadge === 'function') ? getCallStatusBadge(callStatus) : escapeHtml(callStatus || '-');
       // v34.4 openModal → v35 openDBModal 변환
       return '<tr onclick="openDBModal(\''+d.id+'\')" style="cursor:pointer">'+
@@ -13413,6 +13431,7 @@ function setupExternalPortal(){
         '<td style="font-weight:800;color:#1d4ed8">'+escapeHtml(normalizePartner(sourceDesc))+'</td>'+
         '<td>'+escapeHtml(member)+'</td>'+
         '<td style="font-weight:800">'+escapeHtml(company)+'</td>'+
+        '<td>'+(phone ? '<a href="tel:'+escapeHtml(phone)+'" class="phone-link" onclick="event.stopPropagation()">'+escapeHtml(phone)+'</a>' : '<span style="color:#cbd5e1">-</span>')+'</td>'+
         '<td>'+callBadge+'</td>'+
         '<td>'+progressHtml+'</td>'+
         '<td style="color:#2563eb">'+(rev > 0 ? rev.toLocaleString()+'원' : '-')+'</td></tr>';
@@ -13635,6 +13654,17 @@ function renderExternalDB(){
       return true;
     });
   }
+  // v35.3.09: 통합 검색 — 업체명·전화·담당자·제휴업체 (전화는 숫자만 비교)
+  var _extQ = (window.extSearchTerm || '').trim().toLowerCase();
+  if(_extQ){
+    var _extQd = _extQ.replace(/[^0-9]/g, '');
+    allItems = allItems.filter(function(d){
+      var hay = ((d.company || '') + ' ' + (d.member || '') + ' ' + (d.sourceDesc || '')).toLowerCase();
+      if(hay.indexOf(_extQ) >= 0) return true;
+      var ph = (d.phone || '').replace(/[^0-9]/g, '');
+      return !!_extQd && ph.indexOf(_extQd) >= 0;
+    });
+  }
   var metricLabel = window.extMetricFilter === 'meet' ? ' / 미팅' : (window.extMetricFilter === 'prospect' ? ' / 가망' : '');
   if(window.extPartnerFilter || window.extMetricFilter){
     var baseLabel = window.extPartnerFilter ? window.extPartnerFilter : '전체';
@@ -13652,7 +13682,7 @@ function renderExternalDB(){
   var endIdx = Math.min(startIdx + window.extPageSize, allItems.length);
   var pageItems = allItems.slice(startIdx, endIdx);
   if(pageItems.length === 0){
-    detailBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#94a3b8">데이터 없음</td></tr>';
+    detailBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8">데이터 없음</td></tr>';
   } else {
     var detailRows = [];
     pageItems.forEach(function(d){
@@ -13665,6 +13695,7 @@ function renderExternalDB(){
         + '<td style="color:#1e40af;font-weight:600">' + (d.sourceDesc || '-') + '</td>'
         + '<td>' + (d.member || '') + '</td>'
         + '<td style="font-weight:bold">' + (d.company || '') + '</td>'
+        + '<td>' + (d.phone ? '<a href="tel:' + escapeHtml(d.phone) + '" class="phone-link" onclick="event.stopPropagation()">' + escapeHtml(d.phone) + '</a>' : '<span style="color:#cbd5e1">-</span>') + '</td>'
         + '<td>' + callBadge + '</td>'
         + '<td>' + progressHtml + '</td>'
         + '<td style="color:#2563eb">' + (rev > 0 ? rev.toLocaleString() + '원' : '-') + '</td></tr>');
@@ -20773,7 +20804,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.08';
+  var VER35='v35.3.09';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20790,7 +20821,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.08';
+  var VER35='v35.3.09';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
