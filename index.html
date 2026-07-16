@@ -17501,9 +17501,9 @@ async function handleAudioUpload(kind, files) {
       skipped.push(fileName + ' (지원안함: .' + ext + ')');
       continue;
     }
-    // v35.2.84: 대장님 C안 — Free 플랜 전역 한도 50MB에 맞춰 제한 (초과 시 명확 안내)
-    if (file.size > 50 * 1024 * 1024) {
-      skipped.push(fileName + ' (50MB 초과 — 압축 후 업로드 필요)');
+    // v35.3.12: 대장님 요청 — 녹음 파일 상한 50MB → 200MB (Supabase Storage 버킷 파일크기 상한도 200MB로 올려야 실제 반영됨)
+    if (file.size > 200 * 1024 * 1024) {
+      skipped.push(fileName + ' (200MB 초과 — 압축 후 업로드 필요)');
       continue;
     }
     // v35.2.84: 0byte 파일 차단
@@ -17569,7 +17569,7 @@ async function handleAudioUpload(kind, files) {
       msg += '파일: ' + firstError.file + '\n';
       msg += '오류: ' + (em.message || em.error || em.statusCode || JSON.stringify(em).substring(0, 200)) + '\n\n';
       msg += '확인할 점:\n';
-      msg += '1. 파일이 50MB 이하인지 (Free 플랜 상한)\n';
+      msg += '1. 파일이 200MB 이하인지 (Storage 버킷 상한 확인)\n';
       msg += '2. Supabase "recordings" 버킷 + RLS 정책 설정됐는지\n';
       msg += '3. 로그인 사용자가 인증 상태인지\n\n';
       msg += '경로: ' + firstError.path;
@@ -20534,7 +20534,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
                         </label>
                         <div id="audio-meeting-list" style="margin-top:4px"></div>
                     </div>
-                    <div style="font-size:9px;color:#94a3b8;margin-top:6px;text-align:right">업로드 후 60일 자동삭제 · 파일당 최대 50MB</div>
+                    <div style="font-size:9px;color:#94a3b8;margin-top:6px;text-align:right">업로드 후 60일 자동삭제 · 파일당 최대 200MB</div>
                 </div>
                 <h4 style="margin:0 0 8px"><i class="fa-regular fa-clock"></i> 활동 타임라인</h4>
                 <div style="font-size:12px;color:#64748b;margin-bottom:10px;background:#f1f5f9;padding:12px;border-radius:8px">실시간 진행과정 or 놓치지 말아야 할 메모기록!</div>
@@ -20827,7 +20827,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.11';
+  var VER35='v35.3.12';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20844,7 +20844,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.11';
+  var VER35='v35.3.12';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
