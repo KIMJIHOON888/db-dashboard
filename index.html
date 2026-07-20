@@ -19824,6 +19824,23 @@ window.__loadCrossShares = async function(){
     console.log('[타팀 쉐어 캐시] '+rows.length+'건 로드 (내가 파트너인 타팀 DB)');
   }catch(e){ window.__crossShareCache = []; console.warn('[타팀 쉐어 캐시] 예외:', e && e.message); }
 };
+/* v35.3.16: 실시간 중복 조회 — 저장 그 순간 서버에 직접 질의(캐시 stale 문제 해결).
+   RPC 미생성/오류 시 null 반환 → 호출부가 기존 캐시 방식으로 폴백(회귀 0). */
+window.__findDupLive = async function(company, ceo, phone, excludeId){
+  try{
+    if(typeof sb==='undefined'||!sb) return null;
+    if(!company && !phone) return null;
+    var rp = await sb.rpc('find_duplicate_db', {
+      p_phone: String(phone||''), p_company: String(company||''),
+      p_ceo: String(ceo||''), p_exclude: String(excludeId||'')
+    });
+    if(rp.error){ console.warn('[실시간 중복조회] RPC 미사용/오류 → 캐시 폴백:', rp.error.message); return null; }
+    var rows = rp.data || [];
+    if(!rows.length) return { __none:true };   /* 서버가 "중복 없음"을 확정 */
+    console.log('[실시간 중복조회] 중복 '+rows.length+'건 발견 (서버 실시간)');
+    return rows[0];
+  }catch(e){ console.warn('[실시간 중복조회] 예외:', e && e.message); return null; }
+};
 /* checkDuplicateDB 래핑 — 전 팀 캐시에서 검색(원본 매칭 로직 동일) */
 (function(){
   window.checkDuplicateDB = function(company, ceo, phone, currentId){
@@ -19892,7 +19909,12 @@ window.showDupConfirm = function(bodyHtml, okLabel){
         var cv=cvEl?cvEl.value:'', ceo=ceoEl?ceoEl.value:'', ph=phEl?phEl.value:'', cid=idEl?(idEl.value||''):'';
         if(cv || ph){
           if(!window.__allDbForDup || !window.__allDbForDup.length){ await window.__loadAllDbForDup(); } /* 안전: 캐시 비었으면 즉시 로드 */
-          var dup = window.checkDuplicateDB(cv, ceo, ph, cid);
+          /* v35.3.16: 배정 경로도 서버 실시간 조회 우선 (캐시 stale 방지) */
+          var dup = null, _lv = null;
+          try{ _lv = await window.__findDupLive(cv, ceo, ph, cid); }catch(_e){}
+          if(_lv && _lv.__none) dup = null;
+          else if(_lv) dup = _lv;
+          else dup = window.checkDuplicateDB(cv, ceo, ph, cid);
           if(dup && !dup.is_reassigned && !dup.isReassigned){
             var np=phoneDigits(ph), dp=phoneDigits(dup.phone||'');
             var reason=(dp===np && np)?('\uc5f0\ub77d\ucc98 \uc911\ubcf5: '+esc(ph)):'\uc5c5\uccb4\uba85/\ub300\ud45c\uc790 \uc911\ubcf5';
@@ -19940,7 +19962,12 @@ window.showDupConfirm = function(bodyHtml, okLabel){
         if(fd && (fd.company || fd.phone)){
           if(!window.__allDbForDup || !window.__allDbForDup.length){ try{ await window.__loadAllDbForDup(); }catch(_e){} }
           var np = (typeof phoneDigits==='function') ? phoneDigits(fd.phone||'') : String(fd.phone||'').replace(/\D/g,'');
-          var dup = window.checkDuplicateDB(fd.company, fd.ceo, np, '');
+          /* v35.3.16: 저장 순간 서버 실시간 조회 우선 (캐시 stale 방지). RPC 없으면 캐시 방식 폴백 */
+          var dup = null, _live = null;
+          try{ _live = await window.__findDupLive(fd.company, fd.ceo, fd.phone||np, ''); }catch(_e){}
+          if(_live && _live.__none) dup = null;                 /* 서버가 중복 없음 확정 */
+          else if(_live) dup = _live;                            /* 서버가 찾은 중복 */
+          else dup = window.checkDuplicateDB(fd.company, fd.ceo, np, '');   /* 폴백: 기존 캐시 */
           if(dup){
             var dp = (typeof phoneDigits==='function') ? phoneDigits(dup.phone||'') : String(dup.phone||'').replace(/\D/g,'');
             var reason=(dp===np && np)?('\uc5f0\ub77d\ucc98 \uc911\ubcf5: '+esc(fd.phone||np)):'\uc5c5\uccb4\uba85/\ub300\ud45c\uc790 \uc911\ubcf5';
@@ -20866,7 +20893,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.15';
+  var VER35='v35.3.16';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20883,7 +20910,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.15';
+  var VER35='v35.3.16';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
