@@ -12028,6 +12028,7 @@ window.isCallAttempted = isCallAttempted;
 function getTeamRevenue(contractDBList){
   var t=0;
   contractDBList.forEach(function(d){
+    var _dbTeam = d.team || (d.raw && d.raw.team) || '';
     getDBContracts(d).forEach(function(c){
       if(c.isLapsed) return;
       var gross=c.totalAmount||0;
@@ -12035,7 +12036,15 @@ function getTeamRevenue(contractDBList){
       if(c.shareList&&Array.isArray(c.shareList)){
         c.shareList.forEach(function(s){
           if(!s.partner||!s.partner.trim())return;
-          if(isExternalPartner(s.partner)&&s.amount>0)t-=s.amount;
+          if(isExternalPartner(s.partner)&&s.amount>0){ t-=s.amount; return; }
+          /* v35.3.17: 타팀 팀원에게 나간 쉐어는 원팀 매출에서 차감(받는 팀에 가산됨).
+             같은 팀이거나 팀 정보를 알 수 없으면 기존과 동일하게 차감하지 않음(회귀 0). */
+          try{
+            if(s.amount>0 && _dbTeam && typeof getTeamByMemberName==='function'){
+              var _pTeam = getTeamByMemberName(s.partner);
+              if(_pTeam && _pTeam !== _dbTeam) t -= s.amount;
+            }
+          }catch(_e){}
         });
       }
     });
@@ -12043,6 +12052,46 @@ function getTeamRevenue(contractDBList){
   return t;
 }
 window.getTeamRevenue = getTeamRevenue;
+
+/* v35.3.17: 타팀→우리팀으로 들어온 쉐어 캐시 (팀 누적 실적 가산용).
+   RPC 미생성/실패 시 빈 배열 → 가산 0 → 기존 동작과 동일(회귀 0). */
+window.__teamInboundShares = [];
+window.__loadTeamInboundShares = async function(){
+  try{
+    if(typeof sb==='undefined'||!sb) return;
+    var me = window.currentUser || {};
+    var myTeam = me.team || '';
+    if(!myTeam){ window.__teamInboundShares = []; return; }
+    var rp = await sb.rpc('get_team_inbound_shares', { p_team: myTeam });
+    if(rp.error){ window.__teamInboundShares = []; console.warn('[팀 유입쉐어] RPC 미사용/오류:', rp.error.message); return; }
+    window.__teamInboundShares = rp.data || [];
+    console.log('[팀 유입쉐어] '+window.__teamInboundShares.length+'건 ('+myTeam+'으로 들어온 타팀 쉐어)');
+  }catch(e){ window.__teamInboundShares = []; console.warn('[팀 유입쉐어] 예외:', e && e.message); }
+};
+
+/* getTeamRevenue 래핑: 기본 계산(나가는 쉐어 차감 포함) + 타팀에서 들어온 쉐어 가산 */
+(function(){
+  var _origTeamRev = window.getTeamRevenue;
+  window.getTeamRevenue = function(contractDBList){
+    var base = _origTeamRev.apply(this, arguments);
+    try{
+      var inb = window.__teamInboundShares || [];
+      if(!inb.length) return base;                     /* 유입 없으면 기존과 동일 */
+      var add = 0;
+      inb.forEach(function(r){
+        var amt = Number(r.amount||0); if(!(amt>0)) return;
+        /* 현재 선택된 연/월 필터와 동일 기준 적용 (헬퍼 있으면 재사용) */
+        try{
+          if(typeof inSelectedMonthByContract==='function'){
+            if(!inSelectedMonthByContract({ contractDate: r.contract_date, contracts: [] })) return;
+          }
+        }catch(_e){}
+        add += amt;
+      });
+      return base + add;
+    }catch(e){ return base; }
+  };
+})();
 
 // v34.4 line 1734: 숫자 강제 변환 (목표 금액 입력용)
 function coerceGoalNumber(v){
@@ -19869,6 +19918,7 @@ window.__findDupLive = async function(company, ceo, phone, excludeId){
       var r = await _origLoad.apply(this, arguments);
       try{ window.__loadAllDbForDup(); }catch(_e){}
       try{ window.__loadCrossShares(); }catch(_e){}   /* v35.3.13: 타팀 쉐어 캐시도 함께 로드 */
+      try{ window.__loadTeamInboundShares(); }catch(_e){}   /* v35.3.17: 팀 유입 쉐어 캐시 */
       return r;
     };
   }
@@ -20893,7 +20943,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.16';
+  var VER35='v35.3.17';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20910,7 +20960,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.16';
+  var VER35='v35.3.17';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
