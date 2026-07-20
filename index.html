@@ -3171,7 +3171,12 @@ function clearAuthMsg(){
 // ─────────── v34.4 line 4830~4925 그대로: 중복 DB 검증 헬퍼 ───────────
 // 사용자 지적 (5/5): 신규 등록 시 같은 업체/연락처가 이미 있으면 confirm 띄움
 function phoneDigits(phone) {
-  return String(phone || '').replace(/\D/g, '');
+  // v35.3.15: 국제형(82...)·국내형(010...) 통일 — 중복검사 매칭 정확도 개선.
+  //   예) 821068548237(12) ↔ 01068548237(11) 같은 번호로 인식. (중복검사 전용, 표시/저장 불변)
+  var d = String(phone || '').replace(/\D/g, '');
+  if (d.indexOf('82') === 0 && d.length >= 11) d = '0' + d.substring(2);   // 82 국가코드 → 0
+  if (d.charAt(0) !== '0' && d.length >= 9 && d.length <= 10) d = '0' + d; // 앞 0 누락 보정
+  return d;
 }
 function normalizeCompanyKey(name) {
   return String(name || '').toLowerCase().replace(/\(주\)|주식회사/g, '').replace(/[^a-z0-9가-힣]/g, '');
@@ -20861,7 +20866,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.14';
+  var VER35='v35.3.15';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20878,7 +20883,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.14';
+  var VER35='v35.3.15';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
