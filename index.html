@@ -7401,7 +7401,17 @@ function hasTeamMemberShare(shareList) {
 function getVirtualShareEntries(pn) {
   const e = [];
   if (!pn) return e;
-  const records = appState.records || [];
+  var records = appState.records || [];
+  // v35.3.13: 타팀 쉐어 — 내가 파트너로 지정된 타팀 DB를 캐시에서 병합(id 중복 제외).
+  //   캐시가 비면(RPC 미생성/쉐어 없음) records=appState.records 그대로 → 기존 동작과 100% 동일(회귀 0).
+  try {
+    var _cross = window.__crossShareCache || [];
+    if (_cross.length) {
+      var _seen = {}; records.forEach(function(r){ if (r) _seen[String(r.id)] = true; });
+      var _extra = _cross.filter(function(r){ return r && !_seen[String(r.id)]; });
+      if (_extra.length) records = records.concat(_extra);
+    }
+  } catch(_e){}
   records.forEach(function(d) {
     if (!d) return;
     const status = d.status || (d.raw && d.raw.status);
@@ -8300,7 +8310,8 @@ async function openDBModal(id, rowNum) {
 
   let rec = null;
   if (id) {
-    const found = appState.records.find(r => String(r.id) === String(id));
+    const found = appState.records.find(r => String(r.id) === String(id))
+      || (window.__crossShareCache || []).find(r => String(r.id) === String(id));   // v35.3.13: 타팀 쉐어 DB도 열람 가능
     if (!found) {
       showToast('데이터를 찾을 수 없습니다.', 'error');
       return;
@@ -11095,7 +11106,11 @@ function getShareRevenue(mn, y, m) {
 // v34.4 line 1497: 외부 파트너 (SM, 1/2팀 등) 매출
 function getSpecialPartnerRevenue(pn, y, m) {
   var r = 0;
-  ((window.appState && window.appState.records) || []).forEach(function(d) {
+  // v35.3.13 Step3: 타팀 쉐어 실적 크레딧 — appState.records + 타팀 쉐어 캐시 병합(id 중복 제외).
+  //   캐시 비면 기존과 동일(회귀 0). 수신자 본인 화면에서도 타팀 쉐어 금액이 잡히게 함.
+  var _src = (window.appState && window.appState.records) || [];
+  try { var _c = window.__crossShareCache || []; if (_c.length) { var _s = {}; _src.forEach(function(x){ if(x) _s[String(x.id)]=true; }); var _ex = _c.filter(function(x){ return x && !_s[String(x.id)]; }); if (_ex.length) _src = _src.concat(_ex); } } catch(_e){}
+  _src.forEach(function(d) {
     if (d.status !== '계약' || !d.shareList || !Array.isArray(d.shareList) || d.isFrozen) return;
     var cd = getContractDate(d);
     var p = parseDBDate(cd);
@@ -19786,6 +19801,24 @@ window.__loadAllDbForDup = async function(){
     console.log('[전 팀 중복 캐시·폴백] '+all.length+'건 (RLS 제한 범위 — RPC 생성 시 전 팀 전환)');
   }catch(e){ console.warn('[전 팀 중복 캐시] 예외:', e); }
 };
+/* v35.3.13: 타팀 쉐어 조회 캐시 — 내가 파트너인 타팀 DB를 RPC로 로드(RLS 우회).
+   RPC 미생성/실패 시 빈 배열 → getVirtualShareEntries가 기존과 동일하게 동작(회귀 0). */
+window.__crossShareCache = [];
+window.__loadCrossShares = async function(){
+  try{
+    if(typeof sb==='undefined'||!sb) return;
+    var me = (window.currentUser || window.me || {});
+    var myName = me.name || (window.appState && window.appState.me && window.appState.me.name) || '';
+    if(!myName){ window.__crossShareCache = []; return; }
+    var rp = await sb.rpc('get_shared_dbs_for_member', { p_name: myName });
+    if(rp.error){ window.__crossShareCache = []; console.warn('[타팀 쉐어 캐시] RPC 미사용/오류:', rp.error.message); return; }
+    var rows = (rp.data || []).map(function(r){
+      try{ return (typeof normalizeDBRecord==='function') ? normalizeDBRecord(r) : r; }catch(e){ return r; }
+    });
+    window.__crossShareCache = rows;
+    console.log('[타팀 쉐어 캐시] '+rows.length+'건 로드 (내가 파트너인 타팀 DB)');
+  }catch(e){ window.__crossShareCache = []; console.warn('[타팀 쉐어 캐시] 예외:', e && e.message); }
+};
 /* checkDuplicateDB 래핑 — 전 팀 캐시에서 검색(원본 매칭 로직 동일) */
 (function(){
   window.checkDuplicateDB = function(company, ceo, phone, currentId){
@@ -19813,6 +19846,7 @@ window.__loadAllDbForDup = async function(){
     window.loadDBRecords = async function(){
       var r = await _origLoad.apply(this, arguments);
       try{ window.__loadAllDbForDup(); }catch(_e){}
+      try{ window.__loadCrossShares(); }catch(_e){}   /* v35.3.13: 타팀 쉐어 캐시도 함께 로드 */
       return r;
     };
   }
@@ -20827,7 +20861,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.12';
+  var VER35='v35.3.14';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -20844,7 +20878,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.12';
+  var VER35='v35.3.14';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
@@ -20856,6 +20890,36 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
     }catch(_){}
   }
   if(document.readyState!=='loading') setVer35Extra(); else document.addEventListener('DOMContentLoaded', setVer35Extra);
+})();
+/* v35.3.13 Step2: 타팀 쉐어 DB 저장 라우팅 — 수신자가 관리내용 저장 시 RLS UPDATE 대신 RPC(로그만).
+   캐시에 없는(=내 소유/내 팀) DB는 기존 saveDBModal 그대로 → 회귀 0. */
+(function(){
+  function wrap(){
+    if(typeof window.saveDBModal!=='function'){ return setTimeout(wrap,300); }
+    if(window.__saveDBModalCrossWrapped) return; window.__saveDBModalCrossWrapped=true;
+    var _origSave=window.saveDBModal;
+    window.saveDBModal=async function(){
+      try{
+        var _id=(window.modalState && window.modalState.currentId);
+        var _cross=window.__crossShareCache||[];
+        var _inCross=_id && _cross.some(function(r){ return String(r.id)===String(_id); });
+        var _inMine=_id && ((window.appState && window.appState.records)||[]).some(function(r){ return String(r.id)===String(_id); });
+        if(_inCross && !_inMine){
+          // 타팀 쉐어받은 DB → 관리내용(로그)만 RPC로 저장 (본인 로그만 서버에서 반영)
+          var logs=(window.modalState && window.modalState.tempLogs)||[];
+          var rp=await sb.rpc('save_my_shared_logs', { p_id:_id, p_logs:logs });
+          if(rp && rp.error){ if(typeof showToast==='function') showToast('관리내용 저장 실패: '+rp.error.message,'error'); return; }
+          if(typeof showToast==='function') showToast('관리내용이 저장되었습니다.','success');
+          try{ if(window.__loadCrossShares) await window.__loadCrossShares(); }catch(_e){}
+          if(typeof closeDBModal==='function') closeDBModal(true);
+          if(typeof loadDBRecords==='function') loadDBRecords();
+          return;
+        }
+      }catch(e){ console.warn('[타팀 쉐어 저장] 예외:', e && e.message); }
+      return _origSave.apply(this, arguments);
+    };
+  }
+  if(document.readyState!=='loading') wrap(); else document.addEventListener('DOMContentLoaded', wrap);
 })();
 </script>
 </body>
