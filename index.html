@@ -239,6 +239,11 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,Roboto,
   font-size: 14px;
 }
 .nav-item:hover, .nav-item.active { background: #eff6ff; color: var(--primary); }
+/* v35.3.36 [사이드바 반응형]: nav 항목 한 줄 유지 + 배지 축소방지 → 모든 해상도에서 텍스트 깨짐 방지 */
+.nav-item { white-space: nowrap; }
+.nav-item > i { flex-shrink: 0; }
+.nav-item span[id$="badge"] { flex-shrink: 0; white-space: nowrap; }
+.nav-item #menu-list-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 /* 사이드바 특수 메뉴 그라디언트 */
 .sidebar .nav-special-calendar {
@@ -5241,12 +5246,11 @@ async function navTo(view) {
     // 비동기 처리 — 페이지 렌더는 즉시, DB 업데이트는 백그라운드
     // v35.1.72 김지훈: 받은 NEW + 보낸 동결 NEW 둘 다 일괄 해제
     setTimeout(() => {
-      Promise.all([
-        clearAllReassignNewBadges(),
-        clearAllSentReassignNewBadges()  // v35.1.72 신규
-      ])
+      /* v35.3.38: 받은 재배정 NEW는 개별 DB를 열 때만 해제 — 진입만으로 일괄해제 제거.
+         (팀원이 한 건씩 확인해야 하고, 관리자는 미확인자 파악이 필요하므로 일괄처리 금지).
+         보낸 동결 NEW만 진입 시 정리. */
+      Promise.resolve(clearAllSentReassignNewBadges())
         .then(() => {
-          // 일괄 해제 후 NEW 표시 갱신을 위해 페이지 재렌더
           if (typeof renderMyReassignListV35 === 'function') renderMyReassignListV35();
         })
         .catch(e => console.warn('[reassign badge clear] 무시:', e));
@@ -9406,7 +9410,7 @@ async function clearReassignNewBadge(id) {
   try {
     const { data, error } = await sb.from('db_records').update({ raw: newRaw, updated_at: new Date().toISOString() }).eq('id', id).select().single();
     if (error) throw error;
-    appState.records[idx] = data;
+    appState.records[idx] = (typeof normalizeDBRecord === 'function') ? normalizeDBRecord(data) : data;
     if (typeof updateMyReassignBadge === 'function') updateMyReassignBadge();
   } catch (err) {
     console.warn('[clearReassignNewBadge] DB 업데이트 실패 (무시):', err);
@@ -9434,7 +9438,7 @@ async function clearAllReassignNewBadges() {
       const { data, error } = await sb.from('db_records').update({ raw: newRaw, updated_at: new Date().toISOString() }).eq('id', d.id).select().single();
       if (error) throw error;
       const idx = appState.records.findIndex(r => String(r.id) === String(d.id));
-      if (idx !== -1) appState.records[idx] = data;
+      if (idx !== -1) appState.records[idx] = (typeof normalizeDBRecord === 'function') ? normalizeDBRecord(data) : data;
     } catch (err) {
       console.warn('[clearAllReassignNewBadges] 한 건 실패 (계속 진행):', d.id, err);
     }
@@ -9462,7 +9466,7 @@ async function clearAllSentReassignNewBadges() {
       const { data, error } = await sb.from('db_records').update({ raw: newRaw, updated_at: new Date().toISOString() }).eq('id', d.id).select().single();
       if (error) throw error;
       const idx = appState.records.findIndex(r => String(r.id) === String(d.id));
-      if (idx !== -1) appState.records[idx] = data;
+      if (idx !== -1) appState.records[idx] = (typeof normalizeDBRecord === 'function') ? normalizeDBRecord(data) : data;
     } catch (err) {
       console.warn('[clearAllSentReassignNewBadges] 한 건 실패 (계속 진행):', d.id, err);
     }
@@ -12646,11 +12650,16 @@ function getAdminRetentionRows(){
   var dbList = (window.appState && window.appState.records) || [];
   var rows = {};
   var totalTarget = 0, staleTotal = 0;
+  /* v35.3.35 [유지관리]: 퇴사자·수동숨김 제외 세트 1회 계산(성능) */
+  var _retiredSet = (window.__retiredNames instanceof Set) ? window.__retiredNames : new Set();
+  var _hiddenSet = (typeof window.__getRetHidden==='function') ? window.__getRetHidden() : new Set();
   dbList.forEach(function(d){
     if(!d || d.isFrozen || d.status !== '계약') return;
     var cDate = getContractDate(d);
     if(monthsSince(cDate) < 1) return;
     if(monthsSince(cDate) >= 24) return;
+    var _rMn = d.member || '미배정';
+    if(_retiredSet.has(_rMn) || _hiddenSet.has(_rMn)) return;   /* 퇴사자 자동 제외 + 관리자 숨김 제외 */
     totalTarget++;
     var lastViewed = getContractCheckDate(d);
     var staleDays = daysSinceDateValue(lastViewed);
@@ -12684,17 +12693,26 @@ function renderAdminRetentionBoard(){
   var totalEl = document.getElementById('ret-chip-total'); if(totalEl) totalEl.innerText = info.totalTarget + '건';
   var staleEl = document.getElementById('ret-chip-stale'); if(staleEl) staleEl.innerText = info.staleTotal + '건';
   var memEl   = document.getElementById('ret-chip-members'); if(memEl) memEl.innerText = rows.filter(function(r){ return r.stale > 0; }).length + '명';
+  /* v35.3.35 [유지관리]: 숨김 복원 바 + ✕/복원 클릭 위임(1회 바인딩) */
+  var _hiddenBar = '';
+  try{ var _hs = (typeof window.__getRetHidden==='function')?window.__getRetHidden():new Set();
+    if(_hs.size) _hiddenBar = '<div style="grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:8px;font-size:12px;color:#94a3b8;margin-bottom:2px">🙈 숨김 '+_hs.size+'명 <button type="button" class="ret-restore-btn" style="border:1px solid #cbd5e1;background:#fff;color:#64748b;border-radius:6px;padding:2px 10px;cursor:pointer;font-size:12px">전체 복원</button></div>';
+  }catch(e){}
+  if(!wrap.__retBound){ wrap.__retBound=true; wrap.addEventListener('click', function(e){
+    var _hb=e.target.closest && e.target.closest('.ret-hide-btn'); if(_hb){ e.stopPropagation(); if(typeof window.__hideRetMember==='function') window.__hideRetMember(_hb.getAttribute('data-member')); return; }
+    var _rb=e.target.closest && e.target.closest('.ret-restore-btn'); if(_rb){ e.stopPropagation(); if(typeof window.__restoreRetHidden==='function') window.__restoreRetHidden(); return; }
+  }); }
   if(rows.length === 0){
-    wrap.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:18px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc">30일 이상 확인하지 않은 24개월 이내 계약 고객이 없습니다.</div>';
+    wrap.innerHTML = _hiddenBar + '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:18px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc">30일 이상 확인하지 않은 24개월 이내 계약 고객이 없습니다.</div>';
     return;
   }
   var _escape = function(s){ var div=document.createElement('div'); div.textContent=String(s||''); return div.innerHTML; };
-  wrap.innerHTML = rows.slice(0,6).map(function(r){
+  wrap.innerHTML = _hiddenBar + rows.slice(0,6).map(function(r){
     var topItems = r.items.sort(function(a,b){ return b.days - a.days; }).slice(0,3).map(function(it){
       return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-top:1px dashed #e2e8f0"><span>' + _escape(it.company) + '</span><b style="color:#dc2626">' + it.days + '일</b></div>';
     }).join('');
     return '<div class="rank-card" style="border-top:4px solid ' + (r.stale >= 5 ? '#ef4444' : '#8b5cf6') + '">'
-      + '<div class="rank-title" style="justify-content:space-between"><span>👤 ' + _escape(r.member) + '</span><span style="font-size:12px;color:#64748b">최대 ' + r.maxDays + '일</span></div>'
+      + '<div class="rank-title" style="justify-content:space-between"><span>👤 ' + _escape(r.member) + '</span><span style="display:inline-flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">최대 ' + r.maxDays + '일</span><button type="button" class="ret-hide-btn" data-member="' + _escape(r.member) + '" title="이 카드 숨기기" style="border:none;background:#f1f5f9;color:#94a3b8;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1;padding:0">✕</button></span></div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
       + '<span class="dashboard-chip">주의 고객 <b>' + r.stale + '건</b></span>'
       + '</div>'
@@ -12703,6 +12721,11 @@ function renderAdminRetentionBoard(){
   }).join('');
 }
 window.renderAdminRetentionBoard = renderAdminRetentionBoard;
+/* v35.3.35 [유지관리]: 관리자 카드 숨김(로컬 저장) 헬퍼 */
+window.__getRetHidden = function(){ try{ return new Set(JSON.parse(localStorage.getItem('ret_hidden_members')||'[]')); }catch(e){ return new Set(); } };
+window.__setRetHidden = function(s){ try{ localStorage.setItem('ret_hidden_members', JSON.stringify(Array.from(s))); }catch(e){} };
+window.__hideRetMember = function(name){ if(name==null) return; var s=window.__getRetHidden(); s.add(String(name)); window.__setRetHidden(s); if(typeof renderAdminRetentionBoard==='function') renderAdminRetentionBoard(); };
+window.__restoreRetHidden = function(){ window.__setRetHidden(new Set()); if(typeof renderAdminRetentionBoard==='function') renderAdminRetentionBoard(); };
 
 // v34.4 buildAdminMonthSelect — initDateSelects의 admin-stat-month 부분만 추출
 function buildAdminMonthSelect(){
@@ -20691,6 +20714,11 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
                     <span id="frozen-banner-text">이 DB는 동결되었습니다.</span>
                 </div>
 
+                <!-- v35.3.35 중복 열람 알림 배너 (열 때 실시간 중복이면 표시) -->
+                <div id="dup-alert-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:8px;padding:10px 14px;margin-bottom:15px;color:#991b1b;font-size:13px;font-weight:700">
+                    <span id="dup-alert-banner-text">중복 DB</span>
+                </div>
+
                 <!-- 관리자 재배정 패널 (v34.4 line 1065 그대로) -->
                 <div id="admin-reassign-panel" style="display:none;background:linear-gradient(135deg,#fef08a,#fde047);padding:15px;border-radius:12px;margin-bottom:15px;border:2px solid #eab308;box-shadow:0 4px 6px -1px rgba(0,0,0,.1)">
                     <div style="font-weight:900;color:#854d0e;margin-bottom:10px"><i class="fa-solid fa-rocket"></i> [관리자 전용] 다른 팀원에게 재배정</div>
@@ -21085,6 +21113,41 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
     }
   })();
 
+  /* v35.3.35 [중복열람알림]: DB 모달 열 때 실시간 중복 검사 → 상단 배너 (기존 __findDupLive 재사용) */
+  (function(){
+    var _openForDup = window.openDBModal;
+    if(typeof _openForDup === 'function'){
+      window.openDBModal = async function(id, rowNum){
+        var _r = await _openForDup.call(this, id, rowNum);
+        try{
+          var _b = document.getElementById('dup-alert-banner');
+          if(_b){
+            _b.style.display='none';
+            var _comp=(document.getElementById('input-company')||{}).value||'';
+            var _phone=(document.getElementById('input-phone')||{}).value||'';
+            var _ceo=(document.getElementById('input-ceo')||{}).value||'';
+            if(id && (_comp||_phone) && typeof window.__findDupLive==='function'){
+              window.__findDupLive(_comp,_ceo,_phone,String(id)).then(function(dup){
+                if(dup && !dup.__none && !dup.is_reassigned && !dup.isReassigned){
+                  var _who = dup.member ? ((typeof markRetiredName==='function')? markRetiredName(dup.member): dup.member) : '';
+                  var _team = dup.team || '';
+                  var _st = dup.status || (dup.raw && dup.raw.status) || '';
+                  var _txt = '⚠️ 중복 DB — 유사한 DB가 이미 등록되어 있습니다';
+                  if(_team||_who) _txt += ' · ['+ (_team||'-') +'] 담당: '+ (_who||'-');
+                  if(_st) _txt += ' · 진행: '+_st;
+                  var _tEl=document.getElementById('dup-alert-banner-text');
+                  if(_tEl) _tEl.textContent=_txt; else _b.textContent=_txt;
+                  _b.style.display='block';
+                }
+              }).catch(function(){});
+            }
+          }
+        }catch(e){ console.warn('[중복열람알림]', e&&e.message); }
+        return _r;
+      };
+    }
+  })();
+
   /* [버그3+퇴사자] 모달 '다른 팀원에게 재배정' 드롭다운:
      - 승인된 활성 팀원만 (퇴사자/거절자 제외) — v35에 status 필터가 없어 퇴사자가 노출되던 문제
      - SM(team_manager)은 본인 팀만, BM·시스템관리자는 전 팀 */
@@ -21190,7 +21253,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.34';
+  var VER35='v35.3.38';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21207,7 +21270,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.34';
+  var VER35='v35.3.38';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
