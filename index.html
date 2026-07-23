@@ -7536,6 +7536,8 @@ function getVirtualShareEntries(pn) {
         contractDate: _cDate,
         product: raw.product || '',
         status: _cStatus,
+        isLapsed: !!c.isLapsed,
+        lapseType: (c.lapseType || '실효'),
         amount: _cAmt,
         totalAmount: _cAmt,
         callStatus: raw.callStatus || d.callStatus || '',
@@ -11259,6 +11261,13 @@ function getLapseShareAmountForPeriod(memberName, d, y, m, isAll) {
                .reduce(function(a, s) { return a + __safeNum(s.amount || 0); }, 0);
 }
 
+/* v35.3.40 [통계 기준 통일] 청철=계약무효(매출0,건수0) / 실효=매출0(계약연도),건수유지
+   _cRevOK: 매출에 잡히는가(청철,실효 모두 제외) / _cCntOK: 계약건수에 잡히는가(청철만 제외) */
+function _cIsCancel(c){ return !!(c && c.isLapsed && (c.lapseType||'실효')==='청철'); }
+function _cRevOK(c){ return !(c && c.isLapsed); }
+function _cCntOK(c){ return !_cIsCancel(c); }
+function _dbCountable(d){ var cs=(typeof getDBContracts==='function')?(getDBContracts(d)||[]):[]; if(!cs.length) return true; return cs.some(_cCntOK); }
+function _dbRevenueable(d){ var cs=(typeof getDBContracts==='function')?(getDBContracts(d)||[]):[]; if(!cs.length) return true; return cs.some(_cRevOK); }
 // v34.4 line 5370: 본인 명의 계약 매출 (쉐어 받기 전 본인 계약 매출만)
 function getGrossOwnRevenue(memberName, y, m, isAll) {
   var sum = 0;
@@ -11266,6 +11275,7 @@ function getGrossOwnRevenue(memberName, y, m, isAll) {
     if (!d || d.isFrozen || d.member !== memberName) return;
     if (!isContractStatus(d.status)) return;
     getDBContracts(d).forEach(function(c) {
+      if (!_cRevOK(c)) return;
       var cd = c.date || d.contractDate || d.date;
       if (ymMatch(cd, y, m, isAll)) sum += __safeNum(c.amount || c.totalAmount || 0);
     });
@@ -11277,6 +11287,7 @@ function getGrossOwnRevenue(memberName, y, m, isAll) {
 function getGrossShareRevenue(memberName, y, m, isAll) {
   var sum = 0;
   getVirtualShareEntries(memberName).forEach(function(se) {
+    if (se.isLapsed) return;
     if (ymMatch(se.contractDate, y, m, isAll)) sum += __safeNum(se.amount || 0);
   });
   return sum;
@@ -11290,7 +11301,8 @@ function getNetRevenueForMember(memberName, y, m, isAll) {
     lapse += getLapseShareAmountForPeriod(memberName, d, y, m, isAll);
     if (d.member === memberName) lapse += getLapseAmountForPeriod(d, y, m, isAll);
   });
-  return gross - lapse;
+  /* v35.3.40: gross가 이미 청철/실효 매출 제외 → 추가 차감 안 함(중복방지) */
+  return gross;
 }
 
 // v34.4 line 5398: 본인 청철/실효 건수
@@ -11322,6 +11334,7 @@ function getShareRevenue(mn, y, m) {
   if (!mn || !mn.trim()) return 0;
   var r = 0;
   getVirtualShareEntries(mn).forEach(function(e) {
+    if (e.isLapsed) return;
     var p = parseDBDate(e.contractDate);
     if (y && p.year !== y) return;
     if (m && p.month !== m) return;
@@ -11354,6 +11367,7 @@ function getSpecialPartnerRevenue(pn, y, m) {
 function getShareContractCount(mn, y, m) {
   var c = 0;
   getVirtualShareEntries(mn).forEach(function(e) {
+    if (e.isLapsed && (e.lapseType||'실효')==='청철') return;
     var p = parseDBDate(e.contractDate);
     if (y && p.year !== y) return;
     if (m && p.month !== m) return;
@@ -11816,17 +11830,11 @@ function renderYoYSummaryTable() {
       getDBContracts(d).forEach(function(c) {
         var p = parseDBDate(c.date || d.contractDate || d.date);
         var amt = c.amount || 0;
-        if (p.year === thisY - 1) l += amt;
-        if (p.year === thisY) {
-          if (!c.isLapsed) {
-            t += amt;
-            // 월별 group: 같은 DB의 같은 달 다중계약은 1건으로만 카운트
-            thisYearMonths[p.month] = true;
-          }
-        }
-        if (p.year === thisY - 1 && !c.isLapsed) {
-          lastYearMonths[p.month] = true;
-        }
+        /* v35.3.40: 매출=청철/실효 제외, 건수=청철만 제외(실효 유지) */
+        if (p.year === thisY - 1 && !c.isLapsed) l += amt;
+        if (p.year === thisY && !c.isLapsed) t += amt;
+        if (p.year === thisY && !_cIsCancel(c)) thisYearMonths[p.month] = true;
+        if (p.year === thisY - 1 && !_cIsCancel(c)) lastYearMonths[p.month] = true;
       });
       // 월 수 합산 = DB 1건이 N개 월에 걸쳐 계약하면 N건 (대장님 정책)
       thisCnt += Object.keys(thisYearMonths).length;
@@ -14517,7 +14525,7 @@ function renderPatchedDashboard(){
     //   이전: reduce(Math.max(1,getDBContracts(d).filter)) 합산 → 행동지표맵과 같은 사고 패턴
     //   fix: filter().length 직접 사용 + 쉐어 합산 유지
     var contractCount2 = dbList.filter(function(d){
-      return d.member === m.name && isContractStatus(d.status)
+      return d.member === m.name && isContractStatus(d.status) && _dbCountable(d)
           && ymMatch(d.contractDate || '', targetYear, targetMonth, isAllMonths);
     }).length + getShareContractCount(m.name, targetYear, targetMonth);
     var lapseCountM = getLapseCountForMember(m.name, targetYear, targetMonth, isAllMonths);
@@ -15633,10 +15641,12 @@ function renderBriefing(){
       if(!isAll && p.month !== tm) return false;
       return true;
     });
-    var contCnt = contDB.length;
-    var contNew = contDB.filter(function(d){ return !d.isReassigned; }).length;
-    var contRe = contDB.filter(function(d){ return d.isReassigned; }).length;
-    var rev = contDB.reduce(function(a, c){ return a + (parseInt(String(c.amount).replace(/,/g, '')) || 0); }, 0);
+    /* v35.3.40: 건수=청철 제외 / 매출=청철,실효 제외 */
+    var _cntDB = contDB.filter(function(d){ return _dbCountable(d); });
+    var contCnt = _cntDB.length;
+    var contNew = _cntDB.filter(function(d){ return !d.isReassigned; }).length;
+    var contRe = _cntDB.filter(function(d){ return d.isReassigned; }).length;
+    var rev = contDB.filter(function(d){ return _dbRevenueable(d); }).reduce(function(a, c){ return a + (parseInt(String(c.amount).replace(/,/g, '')) || 0); }, 0);
     var shareRev = getShareRevenue(m.name, ty, tm);
     var shareCnt = getShareContractCount(m.name, ty, tm);
     rev += shareRev;
@@ -21253,7 +21263,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.39';
+  var VER35='v35.3.40';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21270,7 +21280,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.39';
+  var VER35='v35.3.40';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
