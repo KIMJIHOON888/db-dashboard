@@ -17524,7 +17524,7 @@ window.openMetaPastePopup=function(){
     document.body.appendChild(ov);
     ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
     var ta=document.getElementById('meta-ta');
-    function upd(){var t=ta.value.trim();var pv=document.getElementById('meta-pv');var ok=document.getElementById('meta-ok');if(!t){pv.innerHTML='';ok.disabled=true;return;}var d=_detectAndParse(t);pv.innerHTML=_pvMeta(d);ok.disabled=!d;window.__md=d;}
+    function upd(){var t=ta.value.trim();var pv=document.getElementById('meta-pv');var ok=document.getElementById('meta-ok');if(!t){pv.innerHTML='';ok.disabled=true;return;}var __mm=(typeof window.__parseMultiMeta==='function')?window.__parseMultiMeta(t):null;if(__mm&&__mm.length>=2){window.__multiMetaRows=__mm;if(typeof window.__renderMultiMetaPreview==='function'){window.__renderMultiMetaPreview(pv,__mm,ok);return;}}if(__mm&&__mm.length===1){window.__oneTsv=__mm[0];pv.innerHTML=(typeof window.__oneTsvPreviewHtml==='function')?window.__oneTsvPreviewHtml(__mm[0]):'';ok.disabled=false;ok.textContent='\u2705 자동입력 적용';ok.onclick=function(){if(typeof window.__applyOneTsvToModal==='function')window.__applyOneTsvToModal(window.__oneTsv);var _ov=document.querySelector('.meta-ov');if(_ov)_ov.remove();if(typeof collapseStage==='function')collapseStage(1,false);};return;}var d=_detectAndParse(t);pv.innerHTML=_pvMeta(d);ok.disabled=!d;window.__md=d;ok.textContent='\u2705 자동입력 적용';ok.onclick=function(){_doMeta();};}
     ta.addEventListener('input',upd);ta.addEventListener('paste',function(){setTimeout(upd,50);});
     setTimeout(function(){ta.focus();},100);
 };
@@ -21253,7 +21253,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.38';
+  var VER35='v35.3.39';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21270,7 +21270,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.38';
+  var VER35='v35.3.39';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
@@ -21342,6 +21342,200 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
     if(document.visibilityState === 'visible'){ try{ window.__ensureSession(); }catch(e){} }
   });
 })();
+</script>
+
+<script>
+/* ============================================================
+   v35.3.39 [META 다건 붙여넣기 모듈] — 기존 단건(구 포맷)은 불변, TSV 명단 양식만 처리
+   ============================================================ */
+(function(){
+  'use strict';
+  function esc(s){ var d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML; }
+  function digits(s){ return String(s==null?'':s).replace(/\D/g,''); }
+
+  // ── 연락처: 82 국가번호 제거 + 010-0000-0000 형식 (phone 우선, 회신번호 백업) ──
+  function fmtPhone(primary, fallback){
+    var cands=[primary, fallback], i, d;
+    for(i=0;i<cands.length;i++){
+      d=digits(cands[i]); if(!d) continue;
+      if(d.indexOf('82')===0) d='0'+d.slice(2);
+      if(d.length===10 && d.indexOf('10')===0) d='0'+d;
+      if(d.length===11 && d.indexOf('010')===0) return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);
+      if(d.length===10 && d.charAt(0)==='0') return d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6);
+    }
+    return '';
+  }
+  function mapTax(v){ v=(v||'').trim();
+    if(v==='아니요'||v==='아니오'||v==='없음'||v==='no'||v==='X') return '완납';
+    if(v==='예'||v==='네'||v==='있음'||v==='yes'||v==='O') return '연체중';
+    return '기타';
+  }
+  function mapIndustry(v){ v=(v||'').trim();
+    var t=[['제조','제조'],['건설','건설'],['도소매','도소매'],['서비스','서비스'],['IT','IT'],['음식','음식점'],['운수','운수업']], i;
+    for(i=0;i<t.length;i++){ if(v.indexOf(t[i][0])>=0) return t[i][1]; }
+    return '기타';
+  }
+  function mapRevenue(v){ var s=(v||'').replace(/[_\s]/g,''), t=[['30억','30억이상'],['10억','10억이상'],['5억','5억이상'],['3억이상','3억이상'],['1억~3억','1억~3억'],['1억미만','1억미만']], i;
+    for(i=0;i<t.length;i++){ if(s.indexOf(t[i][0])>=0) return t[i][1]; }
+    return '미확인';
+  }
+  // ── 대표자: 이름 추출, 애매하면 원문 그대로 ──
+  function extractCeo(v){ v=(v||'').trim(); if(!v) return '';
+    var m=v.match(/대표자?\s*[:\-]?\s*([가-힣]{2,4})/); if(m) return m[1];
+    if(v.indexOf('|')>=0) v=v.split('|')[0].trim();
+    if(/^[가-힣]{2,4}$/.test(v)) return v;
+    return v; /* 파악 어려움 → 원문 */
+  }
+
+  // ── 다건 파서: 각 레코드는 'YYYY-MM-DD'+탭 으로 시작 (줄바꿈/공백결합/>기호 대응) ──
+  window.__parseMultiMeta = function(text){
+    if(!text || !/\d{4}-\d{2}-\d{2}\t/.test(text)) return null;
+    var parts=text.split(/(?=\d{4}-\d{2}-\d{2}\t)/), rows=[], i;
+    for(i=0;i<parts.length;i++){
+      var seg=parts[i].replace(/^\s*>?\s*/,'');
+      if(!/^\d{4}-\d{2}-\d{2}\t/.test(seg)) continue;
+      var c=seg.split('\t');
+      var g=function(k){ return (k<c.length)?String(c[k]).trim():''; };
+      rows.push({ date:g(0), tax:mapTax(g(3)), industry:mapIndustry(g(5)), revenue:mapRevenue(g(6)),
+        company:g(8).replace(/_/g,' '), phone:fmtPhone(g(9),g(7)), ceo:extractCeo(g(10)), dup:null });
+    }
+    return rows.length?rows:null;
+  };
+
+  function pkey(p){ return (typeof phoneDigits==='function')?phoneDigits(p):digits(p).replace(/^82/,'0'); }
+  function findDupInAll(rec){
+    var all=window.__allDbForDup||[], pd=pkey(rec.phone), i;
+    for(i=0;i<all.length;i++){ var d=all[i]; if(d.is_frozen) continue;
+      var dp=pkey(d.phone||''); if(pd && dp && pd===dp) return d; }
+    if(typeof normalizeCompanyKey==='function' && typeof normalizePersonKey==='function'){
+      var nc=normalizeCompanyKey(rec.company), ne=normalizePersonKey(rec.ceo);
+      if(nc && ne){ for(i=0;i<all.length;i++){ var e=all[i]; if(e.is_frozen) continue;
+        if(normalizeCompanyKey(e.company||'')===nc && normalizePersonKey(e.ceo||'')===ne) return e; } }
+    }
+    return null;
+  }
+
+  function rowHtml(r,i){
+    var dupBlock='', checked=' checked';
+    if(r.dup && r.dup.kind==='exist'){
+      var d=r.dup.rec; checked='';
+      dupBlock='<div style="margin-top:5px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:5px 8px;font-size:11px;color:#991b1b">'
+        +'⚠️ <b>중복</b> — ['+esc(d.team||'-')+'] 담당: <b>'+esc(d.member||'-')+'</b> · 진행: <b>'+esc(d.status||'-')+'</b>'
+        +' <span onclick="window.__mmOpenExisting(\''+esc(d.id)+'\')" style="color:#2563eb;text-decoration:underline;cursor:pointer;margin-left:6px">진행사항 보기</span>'
+        +'<div style="color:#7f1d1d;margin-top:2px">보고 판단: <b>체크=진행(등록)</b> / <b>미체크=중단</b></div></div>';
+    } else if(r.dup && r.dup.kind==='batch'){
+      checked='';
+      dupBlock='<div style="margin-top:5px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:5px 8px;font-size:11px;color:#92400e">'
+        +'⚠️ <b>목록 내 중복</b> — '+(r.dup.idx+1)+'번과 같은 번호. 미체크(중단) 권장.</div>';
+    }
+    return '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin:6px 0;background:#fff">'
+      +'<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">'
+      +'<input type="checkbox" id="mm-chk-'+i+'"'+checked+' style="margin-top:3px">'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:12px;color:#0f172a"><b>'+esc(r.company||'(업체명 없음)')+'</b> · '+esc(r.phone||'-')+' · '+esc(r.ceo||'-')+'</div>'
+      +'<div style="font-size:11px;color:#64748b">'+esc(r.date||'-')+' · '+esc(r.industry||'-')+' · '+esc(r.revenue||'-')+' · 체납:'+esc(r.tax||'-')+'</div>'
+      +dupBlock+'</div></label></div>';
+  }
+  function listHtml(rows, checkedDone){
+    var dupCnt=0, i; for(i=0;i<rows.length;i++){ if(rows[i].dup) dupCnt++; }
+    var head='<div id="mm-dupnote" style="font-size:12px;font-weight:800;color:#1e293b;margin:10px 0 4px">'
+      +'📋 '+rows.length+'건 인식'+(checkedDone?(dupCnt?(' · <span style="color:#dc2626">중복 '+dupCnt+'건</span>'):' · 중복 없음'):' · <span style="color:#64748b">중복 확인 중…</span>')+'</div>';
+    var body=''; for(i=0;i<rows.length;i++){ body+=rowHtml(rows[i],i); }
+    return head+'<div style="max-height:44vh;overflow-y:auto;padding-right:2px">'+body+'</div>';
+  }
+
+  window.__renderMultiMetaPreview = function(pvEl, rows, okBtn){
+    pvEl.innerHTML=listHtml(rows,false);
+    okBtn.disabled=false; okBtn.textContent='선택 건 등록';
+    okBtn.onclick=function(){ window.__doMultiMetaRegister(); };
+    (async function(){
+      try{
+        if((window.__allDbForDup||[]).length===0 && typeof window.__loadAllDbForDup==='function'){ await window.__loadAllDbForDup(); }
+        var seen={}, i;
+        for(i=0;i<rows.length;i++){ var r=rows[i], k=pkey(r.phone);
+          if(k && seen[k]!==undefined){ r.dup={kind:'batch', idx:seen[k]}; }
+          else { if(k) seen[k]=i; var d=findDupInAll(r); if(d) r.dup={kind:'exist', rec:d}; }
+        }
+        pvEl.innerHTML=listHtml(rows,true);
+      }catch(e){ console.warn('[다건 중복검사]', e&&e.message); }
+    })();
+  };
+
+  // ── 기존 DB 진행사항 팝업 (메타 팝업 위, z-index 10030) ──
+  window.__mmOpenExisting = async function(id){
+    try{
+      var r=await sb.from('db_records').select('company,member,team,status,consulting,care_log,raw').eq('id',id).single();
+      if(r.error||!r.data){ if(typeof showToast==='function')showToast('기존 DB 조회 실패','error'); return; }
+      var d=r.data, raw=d.raw||{};
+      var cons=String(d.consulting||raw.consulting||'(없음)').slice(0,400);
+      var care=String(d.care_log||raw.careLog||'(없음)').slice(0,400);
+      var ov=document.createElement('div');
+      ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10030;display:flex;align-items:center;justify-content:center';
+      ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:min(440px,92vw);max-height:80vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.35)">'
+        +'<div style="font-size:15px;font-weight:900;color:#1e293b;margin-bottom:8px">📄 기존 DB 진행사항 — '+esc(d.company||'')+'</div>'
+        +'<div style="font-size:12px;color:#334155;margin-bottom:10px">담당: <b>'+esc(d.member||'-')+'</b> ('+esc(d.team||'-')+') · 진행상태: <b>'+esc(d.status||raw.status||'-')+'</b></div>'
+        +'<div style="font-size:12px;color:#0f172a;background:#f8fafc;border-radius:8px;padding:10px;line-height:1.6"><b>상담내용</b><br>'+esc(cons)+'<br><br><b>케어로그</b><br>'+esc(care)+'</div>'
+        +'<button type="button" style="margin-top:14px;width:100%;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">닫기</button></div>';
+      ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
+      ov.querySelector('button').addEventListener('click',function(){ ov.remove(); });
+      document.body.appendChild(ov);
+    }catch(e){ if(typeof showToast==='function')showToast('조회 오류','error'); }
+  };
+
+  // ── 단건(TSV 1건) → 현재 모달 폼에 자동입력 (기존 단건 방식과 동일 목적) ──
+  window.__applyOneTsvToModal = function(rec){
+    function sv(id,v){ var e=document.getElementById(id); if(e && v!=null && v!==''){ e.value=v; } }
+    sv('input-date',rec.date); sv('input-source','회사DB'); if(typeof toggleGradeField==='function') toggleGradeField();
+    sv('input-company',rec.company); sv('input-ceo',rec.ceo); sv('input-phone',rec.phone);
+    sv('input-industry',rec.industry); sv('input-revenue',rec.revenue); sv('input-tax',rec.tax);
+    if(window.modalState) window.modalState.isDirty=true;
+    if(typeof showToast==='function') showToast('META 자동입력 완료 (1건) — 저장 버튼으로 확정','success');
+  };
+  window.__oneTsvPreviewHtml = function(r){
+    return '<div style="margin-top:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;font-size:12px;color:#0f172a;line-height:1.7">'
+      +'<div style="font-weight:800;color:#1e40af;margin-bottom:4px">1건 — 현재 폼에 자동입력</div>'
+      +'접수일 <b>'+esc(r.date||'-')+'</b> · 업체명 <b>'+esc(r.company||'-')+'</b> · 대표자 <b>'+esc(r.ceo||'-')+'</b><br>'
+      +'연락처 <b>'+esc(r.phone||'-')+'</b> · 업종 <b>'+esc(r.industry||'-')+'</b> · 매출 <b>'+esc(r.revenue||'-')+'</b> · 체납 <b>'+esc(r.tax||'-')+'</b></div>';
+  };
+
+  // ── 일괄 등록 (선택된 건만, 기존 신규저장 payload 재사용) ──
+  window.__doMultiMetaRegister = async function(){
+    var rows=window.__multiMetaRows||[], picks=[], i;
+    for(i=0;i<rows.length;i++){ var cb=document.getElementById('mm-chk-'+i); if(cb && cb.checked) picks.push(rows[i]); }
+    if(!picks.length){ if(typeof showToast==='function')showToast('등록할 건이 없습니다 (체크된 건 없음)','warning'); return; }
+    var me=window.currentUser; if(!me){ if(typeof showToast==='function')showToast('로그인 정보 없음','error'); return; }
+    var team=me.team||(typeof getTeamByMemberName==='function'?(getTeamByMemberName(me.name)||''):'')||'';
+    var ok=document.getElementById('meta-ok'); if(ok){ ok.disabled=true; ok.textContent='등록 중…'; }
+    var base=Date.now(), success=0, fail=0, failMsgs=[], k;
+    for(k=0;k<picks.length;k++){
+      var r=picks[k];
+      try{
+        if(!r.company){ fail++; failMsgs.push((k+1)+'번: 업체명 없음'); continue; }
+        var log={ time:new Date().toLocaleString(), text:'🤖 (시스템) META 다건 등록', writer:'시스템', type:'system' };
+        var raw={ member:me.name, team:team, date:r.date, source:'회사DB', company:r.company, ceo:r.ceo, phone:r.phone,
+          industry:r.industry, revenue:r.revenue, tax:r.tax, region:'', callStatus:'', recallDate:'', meetStatus:'미진행', meetDate:'',
+          status:'선택', consulting:'', careLog:'', contracts:[], shareList:[], logs:[log], roadmap:[],
+          isUnreadAdminAlert:false, isFrozen:false, isReassigned:false, _clientSavedAt:new Date().toISOString(), _v35Saved:true, _bulkMeta:true };
+        var payload={ id:base+k, member:me.name, team:team, date:r.date||null, source:'회사DB', source_desc:null, grade_prov:null,
+          company:r.company, ceo:r.ceo||null, phone:r.phone||null, industry:r.industry||null, revenue:r.revenue||null, region:null,
+          call_status:null, recall_date:null, meet_status:'미진행', meet_date:null, status:null, consulting:null, care_log:null,
+          raw:raw, logs:[log], is_frozen:false, is_reassigned:false, created_at:new Date().toISOString(), updated_at:new Date().toISOString() };
+        var res=await sb.from('db_records').insert(payload).select().single();
+        if(res.error) throw res.error;
+        if(typeof normalizeDBRecord==='function' && res.data) appState.records.unshift(normalizeDBRecord(res.data));
+        success++;
+      }catch(e){ fail++; failMsgs.push((r.company||'?')+': '+((e&&e.message)||e)); }
+    }
+    try{ if(typeof renderList==='function') renderList(); }catch(e){}
+    try{ if(typeof updateMyReassignBadge==='function') updateMyReassignBadge(); }catch(e){}
+    try{ if(typeof window.__loadAllDbForDup==='function') await window.__loadAllDbForDup(); }catch(e){}
+    var ov=document.querySelector('.meta-ov'); if(ov) ov.remove();
+    var msg='✅ 등록 '+success+'건'+(fail?(' · ❌ 실패 '+fail+'건'):'');
+    if(typeof showToast==='function') showToast(msg, fail?'warning':'success');
+    if(fail) console.warn('[META 다건 등록 실패 목록]', failMsgs);
+  };
+})();
+
 </script>
 </body>
 </html>
