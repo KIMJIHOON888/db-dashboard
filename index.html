@@ -774,7 +774,7 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,Roboto,
 .badge.status-end      { background:#fee2e2; color:#991b1b; }
 .badge.status-share    { background:#fef3c7; color:#92400e; }
 .badge.status-frozen   { background:#fdf2f8; color:#9d174d; }
-.badge.status-lapse    { background:#ede9fe; color:#7c3aed; }  /* ★ v34.4: 청철/실효 보라색 */
+.badge.status-lapse    { background:#dc2626; color:#fde047; font-weight:800; }  /* v35.3.42: 청철/실효 빨강배경·노랑글씨(눈에 띄게) */
 
 /* D-day 뱃지 (v34.4 호환) */
 .dday-badge {
@@ -5664,6 +5664,28 @@ function isProgressStatus(s) {
 // ④ 통화완료 + 미팅진행='종료' → '종료'
 // ⑤ callStatus 있음 (재통화요청, 부재중, 장난DB 등) → callStatus 표시 (배지 색깔로)
 // ⑥ 아무것도 없음 → '-'
+/* v35.3.42: 청철/실효 구분 배지 — 빨강 배경·노랑 글씨. 청철N/실효N 개수별 표기.
+   계약 배열의 c.lapseType(청철|실효)으로 집계. 데이터 없으면 '청철/실효'로 표기. */
+function _lapseBadge(contracts, d) {
+  var cancel = 0, expire = 0;  // 청철 / 실효
+  if (Array.isArray(contracts)) {
+    contracts.forEach(function(c){
+      if (!c || !c.isLapsed) return;
+      if ((c.lapseType || '실효') === '청철') cancel++; else expire++;
+    });
+  }
+  // 계약 배열이 비었으면 DB레벨 lapseType 참고
+  if (cancel === 0 && expire === 0) {
+    var lt = (d && (d.lapseType || (d.raw && d.raw.lapseType))) || '';
+    if (lt === '청철') cancel = 1; else if (lt === '실효') expire = 1;
+  }
+  var txt;
+  if (cancel && expire) txt = '청철' + cancel + '/실효' + expire;
+  else if (cancel) txt = (cancel > 1 ? '청철' + cancel : '청철');
+  else if (expire) txt = (expire > 1 ? '실효' + expire : '실효');
+  else txt = '청철/실효';
+  return '<span class="badge status-lapse">' + txt + '</span>';
+}
 function getStatusBadge(d) {
   // ① 동결 최우선
   if (d.isFrozen) return '<span class="badge status-frozen">🔒 동결' + (d.frozenTo ? ' →' + escapeHtml(d.frozenTo) : '') + '</span>';
@@ -5692,8 +5714,8 @@ function getStatusBadge(d) {
       const total = _statusContracts.length;
       const active = _statusContracts.filter(c => !c.isLapsed).length;
       if (active === 0 && total > 0) {
-        // 모두 청철/실효 → 보라색 '청철/실효' 표시
-        return '<span class="badge status-lapse">청철/실효</span>';
+        // 모두 청철/실효 → 청철/실효 각각 구분 표기 (빨강 배경·노랑 글씨)
+        return _lapseBadge(_statusContracts);
       } else if (active < total) {
         // 일부만 깨짐 → '계약 N/M' 표기 (정상 N건 / 전체 M건)
         return '<span class="badge ' + cls + '">계약 ' + active + '/' + total + '</span>';
@@ -5702,6 +5724,10 @@ function getStatusBadge(d) {
         return '<span class="badge ' + cls + '">계약 ' + total + '</span>';
       }
       // total === 1 이고 정상 → 아래 기본 분기로 (단순 '계약')
+    }
+    /* v35.3.42: 진행상태가 청철/실효면 청철·실효 구분 + 빨강배경·노랑글씨 배지 */
+    if (status === '청철/실효') {
+      return _lapseBadge((typeof getDBContracts === 'function') ? getDBContracts(d) : (d.contracts || []), d);
     }
     return '<span class="badge ' + cls + '">' + escapeHtml(status) + '</span>';
   }
@@ -11250,12 +11276,36 @@ function getLapseAmountForPeriod(d, y, m, isAll) {
 
 // v34.4 line 5360: 기간 내 청철/실효의 쉐어 부분 (memberName 기준)
 function getLapseShareAmountForPeriod(memberName, d, y, m, isAll) {
+  /* v35.3.42: 쉐어 파트너의 청철/실효 금액 — 원담당자 로직(getLapseAmountForPeriod)과 동일하게
+     계약별(contracts[])로 순회. 기존은 d레벨 lapseDate/연도일치만 봐서 다중계약·부분실효·
+     d레벨 날짜누락 시 0이 되어 파트너 통계에 청철이 안 잡히던 버그 fix. */
+  if (!memberName) return 0;
+  var contracts = (typeof getDBContracts === 'function') ? (getDBContracts(d) || []) : (d.contracts || []);
+  var sum = 0;
+  if (Array.isArray(contracts) && contracts.length) {
+    contracts.forEach(function(c) {
+      if (!c || !c.isLapsed) return;
+      var lapseDate = c.lapseDate || c.date || d.lapseDate || '';
+      if (!ymMatch(lapseDate, y, m, isAll)) return;
+      // 실효는 계약 후 24개월 이내만(원담당자 기준과 동일), 청철은 무조건 포함
+      if ((c.lapseType || '실효') === '실효') {
+        var lp = parseDBDate(lapseDate), cp = parseDBDate(c.date || '');
+        if (lp.year && cp.year && Math.abs((lp.year - cp.year) * 12 + (lp.month - cp.month)) > 24) return;
+      }
+      // 이 계약의 쉐어 목록에서 파트너 몫만 합산
+      (c.shareList || []).forEach(function(s) {
+        if (s && s.partner === memberName) sum += __safeNum(s.amount || 0);
+      });
+    });
+    return sum;
+  }
+  /* 계약 배열이 없는 구버전 데이터 → 기존 d레벨 방식 폴백 */
   if (!shouldCountLapse(d)) return 0;
   var lapseDate = d.lapseDate || '';
-  var contractDate = d.contractDate || (d.contracts && d.contracts[0] && d.contracts[0].date) || '';
+  var contractDate = d.contractDate || '';
   if (!ymMatch(lapseDate, y, m, isAll)) return 0;
-  var lp = parseDBDate(lapseDate), cp = parseDBDate(contractDate);
-  if (!lp.year || !cp.year || lp.year !== cp.year) return 0;
+  var lp2 = parseDBDate(lapseDate), cp2 = parseDBDate(contractDate);
+  if (!lp2.year || !cp2.year || lp2.year !== cp2.year) return 0;
   var shares = getLapseShares(d);
   return shares.filter(function(s) { return s.partner === memberName; })
                .reduce(function(a, s) { return a + __safeNum(s.amount || 0); }, 0);
@@ -11309,14 +11359,37 @@ function getNetRevenueForMember(memberName, y, m, isAll) {
 function getLapseCountForMember(memberName, y, m, isAll) {
   var count = 0;
   ((window.appState && window.appState.records) || []).forEach(function(d) {
-    if (d.member !== memberName || d.isFrozen) return;
+    if (d.isFrozen) return;
+    var isOwner = (d.member === memberName);
     (getDBContracts(d) || []).forEach(function(c) {
       if (!c || !c.isLapsed) return;
       var lapseDate = c.lapseDate || c.date || '';
-      if (ymMatch(lapseDate, y, m, isAll)) count++;
+      if (!ymMatch(lapseDate, y, m, isAll)) return;
+      /* v35.3.42: 본인 담당건 + 쉐어 파트너로 참여한 건도 카운트 */
+      if (isOwner) { count++; return; }
+      var isPartner = Array.isArray(c.shareList) && c.shareList.some(function(s){ return s && s.partner === memberName; });
+      if (isPartner) count++;
     });
   });
   return count;
+}
+
+/* v35.3.42: 청철/실효를 각각 구분 카운트 (본인 담당 + 쉐어 파트너 참여 모두). 반환 {cancel, expire} */
+function getLapseTypeCountForMember(memberName, y, m, isAll) {
+  var cancel = 0, expire = 0;
+  ((window.appState && window.appState.records) || []).forEach(function(d) {
+    if (d.isFrozen) return;
+    var isOwner = (d.member === memberName);
+    (getDBContracts(d) || []).forEach(function(c) {
+      if (!c || !c.isLapsed) return;
+      var lapseDate = c.lapseDate || c.date || '';
+      if (!ymMatch(lapseDate, y, m, isAll)) return;
+      var involved = isOwner || (Array.isArray(c.shareList) && c.shareList.some(function(s){ return s && s.partner === memberName; }));
+      if (!involved) return;
+      if ((c.lapseType || '실효') === '청철') cancel++; else expire++;
+    });
+  });
+  return { cancel: cancel, expire: expire };
 }
 
 // v34.4 line 5411: 본인 청철/실효 금액 합계 (본인 계약 + 쉐어 받은 부분)
@@ -14529,6 +14602,7 @@ function renderPatchedDashboard(){
           && ymMatch(d.contractDate || '', targetYear, targetMonth, isAllMonths);
     }).length + getShareContractCount(m.name, targetYear, targetMonth);
     var lapseCountM = getLapseCountForMember(m.name, targetYear, targetMonth, isAllMonths);
+    var lapseTypeM = getLapseTypeCountForMember(m.name, targetYear, targetMonth, isAllMonths);  /* v35.3.42: 청철/실효 구분 */
     var netRevenue = getNetRevenueForMember(m.name, targetYear, targetMonth, isAllMonths);
     // v35.1.98: 대장님 #4 — 청철/실효 차감 금액 (빨간 표시용)
     var lapseAmtM = getLapseAmountForMember(m.name, targetYear, targetMonth, isAllMonths);
@@ -14546,7 +14620,7 @@ function renderPatchedDashboard(){
       name: m.name, dbTotal: dbTotal, dbNew: dbNewP, dbRe: dbReP,
       meet: meetCount, meetRate: meetRate,
       contract: contractCount2, contRate: contRate,
-      lapse: lapseCountM, revenue: netRevenue, lapseAmt: lapseAmtM,
+      lapse: lapseCountM, revenue: netRevenue, lapseAmt: lapseAmtM, lapseType: lapseTypeM,
       callDone: callDone, prospect: prospectCount,
       callAttempt: callAttemptCount, personalDug: personalDugCount, neglect: neglectCount,
       goalPct: goalPct, goal: goal, role: m.role
@@ -14614,7 +14688,13 @@ function renderPatchedDashboard(){
       + '<td style="font-weight:800;color:' + _mrColor + '">' + r.meetRate + '%</td>'
       + '<td style="font-weight:800;color:' + (r.contract > 0 ? '#10b981' : '#94a3b8') + '">' + r.contract + '</td>'
       + '<td style="font-weight:800;color:' + _crColor + '">' + r.contRate + '%</td>'
-      + '<td style="font-weight:700;color:' + (r.lapse > 0 ? '#9333ea' : '#94a3b8') + '">' + r.lapse + '</td>'
+      + '<td style="font-weight:700;color:' + (r.lapse > 0 ? '#dc2626' : '#94a3b8') + '">' + (function(){
+          var lt = r.lapseType || {cancel:0, expire:0};
+          if (lt.cancel && lt.expire) return '청철' + lt.cancel + '/실효' + lt.expire;
+          if (lt.cancel) return '청철' + lt.cancel;
+          if (lt.expire) return '실효' + lt.expire;
+          return r.lapse || 0;
+        })() + '</td>'
       + '<td style="font-weight:800;color:#2563eb">' + r.revenue.toLocaleString() + '원'
         + (r.lapseAmt > 0 ? '<div style="font-size:10px;font-weight:700;color:#dc2626;margin-top:2px">(청철/실효 -' + r.lapseAmt.toLocaleString() + ')</div>' : '')
         + '</td>'
@@ -21138,7 +21218,12 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
             var _ceo=(document.getElementById('input-ceo')||{}).value||'';
             if(id && (_comp||_phone) && typeof window.__findDupLive==='function'){
               window.__findDupLive(_comp,_ceo,_phone,String(id)).then(function(dup){
-                if(dup && !dup.__none && !dup.is_reassigned && !dup.isReassigned){
+                /* v35.3.42: 담당자가 본인인 중복은 경고 제외 — 본인이 이미 아는 자기 DB
+                   (예: 같은 업체의 계약 원본 ↔ 청철/실효 건)를 중복으로 오탐하던 버그 fix.
+                   다른 사람이 같은 업체를 가진 경우에만 경고 표시. */
+                var _myNm = (window.currentUser && window.currentUser.name) || '';
+                var _dupOwner = (dup && (dup.member || (dup.raw && dup.raw.member))) || '';
+                if(dup && !dup.__none && !dup.is_reassigned && !dup.isReassigned && _dupOwner !== _myNm){
                   var _who = dup.member ? ((typeof markRetiredName==='function')? markRetiredName(dup.member): dup.member) : '';
                   var _team = dup.team || '';
                   var _st = dup.status || (dup.raw && dup.raw.status) || '';
@@ -21263,7 +21348,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.41';
+  var VER35='v35.3.42';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21280,7 +21365,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.41';
+  var VER35='v35.3.42';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
