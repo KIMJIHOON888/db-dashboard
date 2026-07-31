@@ -21348,7 +21348,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.43';
+  var VER35='v35.3.46';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21365,7 +21365,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.43';
+  var VER35='v35.3.46';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
@@ -21478,6 +21478,8 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
   function extractCeo(v){ v=(v||'').trim(); if(!v) return '';
     var m=v.match(/대표자?\s*[:\-]?\s*([가-힣]{2,4})/); if(m) return m[1];
     if(v.indexOf('|')>=0) v=v.split('|')[0].trim();
+    var noAlias=v.replace(/\(.*?\)/g,'').trim();               /* v35.3.46: 김미현(서윤)→김미현 */
+    if(/^[가-힣]{2,4}$/.test(noAlias)) return noAlias;
     if(/^[가-힣]{2,4}$/.test(v)) return v;
     return v; /* 파악 어려움 → 원문 */
   }
@@ -21534,6 +21536,230 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
     return (core>=2) ? map : null;
   }
 
+  /* v35.3.44: 값 패턴 유추 파서 — 헤더가 없고 열 순서를 모를 때 각 셀 값의 특징으로 항목 매칭.
+     날짜/전화/매출/체납/업종은 값이 뚜렷하고, 남은 셀 중 한글 이름 후보에서 업체명·대표를 가림. */
+  function __guessByValue(lines){
+    // 각 줄이 날짜(ISO 포함)로 시작해야 데이터로 인정
+    var dataLines = lines.filter(function(l){ return /^\d{4}-\d{2}-\d{2}/.test(l.trim()); });
+    if(!dataLines.length) return null;
+    var out = [];
+    dataLines.forEach(function(line){
+      var c = line.split('\t').map(function(x){ return String(x||'').trim(); });
+      var used = {};
+      var pick = function(i){ used[i]=true; return c[i]; };
+
+      // 신청일: 0번(날짜로 시작)
+      var date = (c[0]||'').slice(0,10); used[0]=true;
+
+      // 전화: 숫자 10~11자리(82/+82/p: 포함) 후보 중 '핸드폰(82 or 010)' 우선, 없으면 회신번호
+      var phoneIdx = -1, phoneScore = -1;
+      for(var i=1;i<c.length;i++){
+        if(used[i]) continue;
+        var dg = c[i].replace(/[^0-9]/g,'');
+        if(dg.length < 9) continue;
+        var sc = 0;
+        if(c[i].indexOf('82')>=0 || c[i].indexOf('+')>=0 || c[i].toLowerCase().indexOf('p:')>=0) sc=3; // 국제형 핸드폰 우선
+        else if(dg.indexOf('010')===0 || dg.indexOf('10')===0) sc=2;
+        else if(dg.length===10 || dg.length===11) sc=1; // 회신번호
+        if(sc > phoneScore){ phoneScore=sc; phoneIdx=i; }
+      }
+      var phone = phoneIdx>=0 ? fmtPhone(pick(phoneIdx), '') : '';
+
+      // 체납: '아니요/예/완납/체납/미납' 키워드
+      var taxIdx = c.findIndex(function(v,idx){ return !used[idx] && /^(아니요|예|완납|체납|미납|없음|있음)$/.test(v); });
+      var tax = taxIdx>=0 ? mapTax(pick(taxIdx)) : '';
+
+      // 매출: '억/만/미만/이상/이하/원' 포함
+      var revIdx = c.findIndex(function(v,idx){ return !used[idx] && /(억|만|미만|이상|이하)/.test(v) && v.length<=12; });
+      var revenue = revIdx>=0 ? mapRevenue(pick(revIdx)) : '';
+
+      // 업종: 알려진 업종 키워드 또는 '업/제조/도소매/서비스/유통' 포함
+      var indIdx = c.findIndex(function(v,idx){ return !used[idx] && /(제조|도소매|소매|도매|서비스|유통|건설|음식|숙박|운수|교육|의료|부동산|금융|업$)/.test(v) && v.length<=10; });
+      var industry = indIdx>=0 ? mapIndustry(pick(indIdx)) : '';
+
+      // 남은 한글 후보에서 업체명·대표 구분:
+      //   대표 = 순수 2~4자 한글 이름(괄호 별칭 허용) / 업체명 = 그 외 한글(길거나 회사표현)
+      var korCands = [];
+      for(var j=1;j<c.length;j++){
+        if(used[j]) continue;
+        var v = c[j];
+        if(!v) continue;
+        /* 사업자구분·업종·매출·플랫폼·캠페인 등 '항목값'은 업체명/대표 후보에서 제외 */
+        if(/사업자$|^법인$|^개인$/.test(v)) continue;
+        if(/^(회신|이름|성함|번호|회신번호|연락처|담당|담당자|플랫폼)$/.test(v)) continue;  /* 헤더성 단어 제외 */
+        if(/(제조|도소매|소매|도매|서비스|유통|건설|음식|숙박|운수|교육|의료|부동산|금융)/.test(v) && v.length<=6) continue;
+        if(/(억|만원|미만|이상|이하)/.test(v)) continue;
+        if(/[가-힣]/.test(v) && !/^ig$|^fb$|^meta$/i.test(v) && v.indexOf('_all')<0 && v.indexOf('정책자금')<0 && v.indexOf('캠페인')<0){
+          korCands.push({ idx:j, val:v });
+        }
+      }
+      // 대표 후보: '이름(별칭)' 또는 순수 2~4자 이름
+      var ceoCand = null, compCand = null;
+      var COMPWORD = /(주식회사|\(주\)|회사|기업|산업|공업|상사|테크|그룹|코리아|스토어|마트|정공|건설|물산)/;
+      /* 1순위: 별칭 있는 값 = 대표 (김미현(서윤)) */
+      var aliasCand = korCands.find(function(x){ return /\(.*?\)/.test(x.val) && /[가-힣]{2,4}/.test(x.val.replace(/\(.*?\)/g,'').trim()); });
+      /* 회사표현 포함 값 = 업체명 강력신호 */
+      var compWordCand = korCands.find(function(x){ return COMPWORD.test(x.val); });
+      if(aliasCand) ceoCand = aliasCand;
+      if(compWordCand && (!ceoCand || compWordCand.idx !== ceoCand.idx)) compCand = compWordCand;
+
+      /* 남은 순수이름/일반 한글로 업체명·대표 채우기 */
+      korCands.forEach(function(x){
+        if((ceoCand && x.idx===ceoCand.idx) || (compCand && x.idx===compCand.idx)) return;
+        var nameOnly = x.val.replace(/\(.*?\)/g,'').trim();
+        var isPureName = /^[가-힣]{2,4}$/.test(nameOnly) && !COMPWORD.test(x.val);
+        if(!compCand){ compCand = x; }                 /* 위치상 업체명이 대표보다 앞 → 먼저 나온 걸 업체명 */
+        else if(!ceoCand && isPureName){ ceoCand = x; }
+        else if(!ceoCand){ ceoCand = x; }
+      });
+      /* 대표만 있고 업체명 없으면, 대표 아닌 남은 한글을 업체명으로 */
+      if(!compCand){ compCand = korCands.find(function(x){ return !ceoCand || x.idx!==ceoCand.idx; }) || null; }
+      // 이름 후보가 없으면 첫 한글=업체명
+      if(!compCand && korCands.length){ compCand = korCands.find(function(x){ return !ceoCand || x.idx!==ceoCand.idx; }) || null; }
+      // 업체명이 대표와 같으면 분리
+      if(compCand && ceoCand && compCand.idx===ceoCand.idx){ compCand=null; }
+
+      var company = compCand ? compCand.val.replace(/_/g,' ') : '';
+      var ceo = ceoCand ? extractCeo(ceoCand.val) : '';
+
+      if(company || phone){
+        out.push({ date:date, tax:tax, industry:industry, revenue:revenue, company:company, phone:phone, ceo:ceo, dup:null });
+      }
+    });
+    return out.length ? out : null;
+  }
+
+  /* v35.3.45: 사전 등록 양식(프리셋) — 헤더 없이 데이터만 붙여도 알려진 양식은 고정 매핑으로 정확 처리.
+     새 양식이 생기면 아래 __META_PRESETS 배열에 항목만 추가하면 됨(코드 수정 불필요).
+     match: 데이터 첫 줄로 이 양식인지 판별 / map: 각 항목의 열 번호(0-based). ceo/phone는 -1이면 미사용. */
+  var __META_PRESETS = [
+    {
+      /* v35.3.46: META 리드 통합 양식 — 6개 담당자 시트 + 정책자금 공통 골격.
+         골격(날짜0·체납3·업종5·매출6)은 고정 위치로 정확히 뽑고,
+         업체·전화·대표는 8~14 범위에서 '값 특징'으로 배치(시트마다 순서 달라도 대응).
+         이 방식이 순수 위치고정보다 안전 — 값이 비슷해도 오판 없음. */
+      name: 'META 리드(자동배치)',
+      match: function(cells){
+        if(cells.length < 11) return false;
+        if(!/^\d{4}-\d{2}-\d{2}/.test(cells[0]||'')) return false;
+        // 골격 검증: [3]체납스러운값 or [5]업종스러운값 or [6]매출스러운값 중 최소 1개
+        var taxOk = /^(아니요|예|완납|체납|미납|없음|있음)$/.test((cells[3]||'').trim());
+        var indOk = /(제조|도소매|소매|도매|서비스|유통|건설|음식|숙박|운수|교육|의료|부동산|금융|업)/.test(cells[5]||'');
+        var revOk = /(억|만|미만|이상|이하)/.test(cells[6]||'');
+        // 8~14 영역에 전화(숫자9+)와 한글이 존재
+        var tail = cells.slice(8);
+        var hasPhone = tail.some(function(v){ return String(v||'').replace(/[^0-9]/g,'').length>=9; });
+        var hasKor = tail.some(function(v){ return /[가-힣]/.test(v||''); });
+        return (taxOk || indOk || revOk) && hasPhone && hasKor;
+      },
+      /* 골격만 고정 매핑, 업체/전화/대표는 __resolveTail로 값 배치 */
+      map: { date:0, tax:3, industry:5, revenue:6, __tailFrom:8 }
+    }
+  ];
+
+  /* v35.3.46: 8번 이후 꼬리 영역에서 업체·전화·대표를 값 특징으로 배치 */
+  function __resolveTail(cells, from){
+    var tail = [];
+    for(var i=from;i<cells.length;i++){ tail.push({ idx:i, val:String(cells[i]||'').trim() }); }
+    var used = {};
+    // 전화: 숫자9+, 국제형(82/p:) 우선
+    var phoneCand=null, phoneScore=-1;
+    tail.forEach(function(t){
+      var dg=t.val.replace(/[^0-9]/g,''); if(dg.length<9) return;
+      var sc=0;
+      if(/(\+?82|p:)/i.test(t.val)) sc=3;
+      else if(dg.indexOf('010')===0||dg.indexOf('10')===0) sc=2;
+      else sc=1;
+      if(sc>phoneScore){ phoneScore=sc; phoneCand=t; }
+    });
+    if(phoneCand) used[phoneCand.idx]=true;
+    // 한글 후보 (전화·항목값·헤더성 단어 제외)
+    var COMPWORD=/(주식회사|\(주\)|회사|기업|산업|공업|상사|테크|그룹|코리아|스토어|마트|정공|건설|물산|유통|산업사)/;
+    var korCands=[];
+    tail.forEach(function(t){
+      if(used[t.idx]) return; var v=t.val; if(!v) return;
+      if(/^ig$|^fb$|^meta$/i.test(v)) return;
+      if(/사업자$|^법인$|^개인$/.test(v)) return;
+      if(/^(회신|이름|성함|번호|회신번호|연락처|담당|담당자|플랫폼)$/.test(v)) return;
+      if(/^(오전|오후|종일|언제나|아무때나|무관|전화가능시간|연락가능)/.test(v)) return;   /* 연락가능시간 제외 */
+      if(/(제조|도소매|소매|도매|서비스|유통|건설|음식|숙박|운수|교육|의료|부동산|금융)$/.test(v) && v.length<=6) return;
+      if(/(억|만원)/.test(v) || /(미만|이상|이하)$/.test(v)) return;   /* 매출값만 제외(이름 '이상철'의 '이상' 오매칭 방지) */
+      if(v.indexOf('_all')>=0 || v.indexOf('정책자금')>=0) return;
+      /* 맨 끝(마지막 칸) 순수 한글이름은 담당자명일 가능성 → 후순위 태그(제외하지 않고 뒤로 미룸) */
+      t.isTrailingName = (t.idx === (cells.length - 1)) && /^[가-힣]{2,4}$/.test(v);
+      if(/[가-힣]/.test(v)) korCands.push(t);
+    });
+    // 대표: 별칭 있는 값 > 순수 2~4자 이름(회사어 없음)
+    var ceoCand = korCands.find(function(t){ return /\(.*?\)/.test(t.val) && /[가-힣]{2,4}/.test(t.val.replace(/\(.*?\)/g,'').trim()); });
+    var compWordCand = korCands.find(function(t){ return COMPWORD.test(t.val); });
+    var compCand = null;
+    if(compWordCand) compCand = compWordCand;                 /* 회사어 있으면 확실히 업체명 */
+    if(ceoCand) used[ceoCand.idx]=true;
+    if(compCand) used[compCand.idx]=true;
+    // 남은 것으로 채우기: 위치상 업체명이 대표보다 앞 → 먼저 나온 한글=업체명, 순수이름=대표
+    // 단, 맨 끝 담당자명(isTrailingName)은 가장 후순위로 정렬
+    var ordered = korCands.slice().sort(function(a,b){
+      var at = a.isTrailingName?1:0, bt = b.isTrailingName?1:0;
+      if(at!==bt) return at-bt;       /* 담당자명은 뒤로 */
+      return a.idx-b.idx;             /* 그 외 원래 순서 */
+    });
+    ordered.forEach(function(t){
+      if(used[t.idx]) return;
+      var nameOnly=t.val.replace(/\(.*?\)/g,'').trim();
+      var isPureName=/^[가-힣]{2,4}$/.test(nameOnly) && !COMPWORD.test(t.val);
+      if(!compCand && !t.isTrailingName){ compCand=t; used[t.idx]=true; }   /* 담당자명은 업체명으로 안 씀 */
+      else if(!ceoCand && isPureName){ ceoCand=t; used[t.idx]=true; }
+      else if(!ceoCand && !t.isTrailingName){ ceoCand=t; used[t.idx]=true; }
+    });
+    if(!compCand){ compCand = korCands.find(function(t){ return !t.isTrailingName && (!ceoCand || t.idx!==ceoCand.idx); }) || null; }
+    return {
+      company: compCand ? compCand.val.replace(/_/g,' ') : '',
+      phone: phoneCand ? phoneCand.val : '',
+      ceo: ceoCand ? ceoCand.val : ''
+    };
+  }
+
+  /* 데이터 줄들에 프리셋을 적용. 매칭되는 프리셋이 없으면 null */
+  function __applyPreset(dataLines){
+    if(!dataLines.length) return null;
+    var firstCells = dataLines[0].split('\t').map(function(x){ return String(x||'').trim(); });
+    var preset = null;
+    for(var i=0;i<__META_PRESETS.length;i++){
+      try{ if(__META_PRESETS[i].match(firstCells)){ preset=__META_PRESETS[i]; break; } }catch(e){}
+    }
+    if(!preset) return null;
+    window.__metaColMap = Object.assign({ __presetName: preset.name }, preset.map);  /* 미리보기 표시용 */
+    var m = preset.map, out = [];
+    dataLines.forEach(function(line){
+      var c = line.split('\t').map(function(x){ return String(x||'').trim(); });
+      var g = function(k){ return (k>=0 && k<c.length) ? c[k] : ''; };
+      /* 업체·전화·대표: __tailFrom 있으면 값 특징으로 배치, 없으면 고정 위치 */
+      var tail;
+      if(typeof m.__tailFrom === 'number'){
+        /* v35.3.46: 꼬리 시작점 자동 판별 — ISO 날짜+국제전화(정책자금)는 업체가 7번부터 */
+        var _from = m.__tailFrom;
+        var _isISO = /^\d{4}-\d{2}-\d{2}T/.test(c[0]||'');
+        var _hasIntl = c.slice(7).some(function(v){ return /(\+?82|p:)/i.test(String(v||'')); });
+        if(_isISO && _hasIntl && c.length >= 14) _from = 7;
+        tail = __resolveTail(c, _from);
+      } else {
+        tail = { company: g(m.company), phone: g(m.phone), ceo: g(m.ceo) };
+      }
+      if(!tail.company && !tail.phone) return;
+      out.push({
+        date: (g(m.date)||'').slice(0,10),
+        tax: mapTax(g(m.tax)),
+        industry: mapIndustry(g(m.industry)),
+        revenue: mapRevenue(g(m.revenue)),
+        company: (tail.company||'').replace(/_/g,' '),
+        phone: fmtPhone(tail.phone, ''),
+        ceo: extractCeo(tail.ceo),
+        dup: null
+      });
+    });
+    return out.length ? out : null;
+  }
+
   window.__parseMultiMeta = function(text){
     if(!text) return null;
     var lines = text.split(/\r?\n/).filter(function(l){ return l.trim()!==''; });
@@ -21547,28 +21773,59 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 
     var rows = [], i;
     if(hmap){
-      /* ── 헤더 기반: 2번째 줄부터 데이터, 헤더가 알려준 열 번호로 추출 ── */
-      for(i=1;i<lines.length;i++){
-        var c = lines[i].split('\t');
-        var g = function(k){ return (k>=0 && k<c.length) ? String(c[k]).trim() : ''; };
-        var comp = g(hmap.company);
-        var ph = g(hmap.phone);
-        if(!comp && !ph) continue;   /* 빈 줄 skip */
-        rows.push({
-          date: g(hmap.date),
-          tax: mapTax(g(hmap.tax)),
-          industry: mapIndustry(g(hmap.industry)),
-          revenue: mapRevenue(g(hmap.revenue)),
-          company: comp.replace(/_/g,' '),
-          phone: fmtPhone(ph, g(hmap.callTime)),
-          ceo: extractCeo(g(hmap.ceo)),
-          dup: null
-        });
+      /* ── 헤더 기반: 2번째 줄부터 데이터, 헤더가 알려준 열 번호로 추출 ──
+         v35.3.46: 헤더 위치가 실제 데이터와 어긋나는 양식(정책자금 등) 대비 → 값 검증.
+         전화 칸에 전화번호가 없거나 업체 칸이 순수 숫자면 헤더 신뢰 불가 → 값 유추로 전환. */
+      var _hdrValid = true;
+      var _firstData = null;
+      for(i=1;i<lines.length;i++){ if(/\t/.test(lines[i])){ _firstData = lines[i].split('\t'); break; } }
+      if(_firstData){
+        var _dv = function(k){ return (k>=0 && k<_firstData.length) ? String(_firstData[k]).trim() : ''; };
+        var _phVal = _dv(hmap.phone), _compVal = _dv(hmap.company);
+        var _phDigits = _phVal.replace(/[^0-9]/g,'');
+        // 전화칸에 9자리+ 숫자가 없으면 헤더 어긋남 의심
+        if(_phDigits.length < 9) _hdrValid = false;
+        // 업체칸이 순수 숫자(전화/사업자번호)면 어긋남
+        if(/^[0-9\-+\s]+$/.test(_compVal) && _compVal.length >= 6) _hdrValid = false;
       }
-      return rows.length ? rows : null;
+      if(_hdrValid){
+        for(i=1;i<lines.length;i++){
+          var c = lines[i].split('\t');
+          var g = function(k){ return (k>=0 && k<c.length) ? String(c[k]).trim() : ''; };
+          var comp = g(hmap.company);
+          var ph = g(hmap.phone);
+          if(!comp && !ph) continue;   /* 빈 줄 skip */
+          rows.push({
+            date: g(hmap.date),
+            tax: mapTax(g(hmap.tax)),
+            industry: mapIndustry(g(hmap.industry)),
+            revenue: mapRevenue(g(hmap.revenue)),
+            company: comp.replace(/_/g,' '),
+            phone: fmtPhone(ph, g(hmap.callTime)),
+            ceo: extractCeo(g(hmap.ceo)),
+            dup: null
+          });
+        }
+        if(rows.length) return rows;
+      }
+      /* 헤더 검증 실패 → 아래 프리셋/값유추로 폴백 (window.__metaColMap 재설정) */
+      window.__metaColMap = null;
+      var _hdrData = lines.filter(function(l){ return /\t/.test(l) && !/^(신청일|유입날짜|company_name|회사명|업체명)/.test(l.trim()); });
+      var _hp = __applyPreset(_hdrData); if(_hp && _hp.length) return _hp;
+      var _hg = __guessByValue(_hdrData); if(_hg && _hg.length) return _hg;
     }
 
-    /* ── 2) 폴백: 기존 고정 위치(META 기본 양식) — 회귀 0 ── */
+    /* ── 2) 사전 등록 양식(프리셋) 우선 적용 — 알려진 양식은 고정 매핑으로 정확 처리 ── */
+    var _dataLines = lines.filter(function(l){ return /^\d{4}-\d{2}-\d{2}/.test(l.trim()); });
+    var _preset = __applyPreset(_dataLines);
+    if(_preset && _preset.length) return _preset;
+
+    /* ── 3) 프리셋도 없으면 값 패턴으로 유추 (열 순서 몰라도 값 특징으로 매칭) ── */
+    window.__metaColMap = window.__metaColMap || null;
+    var _guessed = __guessByValue(lines);
+    if(_guessed && _guessed.length) return _guessed;
+
+    /* ── 3) 폴백: 기존 고정 위치(META 기본 양식) — 회귀 0 ── */
     if(!/\d{4}-\d{2}-\d{2}\t/.test(text)) return null;
     var parts=text.split(/(?=\d{4}-\d{2}-\d{2}\t)/);
     for(i=0;i<parts.length;i++){
@@ -21632,7 +21889,8 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
       var _labels = { company:'업체명', phone:'전화', ceo:'대표', date:'신청일', tax:'체납', industry:'업종', revenue:'매출' };
       var _parts = [];
       Object.keys(_labels).forEach(function(key){ if(_m[key] >= 0) _parts.push(_labels[key]+'→'+(_m[key]+1)+'열'); });
-      _mapBanner = '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#065f46">✅ <b>헤더 자동인식</b> (열 순서 달라도 매칭): ' + _parts.join(' · ') + '</div>';
+      var _presetTag = _m.__presetName ? ('📋 <b>등록 양식 인식: '+_m.__presetName+'</b> — ') : '✅ <b>헤더 자동인식</b> (열 순서 달라도 매칭): ';
+      _mapBanner = '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#065f46">' + _presetTag + _parts.join(' · ') + '</div>';
     } else {
       _mapBanner = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#92400e">ℹ️ 헤더 없이 <b>기본 양식(위치 고정)</b>으로 인식했습니다. 값이 어긋나면 헤더행을 포함해 다시 붙여넣어 주세요.</div>';
     }
