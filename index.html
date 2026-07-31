@@ -21348,7 +21348,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.42';
+  var VER35='v35.3.43';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21365,7 +21365,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.42';
+  var VER35='v35.3.43';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
@@ -21483,16 +21483,101 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
   }
 
   // ── 다건 파서: 각 레코드는 'YYYY-MM-DD'+탭 으로 시작 (줄바꿈/공백결합/>기호 대응) ──
+  /* v35.3.43: 헤더 자동인식 파서 — 시트마다 열 순서·헤더명이 달라도 각 항목을 정확히 매칭.
+     ① 붙여넣기에 헤더행이 있으면 헤더명으로 열 번호를 탐지
+     ② 헤더가 없으면 기존 고정 위치(META 기본 양식)로 폴백 → 회귀 0
+     특히 전화(phone_number)↔대표(full_name) 위치가 시트마다 뒤바뀌던 문제 해결. */
+  window.__metaColMap = null;   /* 최근 인식된 헤더 매핑(미리보기 표시에 사용) */
+
+  function _normHead(s){ return String(s||'').toLowerCase().replace(/[\s_]+/g,'').replace(/\(.*?\)/g,'').trim(); }
+
+  /* 헤더 배열 → {항목:열번호} 매핑. 못 찾으면 -1 */
+  function __detectHeaderMap(cells){
+    var map = { date:-1, company:-1, phone:-1, ceo:-1, tax:-1, industry:-1, revenue:-1, grade:-1, callTime:-1 };
+    var phoneCandidates = [];
+    for(var k=0;k<cells.length;k++){
+      var h = _normHead(cells[k]);
+      if(!h) continue;
+      // 신청일/유입날짜
+      if(map.date<0 && (h==='신청일' || h==='유입날짜' || h==='날짜' || h.indexOf('신청일')>=0)) map.date=k;
+      // 업체명
+      else if(map.company<0 && (h==='companyname' || h==='회사명' || h==='업체명')) map.company=k;
+      // 대표자
+      else if(map.ceo<0 && (h==='fullname' || h==='이름' || h==='대표' || h==='대표자' || h==='성함')) map.ceo=k;
+      // 체납
+      else if(map.tax<0 && h.indexOf('체납')>=0) map.tax=k;
+      // 업종
+      else if(map.industry<0 && h.indexOf('업종')>=0) map.industry=k;
+      // 연매출
+      else if(map.revenue<0 && (h.indexOf('연매출')>=0 || h.indexOf('매출')>=0)) map.revenue=k;
+      // 등급
+      else if(map.grade<0 && h==='등급') map.grade=k;
+      // 연락가능시간
+      else if(map.callTime<0 && (h.indexOf('연락')>=0 && h.indexOf('시간')>=0)) map.callTime=k;
+      // 전화번호 후보 (여러 개일 수 있음 → 나중에 우선순위 결정)
+      if(h==='phonenumber' || h.indexOf('핸드폰번호')>=0 || h.indexOf('전화')>=0 || h.indexOf('회신')>=0 || h==='회신번호'){
+        phoneCandidates.push({ idx:k, head:h });
+      }
+    }
+    // 전화 우선순위: phone_number > 핸드폰번호(숫자 큰 것) > 회신
+    if(phoneCandidates.length){
+      var pick = phoneCandidates.find(function(x){ return x.head==='phonenumber'; });
+      if(!pick){
+        var hp = phoneCandidates.filter(function(x){ return x.head.indexOf('핸드폰번호')>=0; });
+        if(hp.length){ hp.sort(function(a,b){ return b.head.localeCompare(a.head); }); pick=hp[0]; }  // "핸드폰번호2" > "핸드폰번호1"
+      }
+      if(!pick) pick = phoneCandidates[0];
+      map.phone = pick.idx;
+    }
+    // 핵심 3항목(업체·전화·대표) 중 2개 이상 잡혔으면 헤더로 인정
+    var core = (map.company>=0?1:0)+(map.phone>=0?1:0)+(map.ceo>=0?1:0);
+    return (core>=2) ? map : null;
+  }
+
   window.__parseMultiMeta = function(text){
-    if(!text || !/\d{4}-\d{2}-\d{2}\t/.test(text)) return null;
-    var parts=text.split(/(?=\d{4}-\d{2}-\d{2}\t)/), rows=[], i;
+    if(!text) return null;
+    var lines = text.split(/\r?\n/).filter(function(l){ return l.trim()!==''; });
+    if(!lines.length) return null;
+
+    /* ── 1) 첫 줄이 헤더인지 판별 (날짜로 시작하지 않고, company_name 등 헤더 키워드 포함) ── */
+    var firstCells = lines[0].split('\t');
+    var looksHeader = !/^\d{4}-\d{2}-\d{2}/.test(lines[0].trim());
+    var hmap = looksHeader ? __detectHeaderMap(firstCells) : null;
+    window.__metaColMap = hmap;
+
+    var rows = [], i;
+    if(hmap){
+      /* ── 헤더 기반: 2번째 줄부터 데이터, 헤더가 알려준 열 번호로 추출 ── */
+      for(i=1;i<lines.length;i++){
+        var c = lines[i].split('\t');
+        var g = function(k){ return (k>=0 && k<c.length) ? String(c[k]).trim() : ''; };
+        var comp = g(hmap.company);
+        var ph = g(hmap.phone);
+        if(!comp && !ph) continue;   /* 빈 줄 skip */
+        rows.push({
+          date: g(hmap.date),
+          tax: mapTax(g(hmap.tax)),
+          industry: mapIndustry(g(hmap.industry)),
+          revenue: mapRevenue(g(hmap.revenue)),
+          company: comp.replace(/_/g,' '),
+          phone: fmtPhone(ph, g(hmap.callTime)),
+          ceo: extractCeo(g(hmap.ceo)),
+          dup: null
+        });
+      }
+      return rows.length ? rows : null;
+    }
+
+    /* ── 2) 폴백: 기존 고정 위치(META 기본 양식) — 회귀 0 ── */
+    if(!/\d{4}-\d{2}-\d{2}\t/.test(text)) return null;
+    var parts=text.split(/(?=\d{4}-\d{2}-\d{2}\t)/);
     for(i=0;i<parts.length;i++){
       var seg=parts[i].replace(/^\s*>?\s*/,'');
       if(!/^\d{4}-\d{2}-\d{2}\t/.test(seg)) continue;
-      var c=seg.split('\t');
-      var g=function(k){ return (k<c.length)?String(c[k]).trim():''; };
-      rows.push({ date:g(0), tax:mapTax(g(3)), industry:mapIndustry(g(5)), revenue:mapRevenue(g(6)),
-        company:g(8).replace(/_/g,' '), phone:fmtPhone(g(9),g(7)), ceo:extractCeo(g(10)), dup:null });
+      var cc=seg.split('\t');
+      var gg=function(k){ return (k<cc.length)?String(cc[k]).trim():''; };
+      rows.push({ date:gg(0), tax:mapTax(gg(3)), industry:mapIndustry(gg(5)), revenue:mapRevenue(gg(6)),
+        company:gg(8).replace(/_/g,' '), phone:fmtPhone(gg(9),gg(7)), ceo:extractCeo(gg(10)), dup:null });
     }
     return rows.length?rows:null;
   };
@@ -21540,7 +21625,18 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
   }
 
   window.__renderMultiMetaPreview = function(pvEl, rows, okBtn){
-    pvEl.innerHTML=listHtml(rows,false);
+    /* v35.3.43: 헤더 자동인식 결과를 미리보기 상단에 표시 */
+    var _mapBanner = '';
+    var _m = window.__metaColMap;
+    if(_m){
+      var _labels = { company:'업체명', phone:'전화', ceo:'대표', date:'신청일', tax:'체납', industry:'업종', revenue:'매출' };
+      var _parts = [];
+      Object.keys(_labels).forEach(function(key){ if(_m[key] >= 0) _parts.push(_labels[key]+'→'+(_m[key]+1)+'열'); });
+      _mapBanner = '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#065f46">✅ <b>헤더 자동인식</b> (열 순서 달라도 매칭): ' + _parts.join(' · ') + '</div>';
+    } else {
+      _mapBanner = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#92400e">ℹ️ 헤더 없이 <b>기본 양식(위치 고정)</b>으로 인식했습니다. 값이 어긋나면 헤더행을 포함해 다시 붙여넣어 주세요.</div>';
+    }
+    pvEl.innerHTML=_mapBanner+listHtml(rows,false);
     okBtn.disabled=false; okBtn.textContent='선택 건 등록';
     okBtn.onclick=function(){ window.__doMultiMetaRegister(); };
     (async function(){
@@ -21551,7 +21647,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
           if(k && seen[k]!==undefined){ r.dup={kind:'batch', idx:seen[k]}; }
           else { if(k) seen[k]=i; var d=findDupInAll(r); if(d) r.dup={kind:'exist', rec:d}; }
         }
-        pvEl.innerHTML=listHtml(rows,true);
+        pvEl.innerHTML=_mapBanner+listHtml(rows,true);
       }catch(e){ console.warn('[다건 중복검사]', e&&e.message); }
     })();
   };
