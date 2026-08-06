@@ -3024,6 +3024,28 @@ try {
 }
 
 // ════════════════════════════════════════════════════════════════
+// v35.3.47: 팀원 직접 추가용 '격리 클라이언트' — 관리자 세션 보존(B-2)
+//  - signUp은 호출한 클라이언트의 세션을 신규 계정으로 덮어씀
+//  - persistSession:false 로 localStorage에 저장하지 않아 관리자 메인 세션(sb) 무손상
+//  - 이 클라이언트로만 가입 처리 → 관리자는 로그아웃되지 않음
+// ════════════════════════════════════════════════════════════════
+function makeSignupClient(){
+  try{
+    return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storageKey: 'sb-dbpro-signup-' + Date.now().toString(36),
+        storage: window.sessionStorage,   /* localStorage 아님 → 관리자 자동로그인 토큰 보존 */
+        persistSession: false,            /* 세션 저장 안 함 → 메인 세션 덮어쓰기 방지 */
+        autoRefreshToken: false
+      }
+    });
+  }catch(e){
+    console.error('[makeSignupClient] 생성 실패:', e);
+    return null;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
 // 유틸 함수
 // ════════════════════════════════════════════════════════════════
 function $(id){ return document.getElementById(id); }
@@ -4112,11 +4134,13 @@ async function addUserDirectly(){
       }
     }
 
-    // (2) supabase Auth 가입 (이메일 = phoneToEmail, 비밀번호 = '123456')
+    // (2) supabase Auth 가입 — v35.3.47: 격리 클라이언트로 가입해 관리자 세션 보존(B-2)
     const email = phoneToEmail(phone);
     const tempPw = '123456';
-    console.log('[addUserDirectly] Auth 가입 시도:', email);
-    const { data: authData, error: authErr } = await sb.auth.signUp({
+    console.log('[addUserDirectly] Auth 가입 시도(격리 클라이언트):', email);
+    const signupClient = makeSignupClient();
+    if(!signupClient){ throw new Error('가입 처리기를 준비하지 못했습니다. 새로고침 후 다시 시도해주세요.'); }
+    const { data: authData, error: authErr } = await signupClient.auth.signUp({
       email: email,
       password: tempPw,
       options: { data: { phone: phone, name: name } }
@@ -4128,6 +4152,8 @@ async function addUserDirectly(){
     if(!authData.user) {
       throw new Error('Auth 사용자 생성 실패');
     }
+    // 격리 클라이언트 세션 즉시 정리(메인 sb는 건드리지 않음)
+    try{ await signupClient.auth.signOut(); }catch(_e){}
     console.log('[addUserDirectly] Auth 가입 성공, uid:', authData.user.id);
 
     // (3) app_users에 INSERT 또는 UPDATE
@@ -4173,17 +4199,18 @@ async function addUserDirectly(){
       }
     }
 
-    // (4) 매니저는 본인 세션을 잃을 수 있으므로 — signUp 직후 현재 세션이 신규 사용자 것으로 바뀜
-    // 매니저 세션을 복구하기 위해 강제 로그아웃 후 재로그인 안내
-    showToast(`✅ ${name} 추가 완료. 임시 비번: 123456. 매니저 다시 로그인 필요합니다.`, 'success');
+    // (4) v35.3.47: 관리자 세션 보존(B-2) — 가입을 격리 클라이언트로 했으므로
+    //     관리자 메인 세션(sb)은 그대로 유지됨. signOut/reload 불필요.
+    showToast(`✅ ${name} 추가 완료. 임시 비번: 123456`, 'success');
     $('add-name').value = '';
     $('add-phone').value = '';
     $('add-is-new').checked = false;
     if($('add-referrer')) $('add-referrer').value = '';  // ★ v35.2.84: 도입자칸 초기화
 
-    // 매니저 세션 강제 종료 (auth.signUp이 자동 로그인시킴 → 매니저는 신규 계정으로 로그인된 상태)
-    await sb.auth.signOut();
-    setTimeout(()=> location.reload(), 2000);
+    // 목록 즉시 갱신(로그아웃 없이) — 활성 팀원 목록 다시 로드
+    try{
+      if(typeof loadAdminData === 'function') await loadAdminData();
+    }catch(_e){ console.warn('[addUserDirectly] 목록 갱신 경고:', _e && _e.message); }
   } catch(e){
     console.error('[addUserDirectly] 실패:', e);
     // ★ v35.2.84: 도입자 명단 불일치 전용 안내
@@ -21348,7 +21375,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.46';
+  var VER35='v35.3.47';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21365,7 +21392,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.46';
+  var VER35='v35.3.47';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
