@@ -14395,28 +14395,13 @@ function renderAdminDashboard(){
   renderAdminRetentionBoard();
 
   // ⑤ 명예의 전당 (500/300/60만원)
+  // v35.3.48: 실적레이스와 값 불일치 수정 — 실적레이스와 동일한 getNetRevenueForMember 사용.
+  //   [기존 버그] ownRev를 자체 계산하면서 청철/실효 제외·기간필터·frozen제외·계약상태확인이 빠져
+  //   취소되거나 다른 달 매출까지 합산돼 실적레이스(350,448)와 명예의전당(702,016)이 달랐음.
+  //   [수정] 검증된 공통 함수로 통일 → 두 통계 100% 일치(철칙6: 기존 로직 재사용).
   var stats = {};
   members.filter(function(m){ return m && isSalesPerson(m); }).forEach(function(m){
-    var ownRev = 0;
-    contracts.filter(function(d){ return d.member === m.name; }).forEach(function(db){
-      getDBContracts(db).forEach(function(c){
-        var gross = safeNum(c.totalAmount || 0);
-        var sd = 0;
-        if(c.shareList && Array.isArray(c.shareList)){
-          c.shareList.forEach(function(s){
-            if(!s.partner || !s.partner.trim()) return;
-            if(s.amount > 0) sd += safeNum(s.amount);
-          });
-        }
-        ownRev += (gross - sd);
-      });
-    });
-    var shareRev = getShareRevenue(m.name, targetYear, targetMonth);
-    if(isExternalPartner(m.name)){
-      stats[m.name] = shareRev;
-    } else {
-      stats[m.name] = ownRev + shareRev;
-    }
+    stats[m.name] = getNetRevenueForMember(m.name, targetYear, targetMonth, isAllMonths);
   });
   var sorted = Object.entries(stats).sort(function(a,b){ return b[1] - a[1]; });
   var r500 = sorted.filter(function(x){ return x[1] >= 5000000; });
@@ -21375,7 +21360,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.47';
+  var VER35='v35.3.48';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21392,7 +21377,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.47';
+  var VER35='v35.3.48';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
