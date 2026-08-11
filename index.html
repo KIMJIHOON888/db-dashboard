@@ -6250,6 +6250,18 @@ function renderList() {
         _membersInRecords.forEach(n => _shareTargets.push(n));
       }
     }
+    /* v35.3.54 A안: 관리자가 특정 팀원 선택 시, 그 팀원이 쉐어받은 DB(타 담당 포함)를 뷰캐시로 로드.
+       이미 그 팀원 것이 로드돼 있으면 재조회 안 함. 로드되면 renderList 재호출로 반영.
+       팀원 선택 해제 시 뷰캐시 초기화(다음 선택 때 새로 로드). */
+    try{
+      if(isAdmin && tm && tm !== 'all'){
+        if(window.__shareViewFor !== tm && typeof window.__loadCrossSharesForView === 'function'){
+          window.__loadCrossSharesForView(tm);
+        }
+      } else {
+        if(window.__shareViewFor !== null){ window.__shareCacheForView=[]; window.__shareViewFor=null; }
+      }
+    }catch(_sv){ console.warn('[쉐어 뷰캐시] 트리거 경고:', _sv && _sv.message); }
     _shareTargets.forEach(function(_stName) {
       getVirtualShareEntries(_stName).forEach(function(ve) {
         // v35.1.18 김지훈: 즐겨찾기 필터 ON 시 가상 쉐어도 favMap[shareKey] 매칭만
@@ -7547,6 +7559,11 @@ function getVirtualShareEntries(pn) {
   //   캐시가 비면(RPC 미생성/쉐어 없음) records=appState.records 그대로 → 기존 동작과 100% 동일(회귀 0).
   try {
     var _cross = window.__crossShareCache || [];
+    // v35.3.54 A안: 관리자가 특정 팀원 볼 때의 쉐어 뷰캐시도 병합(그 팀원이 쉐어받은 타 담당 DB).
+    //   __shareViewFor===pn 일 때만 병합 → 다른 팀원 조회 결과가 섞이지 않음.
+    if (window.__shareViewFor && window.__shareViewFor === pn && (window.__shareCacheForView||[]).length){
+      _cross = _cross.concat(window.__shareCacheForView);
+    }
     if (_cross.length) {
       var _seen = {}; records.forEach(function(r){ if (r) _seen[String(r.id)] = true; });
       var _extra = _cross.filter(function(r){ return r && !_seen[String(r.id)]; });
@@ -20253,6 +20270,26 @@ window.__loadAllDbForDup = async function(){
 /* v35.3.13: 타팀 쉐어 조회 캐시 — 내가 파트너인 타팀 DB를 RPC로 로드(RLS 우회).
    RPC 미생성/실패 시 빈 배열 → getVirtualShareEntries가 기존과 동일하게 동작(회귀 0). */
 window.__crossShareCache = [];
+/* v35.3.54 A안: 관리자가 특정 팀원을 볼 때, 그 팀원이 '쉐어 파트너'로 지정된 DB(다른 팀원 담당 포함)를
+   조회해 뷰 캐시에 담는다. getVirtualShareEntries가 이 캐시도 순회 → 관리자도 그 팀원의 가상DB(노란 S) 확인.
+   __crossShareCache(본인 기준)와 별개. 같은 팀원 재조회 방지를 위해 __shareViewFor에 대상명 기록.
+   RPC 미사용/실패 시 빈 배열 → 아무것도 안 보임(기존과 동일, 회귀 0). */
+window.__shareCacheForView = [];
+window.__shareViewFor = null;
+window.__loadCrossSharesForView = async function(memberName){
+  try{
+    if(typeof sb==='undefined'||!sb || !memberName){ window.__shareCacheForView=[]; window.__shareViewFor=memberName||null; return; }
+    if(window.__shareViewFor === memberName) return;   /* 같은 팀원 이미 로드됨 → 재조회 안 함 */
+    window.__shareViewFor = memberName;
+    var rp = await sb.rpc('get_shared_dbs_for_member', { p_name: memberName });
+    if(rp.error){ window.__shareCacheForView=[]; console.warn('[쉐어 뷰캐시] RPC 경고:', rp.error.message); return; }
+    window.__shareCacheForView = (rp.data||[]).map(function(r){
+      try{ return (typeof normalizeDBRecord==='function') ? normalizeDBRecord(r) : r; }catch(e){ return r; }
+    });
+    console.log('[쉐어 뷰캐시] '+window.__shareCacheForView.length+'건 ('+memberName+'이(가) 쉐어받은 DB)');
+    try{ if(typeof renderList==='function') renderList(); }catch(_e){}
+  }catch(e){ window.__shareCacheForView=[]; console.warn('[쉐어 뷰캐시] 예외:', e && e.message); }
+};
 window.__loadCrossShares = async function(){
   try{
     if(typeof sb==='undefined'||!sb) return;
@@ -21440,7 +21477,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.53';
+  var VER35='v35.3.54';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21457,7 +21494,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.53';
+  var VER35='v35.3.54';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
