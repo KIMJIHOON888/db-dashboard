@@ -7690,6 +7690,36 @@ function getVirtualShareEntries(pn) {
     });
     */ // v35.1.96: 구로직 주석 끝
   });
+  /* v35.3.56 [1단계]: 팀 유입 쉐어(__teamInboundShares) 병합 — 관리자 통합관제탑에서
+     '우리 팀원이 타팀 DB에서 받은 쉐어'가 개인 실적에 잡히게 함.
+     문제: 관리자 records는 자기 팀만 로드 → 타팀 원본 DB가 없어 쉐어자 매출 0으로 누락(박정익 사고).
+     해결: 이미 로드된 __teamInboundShares(get_team_inbound_shares RPC 결과)에서 partner===pn 항목을 entry로 추가.
+     RPC 필드: db_id, from_team, partner(쉐어받는이), amount, contract_date.
+     appState.records에서 이미 잡은 db_id는 중복 제외(이중집계 방지). */
+  try{
+    var _inbound = window.__teamInboundShares || [];
+    if(_inbound.length){
+      var _seenIds = {}; e.forEach(function(x){ if(x && x.originalId!=null) _seenIds[String(x.originalId)] = true; });
+      _inbound.forEach(function(r){
+        if(!r) return;
+        if(String(r.partner||'').trim() !== String(pn).trim()) return;   /* 이 사람이 받은 쉐어만 */
+        var amt = Number(r.amount||0); if(!(amt>0)) return;
+        var _did = String(r.db_id!=null ? r.db_id : (r.id!=null ? r.id : ''));
+        if(_did && _seenIds[_did]) return;                                /* records에서 이미 잡힘 → 중복 제외 */
+        if(_did) _seenIds[_did] = true;
+        e.push({
+          id: r.db_id, member: r.owner || r.from_member || '', shareReceiver: pn,
+          source: (r.from_team||'타팀') + '쉐어',
+          company: r.company || '', ceo: r.ceo || '', phone: r.phone || '',
+          date: r.contract_date || '', contractDate: r.contract_date || '',
+          status: '계약', isLapsed: false, amount: amt, totalAmount: amt,
+          shareList: [{ partner: pn, amount: amt }],
+          isVirtualShare: true, originalId: r.db_id, originalMember: r.owner || '',
+          fromInbound: true, isFrozen: false, is_frozen: false, isReassigned: false, is_reassigned: false
+        });
+      });
+    }
+  }catch(_ib){ console.warn('[팀유입쉐어 병합] 경고:', _ib && _ib.message); }
   return e;
 }
 
@@ -8500,6 +8530,12 @@ async function openDBModal(id, rowNum) {
       if (myName && rec.member === myName && !isFrozen && hasAlert) {
         // 비동기로 처리 (모달 열기 자체는 차단하지 않음)
         clearReassignNewBadge(rec.id).catch(e => console.warn('[clearReassignNewBadge] 실패:', e));
+      }
+      /* v35.3.55 [회귀복구]: v35.3.42의 '보낸 동결 DB도 개별 열람 시에만 NEW 배지 해제' 기능이
+         3.46 작업본부터 누락됐던 것을 복구. sentReassignNew 플래그가 있는 내 동결 DB를 열면 해제. */
+      const _sentNew = rec.raw && rec.raw.sentReassignNew;
+      if (myName && rec.member === myName && isFrozen && _sentNew && typeof clearSentReassignNewBadgeOne === 'function') {
+        clearSentReassignNewBadgeOne(rec.id).catch(e => console.warn('[clearSentReassignNewBadgeOne] 실패:', e));
       }
     } catch (e) { console.warn('[NEW 배지 자동 해제] 무시:', e); }
 
@@ -9517,6 +9553,27 @@ async function clearReassignNewBadge(id) {
     if (typeof updateMyReassignBadge === 'function') updateMyReassignBadge();
   } catch (err) {
     console.warn('[clearReassignNewBadge] DB 업데이트 실패 (무시):', err);
+  }
+}
+
+// v35.3.55 [회귀복구]: 보낸 재배정 동결 DB의 NEW 배지 개별 해제 (v35.3.42 원본 복구).
+//   내 명의 동결 DB를 열람하면 raw.sentReassignNew=false로 갱신 → NEW 배지 제거.
+async function clearSentReassignNewBadgeOne(id) {
+  if (!id) return;
+  const idx = (appState.records || []).findIndex(r => String(r.id) === String(id));
+  if (idx === -1) return;
+  const d = appState.records[idx];
+  if (!d) return;
+  const _sn = d.raw && d.raw.sentReassignNew;
+  if (!_sn) return;
+  const newRaw = { ...(d.raw || {}), sentReassignNew: false };
+  try {
+    const { data, error } = await sb.from('db_records').update({ raw: newRaw, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+    if (error) throw error;
+    appState.records[idx] = (typeof normalizeDBRecord === 'function') ? normalizeDBRecord(data) : data;
+    if (typeof updateMyReassignBadge === 'function') updateMyReassignBadge();
+  } catch (err) {
+    console.warn('[clearSentReassignNewBadgeOne] DB 업데이트 실패 (무시):', err);
   }
 }
 
@@ -21477,7 +21534,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.54';
+  var VER35='v35.3.56';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21494,7 +21551,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.54';
+  var VER35='v35.3.56';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
