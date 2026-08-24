@@ -6374,7 +6374,7 @@ function renderTableHead() {
   let cols;
   if (isAdmin) {
     // v35.1.72 김지훈: '접수일' → '접수일(재배정일)' + (재배정일) 녹색 (v35 신규 정책, v34.4와 다름)
-    cols = ['NO', '접수일<span style="color:#10b981;font-size:11px;margin-left:2px">(재배정일)</span>', '담당자', '업체명', '통화유무', '재통화일정', '미팅일', '연락처', '지역', '출처', '진행상태'];
+    cols = ['NO', '접수일<span style="color:#10b981;font-size:11px;margin-left:2px">(재배정일)</span>', '배정일', '담당자', '업체명', '통화유무', '재통화일정', '미팅일', '연락처', '지역', '출처', '진행상태'];
     head.innerHTML = '<tr>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
   } else {
     // ★ 사용자 5/5 요청: 팀원은 헤더 ★ 클릭 시 즐겨찾기 필터 토글 (v34.4 line 5750 동등)
@@ -6391,7 +6391,7 @@ function renderTableHead() {
       : '';
     const favHeader = '<th style="width:50px"><span id="fav-header-star" class="fav-header-star' + filteringCls + '" title="' + filteringTitle + '">★</span>' + favCountSpan + '</th>';
     // v35.1.72 김지훈: '접수일' → '접수일(재배정일)' + (재배정일) 녹색 (v35 신규 정책, v34.4와 다름)
-    cols = ['NO', '접수일<span style="color:#10b981;font-size:11px;margin-left:2px">(재배정일)</span>', '업체명', '통화유무', '재통화일정', '미팅일', '연락처', '지역', '출처', '진행상태'];
+    cols = ['NO', '접수일<span style="color:#10b981;font-size:11px;margin-left:2px">(재배정일)</span>', '배정일', '업체명', '통화유무', '재통화일정', '미팅일', '연락처', '지역', '출처', '진행상태'];
     head.innerHTML = '<tr>' + favHeader + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
     // 클릭 핸들러 바인딩 (innerHTML 갱신마다 새로 바인딩 필요)
     const headStar = document.getElementById('fav-header-star');
@@ -6526,6 +6526,14 @@ function renderListPage() {
       } else {
         cells.push(`<td>${escapeHtml(d.date || '-')}</td>`);
       }
+    }
+    /* v35.3.58 [배정일 컬럼]: 대장님 요청 — 접수일(DB 들어온 날)과 별개로 '배정일'(등록/붙여넣기한 날) 표시.
+       assignedAt(등록 시 자동기록) 우선, 없으면 Supabase created_at 폴백. ISO 문자열에서 날짜(YYYY-MM-DD)만 추출. */
+    {
+      const _assignRaw = (d.raw && d.raw.assignedAt) || d.assignedAt
+        || (d._supabaseRow && d._supabaseRow.created_at) || (d.raw && d.raw.created_at) || '';
+      const _assignDate = _assignRaw ? String(_assignRaw).slice(0, 10) : '-';
+      cells.push(`<td style="white-space:nowrap;color:#64748b;font-size:12px">${escapeHtml(_assignDate)}</td>`);
     }
     if (isAdmin) {
       // v35.1.18: 매니저 화면 — 담당자 컬럼 옆 쉐어 S 배지 (팀원 쉐어가 있을 때만)
@@ -7083,7 +7091,35 @@ async function loadDBRecords() {
       console.warn('[loadDBRecords] 쉐어 RPC 단계 무시:', err);
     }
   }
-  
+
+  // === Step 2b: v35.3.57 — 관리자(team_manager)일 때 '팀원이 타팀에서 받은 쉐어'의 원본 DB를 병합 ===
+  //   문제: 관리자는 자기 팀만 로드 → 팀원이 타팀 DB에서 받은 쉐어의 '원본 DB'가 records에 없어
+  //         실적상세·월별히스토리·연간순위에서 그 쉐어 계약건이 누락됨(박정익 원탑바이오 사고).
+  //   해결: get_team_inbound_shares(db_id 목록) → 그 원본 DB를 db_id로 조회해 records에 병합(중복 제외).
+  //   RLS로 직접 조회가 막히면 조용히 스킵(에러 없이) → 최소한 1단계(getVirtualShareEntries 병합)로 개인실적은 유지.
+  if (me.role === 'team_manager' && me.team) {
+    try {
+      const inb = await sb.rpc('get_team_inbound_shares', { p_team: me.team });
+      if (!inb.error && Array.isArray(inb.data) && inb.data.length > 0) {
+        const inbIds = [];
+        inb.data.forEach(function(r){ if(r && r.db_id != null) inbIds.push(r.db_id); });
+        const existIds = new Set(records.map(r => String(r.id)));
+        const needIds = inbIds.filter(function(id){ return !existIds.has(String(id)); });
+        if (needIds.length > 0) {
+          const { data: srcDbs, error: srcErr } = await sb.from('db_records').select('*').in('id', needIds);
+          if (srcErr) {
+            console.warn('[loadDBRecords] 팀유입 쉐어 원본 DB 조회 실패(RLS 가능성):', srcErr.message);
+          } else if (Array.isArray(srcDbs) && srcDbs.length > 0) {
+            srcDbs.forEach(function(sd){ if(sd && !existIds.has(String(sd.id))) records.push(sd); });
+            console.log('[loadDBRecords] v35.3.57 — 팀유입 쉐어 원본 DB ' + srcDbs.length + '건 병합 완료(' + me.team + ')');
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[loadDBRecords] 팀유입 쉐어 원본 병합 단계 무시:', err);
+    }
+  }
+
   // v35.1.18 이슈 #4 fix: normalizeDBRecord 적용 → 통계 정상화
   appState.records = (records || []).map(function(r){
     try { return normalizeDBRecord(r); } catch(e) { return r; }
@@ -21534,7 +21570,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.56';
+  var VER35='v35.3.58';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21551,7 +21587,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.56';
+  var VER35='v35.3.58';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
