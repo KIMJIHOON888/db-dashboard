@@ -5909,6 +5909,7 @@ function renderFilters() {
   c.innerHTML = searchHTML
     + '<select id="filter-year"></select>'
     + '<select id="filter-month"></select>'
+    + '<select id="filter-assign-day" title="배정일로 조회 (선택 월의 해당 일에 배정된 건만)"></select>'
     + sourceHTML
     + callHTML
     + statusHTML
@@ -5943,6 +5944,19 @@ function renderFilters() {
   monthSel.innerHTML = mo;
   // v35.2.84: 명시 value 설정 (브라우저 호환성)
   monthSel.value = String(cm);
+
+  /* v35.3.65 [배정일 조회]: 선택 월의 특정 '일'에 배정된 건만 필터. 기본 '전체 배정일'.
+     onchange에 renderList 연결(다른 필터와 동일 동작). */
+  const assignDaySel = document.getElementById('filter-assign-day');
+  if (assignDaySel) {
+    let dopt = '<option value="all">전체 배정일</option>';
+    for (let dday = 1; dday <= 31; dday++) {
+      dopt += '<option value="' + dday + '">배정 ' + dday + '일</option>';
+    }
+    assignDaySel.innerHTML = dopt;
+    assignDaySel.value = 'all';
+    assignDaySel.addEventListener('change', function(){ if (typeof renderList === 'function') renderList(); });
+  }
 
   // 매니저용 팀원 옵션 채우기
   if (isAdmin) {
@@ -6111,9 +6125,11 @@ function renderList() {
   const callSel = document.getElementById('filter-call');
   const searchEl = document.getElementById('search-keyword');
   const memberSel = document.getElementById('filter-member');
+  const assignDaySel = document.getElementById('filter-assign-day');   /* v35.3.65 배정일 조회 */
 
   const year = yearSel ? yearSel.value : 'all';
   const month = monthSel ? monthSel.value : 'all';
+  const assignDay = assignDaySel ? assignDaySel.value : 'all';   /* v35.3.65 선택된 배정일(일) */
   const source = sourceSel ? sourceSel.value : 'all';
   // v35.1.18: etcOnly 모드 (기타DB 중 부가설명 없는 것만 표시 — 통합 관제탑 기타 칩 클릭 시)
   const _etcOnlyMode = !!window._listEtcOnlyMode;
@@ -6165,6 +6181,21 @@ function renderList() {
         if ((year === 'all' || _cp.year == year) && (month === 'all' || _cp.month == month)) _matchContract = true;
       });
       if (!_matchRecv && !_matchContract) return false;
+    }
+
+    /* v35.3.65 [배정일 조회]: 배정일(일) 선택 시 — 선택된 년/월의 그 '일'에 배정된 건만.
+       배정일 = raw.assignedAt(우선) ‖ created_at(폴백). 선택 년·월과도 일치해야 함(월 기준 위에서 이미 필터되나
+       배정일 기준으로 다시 정밀 매칭). '전체 배정일'이면 통과. */
+    if (assignDay !== 'all') {
+      var _aRaw = (d.raw && d.raw.assignedAt) || d.assignedAt
+        || (d._supabaseRow && d._supabaseRow.created_at) || (d.raw && d.raw.created_at) || '';
+      if (!_aRaw) return false;
+      var _aDate = new Date(_aRaw);
+      if (isNaN(_aDate.getTime())) return false;
+      if (Number(_aDate.getDate()) !== Number(assignDay)) return false;
+      /* 배정일 조회 시엔 선택 년/월과도 배정일 기준으로 일치해야 함 */
+      if (year !== 'all' && _aDate.getFullYear() != year) return false;
+      if (month !== 'all' && (_aDate.getMonth() + 1) != month) return false;
     }
 
     // 출처
@@ -21625,7 +21656,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.64';
+  var VER35='v35.3.65';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21642,7 +21673,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.64';
+  var VER35='v35.3.65';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
