@@ -6148,16 +6148,24 @@ function renderList() {
       if (!inCo && !inMb && !inCe && !inPh) return false;
     }
 
-    // 날짜 (계약 필터일 때는 계약일, 아니면 접수일)
-    let parsed;
-    if (sf === '계약') {
-      if (d.status !== '계약') return false;
-      parsed = parseDBDate(d.contractDate || d.date);
-    } else {
-      parsed = parseDBDate(d.date);
+    /* v35.3.62 [날짜 필터 통일]: 대장님 요청 — 접수일 또는 계약일 중 하나라도 선택 년/월에 해당하면 표시.
+       사고 fix: 파인커스처럼 접수일(4월)·계약일(7월)이 다른 DB가 7월 검색 시 안 나오던 문제.
+       계약일 일치가 핵심 — '몇 월 누구의 어떤 계약'을 검색할 때 반드시 나와야 함. */
+    if (sf === '계약' && d.status !== '계약') return false;   /* 계약 필터: 계약 상태만 (기존 유지) */
+    if (year !== 'all' || month !== 'all') {
+      var _recvP = parseDBDate(d.date);
+      var _matchRecv = (year === 'all' || _recvP.year == year) && (month === 'all' || _recvP.month == month);
+      /* 계약일: 다중계약 포함 — 어느 계약이든 해당 월이면 매칭 */
+      var _matchContract = false;
+      var _cs = (Array.isArray(d.contracts) && d.contracts.length) ? d.contracts
+              : (d.contractDate ? [{ date: d.contractDate }] : []);
+      _cs.forEach(function(c){
+        if (!c) return;
+        var _cp = parseDBDate(c.date || c.contractDate || d.contractDate || '');
+        if ((year === 'all' || _cp.year == year) && (month === 'all' || _cp.month == month)) _matchContract = true;
+      });
+      if (!_matchRecv && !_matchContract) return false;
     }
-    if (year !== 'all' && parsed.year != year) return false;
-    if (month !== 'all' && parsed.month != month) return false;
 
     // 출처
     // v35.1.18: 김지훈 #5 — '쉐어받음' 선택 시 일반 row는 모두 제외 (가상 쉐어 row만 통과)
@@ -6392,7 +6400,7 @@ function renderTableHead() {
       : '';
     const favHeader = '<th style="width:50px"><span id="fav-header-star" class="fav-header-star' + filteringCls + '" title="' + filteringTitle + '">★</span>' + favCountSpan + '</th>';
     // v35.1.72 김지훈: '접수일' → '접수일(재배정일)' + (재배정일) 녹색 (v35 신규 정책, v34.4와 다름)
-    cols = ['NO', '접수일<span style="color:#10b981;font-size:11px;margin-left:2px">(재배정일)</span>', '배정일', '업체명', '통화유무', '재통화일정', '미팅일', '연락처', '지역', '출처', '진행상태'];
+    cols = ['NO', '접수일<span style="color:#10b981;font-size:11px;margin-left:2px">(재배정일)</span>', '배정일', '쉐어자', '업체명', '통화유무', '재통화일정', '미팅일', '연락처', '지역', '출처', '진행상태'];
     head.innerHTML = '<tr>' + favHeader + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
     // 클릭 핸들러 바인딩 (innerHTML 갱신마다 새로 바인딩 필요)
     const headStar = document.getElementById('fav-header-star');
@@ -6530,28 +6538,30 @@ function renderListPage() {
       const _assignDate = _assignRaw ? String(_assignRaw).slice(0, 10) : '-';
       cells.push(`<td style="white-space:nowrap;color:#64748b;font-size:12px">${escapeHtml(_assignDate)}</td>`);
     }
+    /* v35.3.63 [쉐어자 컬럼 공통화]: 담당자=원주인(항상), 쉐어자=쉐어받은 팀원. S배지 없음.
+       - 가상 쉐어 row: 담당자=원주인(originalMember), 쉐어자=받은사람(shareReceiver)
+       - 일반 row: 담당자=member, 쉐어자=shareList의 실제 팀원 쉐어자
+       관리자: 담당자+쉐어자 2컬럼 / 팀원: 쉐어자 1컬럼(담당자 컬럼 없음). 어느 화면이든 값 동일. */
+    var _ownerName = d.isVirtualShare ? (d.originalMember || d.member || '-') : (d.member || '-');
+    var _sharerName = '';
+    if (d.isVirtualShare) {
+      _sharerName = d.shareReceiver || '';
+    } else {
+      var _sl = (d.raw && d.raw.shareList) || d.shareList || [];
+      var _names = [];
+      (_sl || []).forEach(function(s){
+        if (s && _isRealShareMember(s.partner) && (Number(s.amount||0) > 0 || Number(s.pct||s.percent||0) > 0)) {
+          if (_names.indexOf(s.partner) === -1) _names.push(s.partner);
+        }
+      });
+      _sharerName = _names.join(', ');
+    }
+    var _sharerCell = `<td style="white-space:nowrap;color:${_sharerName ? '#7c3aed' : '#cbd5e1'};font-size:12px;font-weight:${_sharerName ? '700' : '400'}">${escapeHtml(_sharerName || '-')}</td>`;
     if (isAdmin) {
-      /* v35.3.60 [표시 전면통일]: 담당자=원주인(항상), 쉐어자=쉐어받은 팀원. S배지 제거.
-         - 가상 쉐어 row(isVirtualShare): 담당자=원주인(member/originalMember), 쉐어자=받은사람(shareReceiver)
-         - 일반 row: 담당자=member, 쉐어자=shareList의 실제 팀원 쉐어자(있으면)
-         어느 팀에서 보든 담당자·쉐어자가 동일하게 표시됨(팀별로 안 바뀜). */
-      var _ownerName = d.isVirtualShare ? (d.originalMember || d.member || '-') : (d.member || '-');
-      cells.push(`<td style="white-space:nowrap">${escapeHtml(_ownerName)}</td>`);
-      /* 쉐어자 셀 */
-      var _sharerName = '';
-      if (d.isVirtualShare) {
-        _sharerName = d.shareReceiver || '';
-      } else {
-        var _sl = (d.raw && d.raw.shareList) || d.shareList || [];
-        var _names = [];
-        (_sl || []).forEach(function(s){
-          if (s && _isRealShareMember(s.partner) && (Number(s.amount||0) > 0 || Number(s.pct||s.percent||0) > 0)) {
-            if (_names.indexOf(s.partner) === -1) _names.push(s.partner);
-          }
-        });
-        _sharerName = _names.join(', ');
-      }
-      cells.push(`<td style="white-space:nowrap;color:${_sharerName ? '#7c3aed' : '#cbd5e1'};font-size:12px;font-weight:${_sharerName ? '700' : '400'}">${escapeHtml(_sharerName || '-')}</td>`);
+      cells.push(`<td style="white-space:nowrap">${escapeHtml(_ownerName)}</td>`);   /* 담당자 */
+      cells.push(_sharerCell);                                                        /* 쉐어자 */
+    } else {
+      cells.push(_sharerCell);                                                        /* 팀원: 쉐어자만 */
     }
     // v35.1.82: 다건고객 배지 (한 회사의 계약 DB가 2건 이상이면 💎 N건 표시)
     const _multiCustBadge = (typeof getMultiCustomerBadge === 'function') ? getMultiCustomerBadge(d) : '';
@@ -7674,6 +7684,7 @@ function getVirtualShareEntries(pn) {
         status: _cStatus,
         isLapsed: !!c.isLapsed,
         lapseType: (c.lapseType || '실효'),
+        lapseDate: (c.lapseDate || c.date || _cDate || ''),   /* v35.3.61: 청철 탭 날짜 매칭용 */
         amount: _cAmt,
         totalAmount: _cAmt,
         callStatus: raw.callStatus || d.callStatus || '',
@@ -8067,6 +8078,7 @@ async function executeReassignCore(id, targetMem, customReason) {
 
   const newRaw = {
     member: targetMem,
+    assignedAt: new Date().toISOString(),   /* v35.3.64 [배정일-조건1]: 관리자 일괄 배정/재배정 시 그날을 배정일로 */
     date: origRaw.date || originalDB.date,
     source: origRaw.source || originalDB.source,
     sourceDesc: origRaw.sourceDesc || originalDB.source_desc,
@@ -9441,6 +9453,7 @@ async function executeRedistribution() {
   // raw - 1단계 정보 유지, 2단계 이후 초기화
   const newRaw = {
     member: targetMem,
+    assignedAt: new Date().toISOString(),   /* v35.3.64 [배정일-조건4]: 관리자 재배정 시 그날을 배정일로 */
     date: origRaw.date || originalDB.date,
     source: origRaw.source || originalDB.source,
     sourceDesc: origRaw.sourceDesc || originalDB.source_desc,
@@ -10806,6 +10819,9 @@ async function saveDBModal(shouldClose) {
     // db_records.id 컬럼은 not-null이므로 반드시 설정 필요
     supaPayload.id = Date.now();
     supaPayload.member = me.name;
+    /* v35.3.64 [배정일 자동기록-조건2]: 팀원이 수동으로 신규 DB 등록 시 오늘을 배정일로 기록.
+       updatedRaw는 supaPayload.raw로 저장되므로 여기에 넣으면 반영됨. (assignDBToMember는 이미 기록 중) */
+    updatedRaw.assignedAt = new Date().toISOString();
     /* v35.3.20: RLS 저장실패 fix — me.team이 비어 있으면 RLS(WITH CHECK) 위반으로 저장 거부됨.
        팀 정보를 다단계로 보강(세션 → 이름기반 조회 → 캐시). 값이 있으면 기존과 동일(회귀 0). */
     supaPayload.team = me.team
@@ -11912,6 +11928,33 @@ function renderHistory() {
     // 관리자(isAdmin=true)는 가상 쉐어 추가 안 함 -> 원계약만 표시
   }
 
+  /* v35.3.61 [문제C]: 청철/실효 탭에도 가상 쉐어 추가 — 쉐어자가 받은 청철건이 안 보이던 버그 fix.
+     원주인(추장호)은 원본 청철건으로 보이지만, 쉐어자(박정익)는 가상 쉐어가 계약 탭에만 있어 청철 탭에서 누락됐음.
+     계약 탭 addVirtualShare와 동일 구조 + isLapsed인 것만 + lapseDate 기준 매칭 + mode:'lapse'(취소선 표시). */
+  if (window.historyTab === 'lapse') {
+    var addVirtualShareLapse = function(memberName) {
+      getVirtualShareEntries(memberName).forEach(function(ve) {
+        if (!ve || !ve.isLapsed) return;                              /* 청철된 쉐어만 */
+        if (!matchYM(ve.lapseDate || ve.contractDate || ve.date, y, m)) return;
+        var origSource = (ve.raw && ve.raw.source) || ve.source || '';
+        rows.push({
+          mode: 'lapse', id: ve.id, isVirtualShare: true, originalId: ve.originalId, originalMember: ve.originalMember,
+          date: ve.lapseDate || ve.contractDate || ve.date,
+          member: ve.originalMember || '',                            /* 담당자 = 원주인 */
+          company: ve.company, source: origSource,
+          product: (ve.lapseType || '청철/실효'),
+          amount: __safeNum(ve.amount || 0),
+          share: true,
+          shareLeader: ve.shareReceiver || ve.member                  /* 쉐어팀장 = 받은본인 */
+        });
+      });
+    };
+    if (!isAdmin) {
+      addVirtualShareLapse(me.name);
+    }
+    // 관리자는 원 청철건만 표시(중복 방지)
+  }
+
   // 정렬 — 최신 날짜 우선 (v34.4 line 7081 동등)
   rows.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
 
@@ -11951,7 +11994,7 @@ function renderHistory() {
     tr.onclick = (function(id) { return function() { if (typeof openDBModal === 'function') openDBModal(String(id)); }; })(clickId);
 
     // S 배지 (담당자 옆)
-    var badge = r.share ? '<span style="display:inline-flex;align-items:center;justify-content:center;margin-left:4px;width:16px;height:16px;min-width:16px;background:#f9a8d4;color:#be185d;border-radius:50%;font-size:9px;font-weight:900;vertical-align:middle;flex-shrink:0">S</span>' : '';
+    var badge = '';   /* v35.3.63 [C]: 월별히스토리 담당자 옆 분홍 S 제거 — 쉐어팀장 컬럼으로 충분(대장님 요청) */
     // v35.1.77 김지훈: 월별 히스토리 재배정 뱃지 (이슈 C - DB 목록 line 5294-5297 동일 패턴)
     //   v35.1.77 이전 사고: 같은 DB가 DB 목록에서는 "🔄 [from→]" 표시되는데 월별 히스토리에서는 안 보임
     //   fix: virtualShare 아닐 때 isReassigned 체크 후 prefix 합성 (v35 신규 정책)
@@ -21582,7 +21625,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.60';
+  var VER35='v35.3.64';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21599,7 +21642,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.60';
+  var VER35='v35.3.64';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
@@ -22195,7 +22238,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
       try{
         if(!r.company){ fail++; failMsgs.push((k+1)+'번: 업체명 없음'); continue; }
         var log={ time:new Date().toLocaleString(), text:'🤖 (시스템) META 다건 등록', writer:'시스템', type:'system' };
-        var raw={ member:me.name, team:team, date:r.date, source:'회사DB', company:r.company, ceo:r.ceo, phone:r.phone,
+        var raw={ member:me.name, team:team, date:r.date, source:'회사DB', company:r.company, ceo:r.ceo, phone:r.phone, assignedAt:new Date().toISOString(),
           industry:r.industry, revenue:r.revenue, tax:r.tax, region:'', callStatus:'', recallDate:'', meetStatus:'미진행', meetDate:'',
           status:'선택', consulting:'', careLog:'', contracts:[], shareList:[], logs:[log], roadmap:[],
           isUnreadAdminAlert:false, isFrozen:false, isReassigned:false, _clientSavedAt:new Date().toISOString(), _v35Saved:true, _bulkMeta:true };
