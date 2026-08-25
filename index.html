@@ -6123,7 +6123,8 @@ function renderList() {
   const tm = (isAdmin && memberSel) ? memberSel.value : 'all';
 
   // 정규화된 레코드 배열
-  const all = appState.records.map(normalizeDBRecord).filter(Boolean);
+  /* v35.3.59: 통계전용(__statOnly) 병합 원본은 목록 표시 제외 — 표시는 가상 쉐어 row(담당자=받은 우리팀원)로 대체 */
+  const all = appState.records.filter(function(r){ return r && !r.__statOnly; }).map(normalizeDBRecord).filter(Boolean);
 
   let filtered = all.filter(d => {
     // 동결 필터
@@ -6374,7 +6375,7 @@ function renderTableHead() {
   let cols;
   if (isAdmin) {
     // v35.1.72 김지훈: '접수일' → '접수일(재배정일)' + (재배정일) 녹색 (v35 신규 정책, v34.4와 다름)
-    cols = ['NO', '접수일<span style="color:#10b981;font-size:11px;margin-left:2px">(재배정일)</span>', '배정일', '담당자', '업체명', '통화유무', '재통화일정', '미팅일', '연락처', '지역', '출처', '진행상태'];
+    cols = ['NO', '접수일<span style="color:#10b981;font-size:11px;margin-left:2px">(재배정일)</span>', '배정일', '담당자', '쉐어자', '업체명', '통화유무', '재통화일정', '미팅일', '연락처', '지역', '출처', '진행상태'];
     head.innerHTML = '<tr>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
   } else {
     // ★ 사용자 5/5 요청: 팀원은 헤더 ★ 클릭 시 즐겨찾기 필터 토글 (v34.4 line 5750 동등)
@@ -6438,9 +6439,9 @@ function renderListPage() {
     }
     // v35.1.18: 김지훈 #4 — 가상 쉐어 row 업체명에 prefix 제거 (출처 컬럼에서 확인)
     // v35.1.86: 대장님 명시 — 업체명 옆에 노란 S 배지 추가 (쉐어 row 인식용, 담당자 옆 노란S는 생략)
+    // v35.3.60: 노란 S 배지 제거 — 쉐어 표시는 '쉐어자' 컬럼으로 통일 (담당자=원주인, 쉐어자=받은사람)
     if (d.isVirtualShare) {
-      const _yellowSBadge = '<span style="display:inline-flex;align-items:center;justify-content:center;margin-left:6px;width:16px;height:16px;min-width:16px;background:#fde047;color:#1e40af;border-radius:50%;font-size:9px;font-weight:900;vertical-align:middle;flex-shrink:0;border:1px solid #ca8a04">S</span>';
-      companyDisplay = escapeHtml(d.company || '-') + _yellowSBadge;
+      companyDisplay = escapeHtml(d.company || '-');
     }
 
     // v35.1.18: 신규 DB NEW 배지 (관리자가 배정한 새 DB만 — shouldShowNewOwnDbBadge 통과)
@@ -6462,14 +6463,8 @@ function renderListPage() {
     // v35.1.85: 매니저 화면도 가상 쉐어 row에 S 배지 표시
     // v35.1.86: 대장님 명시 — 담당자 옆 노란 S 생략, 업체명 옆 노란 S만 유지 (대장님 "더 깔끔" 요청)
     //   분홍 S 배지는 일반 DB의 담당자 옆에 그대로 유지 (hasTeamMemberShare 조건)
+    // v35.3.60: 팀원 화면 분홍 S 배지 제거 — 쉐어 표시는 쉐어자 컬럼으로 통일
     let memberSBadge = '';
-    if (!isAdmin && !d.isVirtualShare) {
-      // 팀원 화면, 일반 row (가상 쉐어 아님): hasTeamMemberShare 통과 시 분홍 S
-      const _shareList = (d.raw && d.raw.shareList) || d.shareList || [];
-      if (typeof hasTeamMemberShare === 'function' && hasTeamMemberShare(_shareList)) {
-        memberSBadge = '<span style="display:inline-flex;align-items:center;justify-content:center;margin-left:4px;width:16px;height:16px;min-width:16px;background:#f9a8d4;color:#be185d;border-radius:50%;font-size:9px;font-weight:900;vertical-align:middle;flex-shrink:0">S</span>';
-      }
-    }
 
     // 다중계약 표시
     let multiBadge = '';
@@ -6536,14 +6531,27 @@ function renderListPage() {
       cells.push(`<td style="white-space:nowrap;color:#64748b;font-size:12px">${escapeHtml(_assignDate)}</td>`);
     }
     if (isAdmin) {
-      // v35.1.18: 매니저 화면 — 담당자 컬럼 옆 쉐어 S 배지 (팀원 쉐어가 있을 때만)
-      // v35.1.87: 대장님 명시 — 가상 쉐어 row에서는 담당자 옆 분홍 S 생략 (업체명 옆 노란 S만으로 충분)
-      //   일반 DB(원본)에서는 분홍 S 유지 (김일번이 쉐어 보낸 표시)
-      //   가상 쉐어 row에서는 분홍 S 제거 (회사명 옆 노란 S로 인식)
-      const _shareList = (d.raw && d.raw.shareList) || d.shareList || [];
-      const _hasTeamShare = hasTeamMemberShare(_shareList);
-      const _sBadge = (_hasTeamShare && !d.isVirtualShare) ? '<span style="display:inline-flex;align-items:center;justify-content:center;margin-left:4px;width:16px;height:16px;min-width:16px;background:#f9a8d4;color:#be185d;border-radius:50%;font-size:9px;font-weight:900;vertical-align:middle;flex-shrink:0">S</span>' : '';
-      cells.push(`<td style="white-space:nowrap">${escapeHtml(d.member || '-')}${_sBadge}</td>`);
+      /* v35.3.60 [표시 전면통일]: 담당자=원주인(항상), 쉐어자=쉐어받은 팀원. S배지 제거.
+         - 가상 쉐어 row(isVirtualShare): 담당자=원주인(member/originalMember), 쉐어자=받은사람(shareReceiver)
+         - 일반 row: 담당자=member, 쉐어자=shareList의 실제 팀원 쉐어자(있으면)
+         어느 팀에서 보든 담당자·쉐어자가 동일하게 표시됨(팀별로 안 바뀜). */
+      var _ownerName = d.isVirtualShare ? (d.originalMember || d.member || '-') : (d.member || '-');
+      cells.push(`<td style="white-space:nowrap">${escapeHtml(_ownerName)}</td>`);
+      /* 쉐어자 셀 */
+      var _sharerName = '';
+      if (d.isVirtualShare) {
+        _sharerName = d.shareReceiver || '';
+      } else {
+        var _sl = (d.raw && d.raw.shareList) || d.shareList || [];
+        var _names = [];
+        (_sl || []).forEach(function(s){
+          if (s && _isRealShareMember(s.partner) && (Number(s.amount||0) > 0 || Number(s.pct||s.percent||0) > 0)) {
+            if (_names.indexOf(s.partner) === -1) _names.push(s.partner);
+          }
+        });
+        _sharerName = _names.join(', ');
+      }
+      cells.push(`<td style="white-space:nowrap;color:${_sharerName ? '#7c3aed' : '#cbd5e1'};font-size:12px;font-weight:${_sharerName ? '700' : '400'}">${escapeHtml(_sharerName || '-')}</td>`);
     }
     // v35.1.82: 다건고객 배지 (한 회사의 계약 DB가 2건 이상이면 💎 N건 표시)
     const _multiCustBadge = (typeof getMultiCustomerBadge === 'function') ? getMultiCustomerBadge(d) : '';
@@ -7110,7 +7118,7 @@ async function loadDBRecords() {
           if (srcErr) {
             console.warn('[loadDBRecords] 팀유입 쉐어 원본 DB 조회 실패(RLS 가능성):', srcErr.message);
           } else if (Array.isArray(srcDbs) && srcDbs.length > 0) {
-            srcDbs.forEach(function(sd){ if(sd && !existIds.has(String(sd.id))) records.push(sd); });
+            srcDbs.forEach(function(sd){ if(sd && !existIds.has(String(sd.id))){ sd.__statOnly = true; records.push(sd); } });
             console.log('[loadDBRecords] v35.3.57 — 팀유입 쉐어 원본 DB ' + srcDbs.length + '건 병합 완료(' + me.team + ')');
           }
         }
@@ -7122,7 +7130,11 @@ async function loadDBRecords() {
 
   // v35.1.18 이슈 #4 fix: normalizeDBRecord 적용 → 통계 정상화
   appState.records = (records || []).map(function(r){
-    try { return normalizeDBRecord(r); } catch(e) { return r; }
+    try {
+      var _n = normalizeDBRecord(r);
+      if (_n && r && r.__statOnly) _n.__statOnly = true;   /* v35.3.59: 통계전용 플래그 보존 */
+      return _n;
+    } catch(e) { return r; }
   });
 
   // v35.1.18: 데이터 로드 후 알림 배지 자동 갱신
@@ -21570,7 +21582,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.58';
+  var VER35='v35.3.60';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21587,7 +21599,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.58';
+  var VER35='v35.3.60';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
