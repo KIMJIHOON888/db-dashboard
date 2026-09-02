@@ -6168,7 +6168,11 @@ function renderList() {
        사고 fix: 파인커스처럼 접수일(4월)·계약일(7월)이 다른 DB가 7월 검색 시 안 나오던 문제.
        계약일 일치가 핵심 — '몇 월 누구의 어떤 계약'을 검색할 때 반드시 나와야 함. */
     if (sf === '계약' && d.status !== '계약') return false;   /* 계약 필터: 계약 상태만 (기존 유지) */
-    if (year !== 'all' || month !== 'all') {
+    /* v35.3.66 [검색 우선]: 검색어가 있으면 기간(연/월) 필터를 적용하지 않고 전체 기간에서 찾는다.
+       사고: 목록 기본 필터가 '현재 연/월'이라, 8/28 접수건을 9월 화면에서 업체명으로 검색해도 안 나옴
+             → 팀원이 "등록이 안 됐다"고 오인 → 재등록 반복 → 중복만 쌓임(META 다건 등록 사고).
+       검색어가 없을 때는 기존 동작 100% 동일(회귀 0). */
+    if (!kw && (year !== 'all' || month !== 'all')) {
       var _recvP = parseDBDate(d.date);
       var _matchRecv = (year === 'all' || _recvP.year == year) && (month === 'all' || _recvP.month == month);
       /* 계약일: 다중계약 포함 — 어느 계약이든 해당 월이면 매칭 */
@@ -6311,11 +6315,12 @@ function renderList() {
           if (_favMap[_key] !== true) return;
         }
         // 날짜 필터 (계약일 기준)
-        if (year !== 'all') {
+        /* v35.3.66 [검색 우선]: 일반 row와 동일하게, 검색어가 있으면 기간 필터를 적용하지 않는다(회귀 0 — kw 없을 땐 기존과 동일) */
+        if (!kw && year !== 'all') {
           const _vy = (new Date(ve.contractDate || ve.date)).getFullYear();
           if (String(_vy) !== String(year)) return;
         }
-        if (month !== 'all') {
+        if (!kw && month !== 'all') {
           const _vm = (new Date(ve.contractDate || ve.date)).getMonth() + 1;
           if (String(_vm) !== String(month)) return;
         }
@@ -6463,6 +6468,29 @@ function renderListPage() {
 
   const slice = filtered.slice(start, end);
   const favMap = isAdmin ? {} : getFavorites();
+
+  /* v35.3.66 [검색 안내]: 검색 중에는 기간(연/월) 필터를 무시하므로 그 사실을 목록 위에 명시한다.
+     — 왜 지금 화면의 연/월 선택과 결과가 달라 보이는지 사용자가 바로 알 수 있게. 실패해도 목록 렌더에는 영향 없음. */
+  try {
+    const _skwEl = document.getElementById('search-keyword');
+    const _skw = _skwEl ? String(_skwEl.value || '').trim() : '';
+    const _tbl = (tbody && tbody.closest) ? tbody.closest('table') : null;
+    let _note = document.getElementById('list-search-note');
+    if (_skw && _tbl && _tbl.parentNode) {
+      if (!_note) {
+        _note = document.createElement('div');
+        _note.id = 'list-search-note';
+        _note.style.cssText = 'margin:6px 0;padding:7px 11px;background:#eff6ff;border:1px solid #bfdbfe;'
+          + 'border-radius:8px;font-size:12px;color:#1e40af;font-weight:700;line-height:1.5';
+        _tbl.parentNode.insertBefore(_note, _tbl);
+      }
+      _note.textContent = '🔎 "' + _skw + '" 검색 중 — 기간(연/월) 필터를 무시하고 전체 기간에서 찾습니다 · '
+        + filtered.length + '건';
+      _note.style.display = '';
+    } else if (_note) {
+      _note.style.display = 'none';
+    }
+  } catch (_e) { /* 안내 배너 실패는 목록 표시에 영향 없음 */ }
 
   tbody.innerHTML = slice.map((d, idx) => {
     const no = start + idx + 1;
@@ -21656,7 +21684,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.65';
+  var VER35='v35.3.66';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21673,7 +21701,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.65';
+  var VER35='v35.3.66';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
@@ -22202,9 +22230,27 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
     } else {
       _mapBanner = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#92400e">ℹ️ 헤더 없이 <b>기본 양식(위치 고정)</b>으로 인식했습니다. 값이 어긋나면 헤더행을 포함해 다시 붙여넣어 주세요.</div>';
     }
+    /* v35.3.66: 체크된 건수를 버튼에 실시간 표시 — '0건'이면 눌러도 등록되지 않음을 누르기 전에 알 수 있다. */
+    function _syncOkBtn(){
+      try{
+        var n=0, j;
+        for(j=0;j<rows.length;j++){ var cb=document.getElementById('mm-chk-'+j); if(cb && cb.checked) n++; }
+        okBtn.textContent='선택 건 등록 ('+n+'건)';
+        okBtn.style.opacity = n ? '1' : '.55';
+      }catch(_e){}
+    }
+    function _bindChk(){
+      try{
+        for(var j=0;j<rows.length;j++){
+          var cb=document.getElementById('mm-chk-'+j);
+          if(cb && !cb.__mmBound){ cb.__mmBound=true; cb.addEventListener('change', _syncOkBtn); }
+        }
+      }catch(_e){}
+    }
     pvEl.innerHTML=_mapBanner+listHtml(rows,false);
     okBtn.disabled=false; okBtn.textContent='선택 건 등록';
     okBtn.onclick=function(){ window.__doMultiMetaRegister(); };
+    _bindChk(); _syncOkBtn();
     (async function(){
       try{
         if((window.__allDbForDup||[]).length===0 && typeof window.__loadAllDbForDup==='function'){ await window.__loadAllDbForDup(); }
@@ -22214,6 +22260,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
           else { if(k) seen[k]=i; var d=findDupInAll(r); if(d) r.dup={kind:'exist', rec:d}; }
         }
         pvEl.innerHTML=_mapBanner+listHtml(rows,true);
+        _bindChk(); _syncOkBtn();
       }catch(e){ console.warn('[다건 중복검사]', e&&e.message); }
     })();
   };
@@ -22259,7 +22306,16 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
   window.__doMultiMetaRegister = async function(){
     var rows=window.__multiMetaRows||[], picks=[], i;
     for(i=0;i<rows.length;i++){ var cb=document.getElementById('mm-chk-'+i); if(cb && cb.checked) picks.push(rows[i]); }
-    if(!picks.length){ if(typeof showToast==='function')showToast('등록할 건이 없습니다 (체크된 건 없음)','warning'); return; }
+    if(!picks.length){
+      /* v35.3.66: 중복 건은 자동으로 체크가 해제되므로, 사용자가 '왜 등록이 안 되는지' 모른 채 재시도를 반복했다.
+         (조용히 실패시키지 않고) 이유와 해결 방법을 명시한다. */
+      var _dupN=0; for(i=0;i<rows.length;i++){ if(rows[i] && rows[i].dup) _dupN++; }
+      var _noPickMsg = _dupN
+        ? ('등록된 건이 없습니다 — 중복 '+_dupN+'건은 안전을 위해 체크가 자동 해제됩니다. 그래도 등록하시려면 해당 건의 체크박스를 직접 체크한 뒤 다시 눌러주세요.')
+        : '등록할 건이 없습니다 (체크된 건 없음)';
+      if(typeof showToast==='function')showToast(_noPickMsg,'warning');
+      return;
+    }
     var me=window.currentUser; if(!me){ if(typeof showToast==='function')showToast('로그인 정보 없음','error'); return; }
     var team=me.team||(typeof getTeamByMemberName==='function'?(getTeamByMemberName(me.name)||''):'')||'';
     var ok=document.getElementById('meta-ok'); if(ok){ ok.disabled=true; ok.textContent='등록 중…'; }
