@@ -21761,7 +21761,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.67';
+  var VER35='v35.3.68';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21778,7 +21778,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.67';
+  var VER35='v35.3.68';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
@@ -22420,7 +22420,11 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
           isUnreadAdminAlert:false, isFrozen:false, isReassigned:false, _clientSavedAt:new Date().toISOString(), _v35Saved:true, _bulkMeta:true };
         var payload={ id:base+k, member:me.name, team:team, date:_recvDate, source:'회사DB', source_desc:null, grade_prov:null,
           company:r.company, ceo:r.ceo||null, phone:r.phone||null, industry:r.industry||null, revenue:r.revenue||null, region:null,
-          call_status:null, recall_date:null, meet_status:'미진행', meet_date:null, status:null, consulting:null, care_log:null,
+          /* v35.3.68 [status 컬럼 정합성]: 기존에는 status 컬럼을 null로 두고 raw.status에만 '선택'을 넣었다.
+             화면은 normalizeDBRecord가 raw로 폴백해 정상이었지만, 컬럼만 읽는 서버측(SQL·RPC·v36 통계)에서는
+             '상태 없음'으로 취급돼 누적 2,205건이 집계에서 빠졌다(2026-09-02 백필로 정리).
+             일반 저장 경로(supaPayload.status = _form2.status)와 동일하게 raw와 같은 값을 컬럼에도 기록한다. */
+          call_status:null, recall_date:null, meet_status:'미진행', meet_date:null, status:raw.status, consulting:null, care_log:null,
           raw:raw, logs:[log], is_frozen:false, is_reassigned:false, created_at:new Date().toISOString(), updated_at:new Date().toISOString() };
         var res=await sb.from('db_records').insert(payload).select().single();
         if(res.error) throw res.error;
