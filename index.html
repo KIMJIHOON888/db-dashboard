@@ -9347,7 +9347,10 @@ async function assignDBToMember() {
     call_status: _form2.callStatus || null,
     meet_status: _form2.meetStatus || '미진행',
     meet_date: _form2.meetDate || null,
-    status: _form2.status || null,
+    /* v35.3.75 [status 컬럼 정합성 — 배정 경로]: rawObj.status 는 '선택'으로 채우면서 컬럼만 null이라
+       두 값이 갈라졌다(2026-09-05 실측 52건). rawObj와 완전히 같은 값을 컬럼에도 기록한다.
+       화면은 raw 폴백이라 영향 0, 서버 조회(`where status='선택'`)만 정상화된다. */
+    status: rawObj.status || null,
     consulting: _form2.consulting || null,
     care_log: _form2.careLog || null,
     raw: rawObj,
@@ -10867,9 +10870,17 @@ async function saveDBModal(shouldClose) {
       /* v35.3.69 [중복 확인 기억]: 이 DB에 대해 '그래도 저장'으로 이미 확인한 상대면 다시 묻지 않는다.
          상대 id가 바뀌면(= 다른 DB와 새로 중복되면) 아래 경고는 정상적으로 뜬다. */
       const _ackIds = (typeof window.__getDupAckIds === 'function') ? window.__getDupAckIds(modalState.currentId) : [];
-      const _alreadyAck = (_d.id != null) && _ackIds.indexOf(String(_d.id)) >= 0;
+      /* v35.3.74 [중복 반복 완전 차단]: 화면엔 1명만 보여주지만 판정은 '발견된 상대 전원' 기준으로 한다.
+         전원이 이미 승인돼 있을 때만 생략하고, 한 명이라도 새 상대가 끼면 경고를 정상 표시한다.
+         (기존 v35.3.69는 '뽑힌 1명'만 비교해서, 상대가 여러 명이면 뽑기 순서에 따라 경고가 번갈아 떴다) */
+      const _dupAll = (Array.isArray(_d.__allDups) && _d.__allDups.length)
+        ? _d.__allDups.filter(function (x) { return x && x.id != null; })
+        : (_d.id != null ? [{ id: String(_d.id), company: (_d.company || ''), member: (_gate.who || '') }] : []);
+      const _dupAllIds = _dupAll.map(function (x) { return String(x.id); });
+      const _alreadyAck = _dupAllIds.length > 0
+        && _dupAllIds.every(function (x) { return _ackIds.indexOf(x) >= 0; });
       if (_alreadyAck) {
-        console.log('[중복확인기억] 이미 확인된 중복 상대(id=' + _d.id + ') → 경고 생략');
+        console.log('[중복확인기억] 발견된 중복 상대 ' + _dupAllIds.length + '건 모두 확인 완료 → 경고 생략', _dupAllIds);
       } else {
       let _confirmMsg;
       if (_gate.isMine) {
@@ -10901,16 +10912,23 @@ async function saveDBModal(shouldClose) {
       else if (!_okDup) return;
       /* v35.3.69: '그래도 저장'을 선택 → 이 상대 DB는 확인 완료로 기록(저장 시 raw._dupAck에 병합).
          활동로그에도 남겨 누가 언제 중복을 승인했는지 추적 가능하게 한다(조용히 넘기지 않음). */
-      if (_d.id != null) {
+      if (_dupAll.length > 0) {
         const _ackBy = (window.currentUser && window.currentUser.name) || '';
-        /* v35.3.70: 목록 배지 툴팁에 쓰도록 상대 업체명·담당자도 함께 남긴다(추가 필드만, 기존 판정 로직 불변) */
-        window.__pendingDupAck = { id: String(_d.id), at: new Date().toISOString(), by: _ackBy,
-                                   company: (_d.company || ''), who: (_gate.who || '') };
+        const _ackAt = new Date().toISOString();
+        /* v35.3.74: '이번에 발견된 상대 전원'을 배열로 기록한다(화면엔 1명만 보여줬어도).
+           v35.3.70의 배지 툴팁용 company·who 필드는 그대로 유지. */
+        window.__pendingDupAck = _dupAll.map(function (x) {
+          return { id: String(x.id), at: _ackAt, by: _ackBy,
+                   company: (x.company || ''), who: (x.member || x.who || '') };
+        });
         try {
           if (modalState && Array.isArray(modalState.tempLogs)) {
+            const _names = _dupAll.map(function (x) {
+              return (x.company || '-') + '(' + (x.member || x.who || '-') + ')';
+            }).join(', ');
             modalState.tempLogs.push({
               time: new Date().toLocaleString(),
-              text: '🔁 (시스템) 중복 확인 후 진행 승인 — 상대 DB: ' + (_d.company || '-') + ' / 담당 ' + (_gate.who || '-'),
+              text: '🔁 (시스템) 중복 확인 후 진행 승인 — 상대 DB ' + _dupAll.length + '건: ' + _names,
               writer: _ackBy || '시스템', type: 'system'
             });
           }
@@ -10982,10 +11000,14 @@ async function saveDBModal(shouldClose) {
     _dupAck: (function(){
       try{
         var _prev = Array.isArray(existingRaw._dupAck) ? existingRaw._dupAck.slice() : [];
+        /* v35.3.74: __pendingDupAck 이 배열(전원)이 됐다. 구형(단일 객체)도 그대로 처리해 회귀 0. */
         var _p = window.__pendingDupAck;
-        if (_p && _p.id && !_prev.some(function(x){ return String((x && x.id != null) ? x.id : x) === String(_p.id); })) {
-          _prev.push(_p);
-        }
+        var _list = Array.isArray(_p) ? _p : (_p ? [_p] : []);
+        _list.forEach(function(_one){
+          if (!_one || !_one.id) return;
+          var _dup = _prev.some(function(x){ return String((x && x.id != null) ? x.id : x) === String(_one.id); });
+          if (!_dup) _prev.push(_one);
+        });
         return _prev;
       }catch(_ae){ return (existingRaw && existingRaw._dupAck) || []; }
     })(),
@@ -11009,7 +11031,11 @@ async function saveDBModal(shouldClose) {
     recall_date: formData.recallDate || null,
     meet_status: formData.meetStatus || null,
     meet_date: formData.meetDate || null,
-    status: formData.status === '선택' ? null : formData.status,
+    /* v35.3.75 [status 컬럼 정합성 — 일반 저장]: 기존에는 '선택'이면 컬럼을 일부러 null로 비웠다.
+       raw에는 '선택'이 그대로 들어가 두 값이 갈라졌고, 서버에서 `where status='선택'`(방치 DB 조회 등)이
+       동작하지 않았다. raw(updatedRaw)와 완전히 같은 값을 컬럼에도 기록한다.
+       화면은 normalizeDBRecord가 raw를 우선하므로 표시 영향 0. */
+    status: updatedRaw.status || null,
     // v35.1.18: consulting/careLog는 단순 string으로 저장
     consulting: (typeof formData.consulting === 'string') ? formData.consulting : (formData.ingDetail || null),
     care_log: (typeof formData.careLog === 'string') ? formData.careLog : null,
@@ -20680,6 +20706,9 @@ window.__findDupLive = async function(company, ceo, phone, excludeId){
     var _picked = rows[0];
     try{
       var _det = await window.__getDupDetails(rows.map(function(r){ return String(r.id); }));
+      /* v35.3.74 [중복 반복 fix]: 화면엔 1명만 보여주더라도, '발견된 중복 상대 전원'을 함께 넘긴다.
+         승인 시 전원을 기록해야 다음 저장 때 누가 뽑히든 경고가 반복되지 않는다.
+         (실제 사고: 이혜성 DB의 상대가 고재원·조이룰 2명인데 조이룰만 승인돼 번갈아 팝업이 떴음) */
       if(_det && _det.length){
         /* v35.3.72 [정렬 규칙 확정 — 대장님]
            1순위: 계약 / 청철·실효  → 무조건 최우선 (금액이 걸려 있어 반드시 갱신되는 신뢰 가능한 상태)
@@ -20695,8 +20724,12 @@ window.__findDupLive = async function(company, ceo, phone, excludeId){
           if(ra !== rb) return rb - ra;   /* 계약·청철 보유자 최우선 */
           var ak = String(a.assigned_at||'') || String(a.recv_date||'');
           var bk = String(b.assigned_at||'') || String(b.recv_date||'');
-          if(ak === bk) return 0;
-          return ak < bk ? 1 : -1;   /* 내림차순(최신 우선) */
+          if(ak !== bk) return ak < bk ? 1 : -1;   /* 내림차순(최신 우선) */
+          /* v35.3.74: 배정일·접수일까지 완전히 같은 경우(같은 배치로 배정된 DB) id로 순서를 고정한다.
+             기존엔 return 0 이라 서버가 돌려준 순서(ORDER BY 없음 = 비결정적)에 좌우돼,
+             저장할 때마다 다른 사람이 뽑히고 중복 경고가 번갈아 떴다. */
+          var ai = String(a.id||''), bi = String(b.id||'');
+          return ai < bi ? 1 : (ai > bi ? -1 : 0);
         });
         var _top = _det[0];
         var _base = rows.find(function(r){ return String(r.id) === String(_top.id); }) || rows[0];
@@ -20704,6 +20737,13 @@ window.__findDupLive = async function(company, ceo, phone, excludeId){
         console.log('[실시간 중복조회] 최근 배정자 선택:', _top.member, '/ 배정일', _top.assigned_at||'-', '/ 접수일', _top.recv_date||'-');
       }
     }catch(_de){ console.warn('[실시간 중복조회] 상세 보강 생략:', _de && _de.message); }
+    /* v35.3.74: 발견된 중복 상대 '전원'을 함께 실어 보낸다(화면 표시는 여전히 _picked 1명만).
+       승인 시 전원을 기록해야 다음 저장 때 누가 뽑히든 경고가 반복되지 않는다. */
+    try{
+      _picked = Object.assign({}, _picked, { __allDups: rows.map(function(r){
+        return { id:String(r.id), company:(r.company||''), member:(r.member||''), team:(r.team||'') };
+      }) });
+    }catch(_ae){ console.warn('[실시간 중복조회] 전체 목록 첨부 생략:', _ae && _ae.message); }
     return _picked;
   }catch(e){ console.warn('[실시간 중복조회] 예외:', e && e.message); return null; }
 };
@@ -21958,7 +21998,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.73';
+  var VER35='v35.3.75';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -21975,7 +22015,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.73';
+  var VER35='v35.3.75';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
