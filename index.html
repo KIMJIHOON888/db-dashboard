@@ -6528,7 +6528,9 @@ function renderListPage() {
         const _tip = '중복 확인 후 진행 승인된 DB (' + _ack.length + '건과 중복)\n' + _tipLines;
         companyDisplay += ' <span title="' + escapeHtml(_tip) + '" style="display:inline-block;background:#fef3c7;'
           + 'color:#92400e;border:1px solid #fcd34d;border-radius:5px;padding:0 5px;font-size:10px;'
-          + 'font-weight:800;margin-left:4px;vertical-align:middle;cursor:help">🔁'
+          /* v35.3.76: 아이콘 🔁 → 👥 (대장 확정). 🔁는 다중계약 배지('🔁 N건')와 겹쳐 혼동을 유발했고,
+             ⚠️는 이미 오류·경고 표시에 쓰고 있어 또 겹친다. 👥는 '여러 명이 걸린 건'이 한눈에 읽힌다. */
+          + 'font-weight:800;margin-left:4px;vertical-align:middle;cursor:help">👥'
           + (_ack.length > 1 ? ('&times;' + _ack.length) : '') + '</span>';
       }
     }
@@ -21998,7 +22000,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.75';
+  var VER35='v35.3.76';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22015,7 +22017,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.75';
+  var VER35='v35.3.76';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
