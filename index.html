@@ -3662,6 +3662,17 @@ async function doSignup(){
     // v35.2.84: 도입자 명단 불일치 전용 안내
     if (e && e.message === '__REFERRER_NOT_FOUND__') {
       showAuthMsg('signup','error', '도입자 이름이 잘못 입력되었습니다.\n현재 등록된 팀원 명단에 없는 이름입니다.\n정확한 이름으로 다시 입력하거나, 비워두고 가입해주세요.');
+    } else if (/user already registered|already been registered|user_already_exists/i.test(String((e && e.message) || ''))) {
+      /* v35.3.78 [재입사 안내]: 퇴사자를 삭제해도 Supabase Auth 로그인 계정은 남는다.
+         본인이 직접 재가입하면 signUp이 막히는데, 기존에는 translateError가
+         "이미 등록된 정보입니다"라는 뜬금없는 문구만 보여줘 팀원이 원인을 몰라 반복 시도했다.
+         (v35.3.77의 자동 회수 RPC는 비밀번호를 바꾸는 권한이라 '관리자 전용'으로 잠가뒀다 —
+          로그인 안 한 회원가입 화면에서 쓰게 풀면 남의 계정을 가로챌 수 있어 의도적으로 막은 것.)
+         → 무엇을 해야 하는지 정확히 알려준다. */
+      showAuthMsg('signup','error',
+        '이 번호로 만들어진 로그인 계정이 이미 있습니다.\n'
+        + '직접 가입은 되지 않습니다. 매니저에게 [팀원 추가]로 등록을 요청해주세요.\n'
+        + '(비밀번호만 잊으신 경우에는 "비밀번호 찾기"를 이용하세요.)');
     } else {
       showAuthMsg('signup','error', '가입 실패: ' + translateError(e));
     }
@@ -4140,14 +4151,47 @@ async function addUserDirectly(){
     console.log('[addUserDirectly] Auth 가입 시도(격리 클라이언트):', email);
     const signupClient = makeSignupClient();
     if(!signupClient){ throw new Error('가입 처리기를 준비하지 못했습니다. 새로고침 후 다시 시도해주세요.'); }
-    const { data: authData, error: authErr } = await signupClient.auth.signUp({
+    let { data: authData, error: authErr } = await signupClient.auth.signUp({
       email: email,
       password: tempPw,
       options: { data: { phone: phone, name: name } }
     });
     if(authErr) {
       console.error('[addUserDirectly] Auth 에러:', authErr);
-      throw new Error(translateError(authErr));
+      /* v35.3.77 [퇴사 → 삭제 → 재등록 fix]
+         퇴사자를 삭제하면 app_users 행만 지워지고 Supabase Auth 로그인 계정은 그대로 남는다.
+         (브라우저 코드로는 Auth 계정을 지울 수 없다 — 지우려면 service_role 키가 필요한데
+          그 키를 HTML에 넣는 순간 금고 전체가 열리므로 절대 넣지 않는다.)
+         그래서 재등록하면 signUp이 'User already registered'로 막혀
+         "이미 등록된 정보입니다" 경고가 떴고, 재입사 처리가 아예 불가능했다.
+         → 주인이 없는(= app_users 어디에서도 참조하지 않는) 고아 계정일 때만
+           admin_reclaim_auth_user RPC로 비밀번호를 임시비번으로 초기화해 그 계정을 되살려 쓴다.
+           RPC가 없거나 권한이 없거나 '사용 중인 계정'이면 기존과 똑같이 에러를 던진다(회귀 0). */
+      var _alreadyMsg = String((authErr && (authErr.message || authErr.msg)) || '');
+      /* v35.3.78: Supabase 가 돌려주는 중복가입 문구가 3가지라 전부 잡는다.
+         ('User already registered' / 'A user with this email address has already been registered'
+          / 코드 user_already_exists) — v35.3.77 패턴은 두 번째 문구를 놓쳐 회수가 안 될 수 있었다. */
+      var _already = /user already registered|already been registered|already exists|user_already_exists|이미 등록/i.test(_alreadyMsg);
+      var _reclaimedUid = null;
+      if (_already) {
+        try {
+          var _rc = await sb.rpc('admin_reclaim_auth_user', { p_phone: phone, p_new_password: tempPw });
+          if (_rc && !_rc.error && _rc.data) _reclaimedUid = String(_rc.data);
+          else if (_rc && _rc.error) console.warn('[addUserDirectly] 고아 로그인계정 회수 실패:', _rc.error.message);
+        } catch (_rce) { console.warn('[addUserDirectly] 고아 로그인계정 회수 예외:', _rce && _rce.message); }
+      }
+      if (_reclaimedUid) {
+        authData = { user: { id: _reclaimedUid } };
+        authErr = null;
+        console.log('[addUserDirectly] 퇴사 때 남아있던 로그인 계정 회수 성공, uid:', _reclaimedUid);
+        try {
+          if (typeof showToast === 'function') {
+            showToast('ℹ️ 예전에 쓰던 로그인 계정을 되살렸습니다. 임시 비밀번호는 ' + tempPw + ' 입니다.', 'warning');
+          }
+        } catch (_te) {}
+      } else {
+        throw new Error(translateError(authErr));
+      }
     }
     if(!authData.user) {
       throw new Error('Auth 사용자 생성 실패');
@@ -6518,20 +6562,26 @@ function renderListPage() {
     {
       const _ack = (d.raw && Array.isArray(d.raw._dupAck)) ? d.raw._dupAck : [];
       if (_ack.length > 0) {
-        const _tipLines = _ack.map(function (x) {
-          if (!x) return '';
-          const _c = x.company ? String(x.company) : '(업체명 미상)';
-          const _w = x.who ? String(x.who) : '담당 미상';
-          const _at = x.at ? String(x.at).slice(0, 10) : '';
-          return '· ' + _c + ' / ' + _w + (_at ? ' (' + _at + ' 승인)' : '');
-        }).filter(Boolean).join('\n');
-        const _tip = '중복 확인 후 진행 승인된 DB (' + _ack.length + '건과 중복)\n' + _tipLines;
+        /* v35.3.77 [대장 확정]: 담당자 이름 숨김 + '가장 마지막(최근) 승인' 1건만 표시.
+           여러 명이 보유 중이라는 사실이 드러나면 '어차피 안 될 DB'라는 선입견이 생겨
+           시도조차 안 하게 되므로, 인원수(줄 수)도 노출하지 않는다. */
+        const _ackSorted = _ack.filter(Boolean).slice().sort(function (a, b) {
+          const _aa = String((a && a.at) || ''), _bb = String((b && b.at) || '');
+          return _aa < _bb ? 1 : (_aa > _bb ? -1 : 0);   /* 승인일 내림차순(최신 우선) */
+        });
+        const _last = _ackSorted[0] || null;
+        const _tipLines = _last
+          ? ('· ' + (_last.company ? String(_last.company) : '(업체명 미상)')
+             + (_last.at ? ' (' + String(_last.at).slice(0, 10) + ' 승인)' : ''))
+          : '';
+        const _tip = '중복 확인 후 진행 승인된 DB\n' + _tipLines;
         companyDisplay += ' <span title="' + escapeHtml(_tip) + '" style="display:inline-block;background:#fef3c7;'
           + 'color:#92400e;border:1px solid #fcd34d;border-radius:5px;padding:0 5px;font-size:10px;'
           /* v35.3.76: 아이콘 🔁 → 👥 (대장 확정). 🔁는 다중계약 배지('🔁 N건')와 겹쳐 혼동을 유발했고,
              ⚠️는 이미 오류·경고 표시에 쓰고 있어 또 겹친다. 👥는 '여러 명이 걸린 건'이 한눈에 읽힌다. */
+          /* v35.3.77: '×N' 건수 표기 제거 (대장 확정) — 배지는 👥 하나만 */
           + 'font-weight:800;margin-left:4px;vertical-align:middle;cursor:help">👥'
-          + (_ack.length > 1 ? ('&times;' + _ack.length) : '') + '</span>';
+          + '</span>';
       }
     }
     // v35.1.18: 김지훈 #4 — 가상 쉐어 row 업체명에 prefix 제거 (출처 컬럼에서 확인)
@@ -8281,7 +8331,10 @@ async function executeReassignCore(id, targetMem, customReason) {
     revenue: origRaw.revenue || originalDB.revenue || null,
     region: origRaw.region || originalDB.region || null,
     call_status: null, meet_status: null, meet_date: null,
-    status: null, consulting: null, care_log: null,
+    /* v35.3.77 [status 컬럼 정합성 — 재배정 경로]: v35.3.75에서 saveDBModal·assignDBToMember만 고치고
+       재배정 2개 경로를 놓쳤다. raw.status에는 '선택'이 들어가는데 컬럼만 null이라
+       컬럼만 읽는 SQL·RPC·v36 통계에서 '상태 없음'으로 빠진다(2026-09-02 사고와 동일 원인). */
+    status: newRaw.status || null, consulting: null, care_log: null,
     raw: newRaw,
     logs: clonedLogs,
     is_frozen: false,
@@ -8887,6 +8940,12 @@ async function openDBModal(id, rowNum) {
       var sysLogs = (rec.logs || []).filter(function(l){
         return l && l.text && l.text.indexOf('[이전 기록 보존]') >= 0;
       });
+      /* v35.3.77 [이전기록 오염 fix]: 위 prevLines는 '현재 살아있는 raw 값'을 읽는다.
+         재배정 직후엔 비어 있어 정상이지만, 새 담당자가 진행상세·상담내용을 쓰고 저장하면
+         raw.ingDetail 등이 새 내용으로 덮여 '이전 담당자 메모'로 둔갑해 계속 쌓였다.
+         → 재배정 시점에 박제된 '[이전 기록 보존]' 시스템 로그가 있으면 그것만 신뢰한다.
+         로그가 없는 구버전 재배정 건은 기존대로 살아있는 값을 보여준다(회귀 0). */
+      if (sysLogs.length > 0) { prevLines.length = 0; }
       sysLogs.forEach(function(l){
         prevLines.push('<div style="background:#f1f5f9;padding:6px 8px;border-radius:6px;margin-top:4px;font-size:11px;color:#475569">' + escapeHtml(l.text) + '</div>');
       });
@@ -9657,7 +9716,8 @@ async function executeRedistribution() {
     revenue: origRaw.revenue || originalDB.revenue || null,
     region: origRaw.region || originalDB.region || null,
     call_status: null, meet_status: null, meet_date: null,
-    status: null, consulting: null, care_log: null,
+    /* v35.3.77 [status 컬럼 정합성 — 재배정 경로 2/2]: 위와 동일. raw와 컬럼을 같은 값으로 맞춘다. */
+    status: newRaw.status || null, consulting: null, care_log: null,
     raw: newRaw,
     logs: clonedLogs,
     is_frozen: false,
@@ -22000,7 +22060,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.76';
+  var VER35='v35.3.78';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22017,7 +22077,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.76';
+  var VER35='v35.3.78';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
@@ -22334,8 +22394,15 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
       if(/사업자$|^법인$|^개인$/.test(v)) return;
       if(/^(회신|이름|성함|번호|회신번호|연락처|담당|담당자|플랫폼)$/.test(v)) return;
       if(/^(오전|오후|종일|언제나|아무때나|무관|전화가능시간|연락가능)/.test(v)) return;   /* 연락가능시간 제외 */
-      if(/(제조|도소매|소매|도매|서비스|유통|건설|음식|숙박|운수|교육|의료|부동산|금융)$/.test(v) && v.length<=6) return;
-      if(/(억|만원)/.test(v) || /(미만|이상|이하)$/.test(v)) return;   /* 매출값만 제외(이름 '이상철'의 '이상' 오매칭 방지) */
+      /* v35.3.77 [업체명 누락 fix ①] 기존: '…건설/유통/서비스'로 끝나고 6자 이하면 무조건 제외.
+         → '대한건설·대림유통·한빛서비스' 같은 멀쩡한 업체명이 후보에서 통째로 빠져
+           업체명이 빈 칸으로 등록되는 사고가 났다(바로 아래 COMPWORD에는 건설·유통이
+           '업체명 확실 신호'로 등록돼 있어 서로 모순). 업종 칸은 어차피 고정열(5번)에서 뽑으므로,
+           여기서는 '업종 단어 그 자체'일 때만 제외한다. */
+      if(/^(제조|도소매|소매|도매|서비스|유통|건설|음식|숙박|운수|교육|의료|부동산|금융)(업)?$/.test(v)) return;
+      /* v35.3.77 [업체명 누락 fix ②] 기존: '억' 또는 '만원'이 어디에 있든 제외 → 업체명 오탈락.
+         매출값은 항상 '3억이상 / 5억 / 1억미만 / 5000만원' 처럼 끝나므로 '끝남' 조건으로 좁힌다. */
+      if(/(억|만원)(이상|이하|미만)?$/.test(v) || /(미만|이상|이하)$/.test(v)) return;   /* 매출값만 제외(이름 '이상철'의 '이상' 오매칭 방지) */
       if(v.indexOf('_all')>=0 || v.indexOf('정책자금')>=0) return;
       /* 맨 끝(마지막 칸) 순수 한글이름은 담당자명일 가능성 → 후순위 태그(제외하지 않고 뒤로 미룸) */
       t.isTrailingName = (t.idx === (cells.length - 1)) && /^[가-힣]{2,4}$/.test(v);
@@ -22364,6 +22431,23 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
       else if(!ceoCand && !t.isTrailingName){ ceoCand=t; used[t.idx]=true; }
     });
     if(!compCand){ compCand = korCands.find(function(t){ return !t.isTrailingName && (!ceoCand || t.idx!==ceoCand.idx); }) || null; }
+    /* v35.3.77 [업체명 누락 fix ③] 한글이 한 글자도 없는 업체명(ABC Corp, JS Global 등)은
+       korCands(한글만 수집)에 아예 들어가지 못해 업체명이 비었다.
+       → 마지막 수단으로 영문 후보를 찾되, 전화·날짜·이메일·캠페인·플랫폼값은 제외해 오인식을 막는다. */
+    if(!compCand){
+      compCand = tail.find(function(t){
+        if(used[t.idx]) return false;
+        if(ceoCand && t.idx === ceoCand.idx) return false;
+        var v = t.val; if(!v || v.length < 2) return false;
+        if(!/[A-Za-z]/.test(v)) return false;                  /* 영문자가 없으면 업체명 아님 */
+        if(/^(ig|fb|meta)$/i.test(v)) return false;            /* 플랫폼값 */
+        if(/^\d{4}-\d{2}-\d{2}/.test(v)) return false;         /* 날짜 */
+        if(v.replace(/[^0-9]/g,'').length >= 9) return false;  /* 전화번호성 */
+        if(v.indexOf('_all') >= 0) return false;               /* 캠페인명 */
+        if(v.indexOf('@') >= 0) return false;                  /* 이메일 */
+        return true;
+      }) || null;
+    }
     return {
       company: compCand ? compCand.val.replace(/_/g,' ') : '',
       phone: phoneCand ? phoneCand.val : '',
@@ -22709,6 +22793,67 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
   };
 })();
 
+</script>
+
+<script>
+/* ============================================================
+   v35.3.77 [연타 방지 가드] — DB 배정 / 재배정이 두 건 등록되는 사고 차단
+   ------------------------------------------------------------
+   원인: 배정 버튼을 누르면 세션확인 → 중복조회 RPC → 상세조회 RPC → 팝업 → 중복게이트 RPC
+         순서로 통신이 4번 일어나 수 초가 걸린다. 그동안 버튼이 계속 살아 있어
+         "반응이 없네?" 하고 한 번 더 누르면 완전히 독립된 두 번째 실행이 시작되고,
+         newId = Date.now() 라 ID가 달라 PK 충돌도 없이 그대로 2건이 꽂혔다.
+         (saveDBModal은 window._isSaving 가드가 있어 안전했고, META 다건은 버튼을
+          즉시 disabled 처리해 안전했다. 무방비였던 두 경로만 여기서 막는다.)
+   방식: 기존 함수를 '가장 바깥에서 감싸기'만 한다 — 원본 코드는 한 줄도 건드리지 않는다.
+         finally 로 무조건 잠금을 풀어 영구 먹통(데드락)이 생기지 않게 한다.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  function _toast(msg) {
+    try { if (typeof showToast === 'function') { showToast(msg, 'warning'); return; } } catch (_e) {}
+    try { console.warn('[연타방지] ' + msg); } catch (_e2) {}
+  }
+
+  /* 함수 하나를 '한 번에 하나만 실행' 되도록 감싸는 공통 래퍼 */
+  function guardOnce(fnName, flagName, btnId, busyMsg) {
+    var _orig = window[fnName];
+    if (typeof _orig !== 'function') return false;
+    if (_orig.__v35GuardWrapped) return true;        /* 중복 래핑 방지 */
+
+    var wrapped = async function () {
+      if (window[flagName]) { _toast(busyMsg); return; }
+      window[flagName] = true;
+      var btn = null;
+      try { btn = document.getElementById(btnId); } catch (_e) {}
+      var prevDisabled = btn ? btn.disabled : null;
+      if (btn) btn.disabled = true;
+      try {
+        return await _orig.apply(this, arguments);
+      } finally {
+        window[flagName] = false;                                  /* 무조건 해제 */
+        if (btn) btn.disabled = (prevDisabled === true);            /* 원래 상태로 복구 */
+      }
+    };
+    wrapped.__v35GuardWrapped = true;
+    window[fnName] = wrapped;
+    return true;
+  }
+
+  function applyGuards() {
+    var a = guardOnce('assignDBToMember', '__v35AssignBusy', 'btn-assign-db',
+      '배정 처리 중입니다. 잠시만 기다려주세요.');
+    var b = guardOnce('executeRedistribution', '__v35RedistBusy', 'btn-execute-redistribution',
+      '재배정 처리 중입니다. 잠시만 기다려주세요.');
+    console.log('[v35.3.77 연타방지] 배정:' + (a ? 'ON' : '미적용') + ' / 재배정:' + (b ? 'ON' : '미적용'));
+  }
+
+  /* 기존 래퍼(세션확인·중복팝업)들이 DOMContentLoaded 에서 감싸므로,
+     이 파일 맨 뒤에서 등록한 이 리스너가 더 나중에 실행돼 '가장 바깥'이 된다. */
+  if (document.readyState !== 'loading') applyGuards();
+  else document.addEventListener('DOMContentLoaded', applyGuards);
+})();
 </script>
 </body>
 </html>
