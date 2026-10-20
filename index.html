@@ -13266,6 +13266,12 @@ function getAdminRetentionRows(){
   var _hiddenSet = (typeof window.__getRetHidden==='function') ? window.__getRetHidden() : new Set();
   dbList.forEach(function(d){
     if(!d || d.isFrozen || d.status !== '계약') return;
+    /* v35.3.79 [타팀 혼입 fix] v35.3.57의 Step 2b 는 '우리 팀원이 타팀에서 받은 쉐어'의 매출을
+       정확히 계산하려고 타팀 원본 DB를 가져와 __statOnly(통계전용) 딱지를 붙여 넣는다.
+       DB목록(renderListPage)은 이 딱지를 보고 걸러내는데, 이 보드는 보지 않아서
+       타팀 원주인(추장호·박찬희 등)이 '우리 팀 주의 팀원' 카드로 떴다(2026-10-20 실측 3건).
+       → 통계에는 계속 쓰되, '팀원 명단' 성격인 이 보드에서는 제외한다. */
+    if(d.__statOnly) return;
     var cDate = getContractDate(d);
     if(monthsSince(cDate) < 1) return;
     if(monthsSince(cDate) >= 24) return;
@@ -13383,7 +13389,11 @@ function checkMeetingAlerts(){
   var dbList = (window.appState && window.appState.records) || [];
   var t = new Date(); t.setHours(0,0,0,0);
   var isMgr = (me.role === 'team_manager' || me.role === 'branch_manager' || me.role === 'system_admin');
-  var myDB = isMgr ? dbList : dbList.filter(function(d){ return d.member === me.name; });
+  /* v35.3.79 [타팀 혼입 fix — 미팅 알림 배지] 유지관리 보드·캘린더와 동일 원인.
+     Step 2b(v35.3.57)가 매출 계산용으로 병합한 타팀 원본(__statOnly)이 섞여
+     '오늘 미팅 N건' 배지와 그 상세목록에 타팀 미팅이 포함됐다. 통계에는 계속 쓰되 여기서는 제외. */
+  var myDB = (isMgr ? dbList : dbList.filter(function(d){ return d.member === me.name; }))
+               .filter(function(d){ return d && !d.__statOnly; });
   var tc = 0, uc = 0, oc = 0, md = [];
   myDB.forEach(function(d){
     if(!d.meetDate || d.status === '계약' || d.status === '종료' || d.isFrozen) return;
@@ -16954,7 +16964,11 @@ function renderCalendar(){
 
   // 매니저 → 전체 DB, 팀원 → 본인 DB만
   var isMgr = (me.role === 'team_manager' || me.role === 'branch_manager' || me.role === 'system_admin');
-  var myDB = isMgr ? dbList : dbList.filter(function(d){ return d.member === me.name; });
+  /* v35.3.79 [타팀 혼입 fix — 캘린더] 유지관리 보드와 동일 원인.
+     Step 2b(v35.3.57)가 매출 계산용으로 병합한 타팀 원본(__statOnly)이
+     팀원별 미팅 집계에 섞여 들어갔다. 통계에는 계속 쓰되 이 화면에서는 제외한다. */
+  var myDB = (isMgr ? dbList : dbList.filter(function(d){ return d.member === me.name; }))
+               .filter(function(d){ return d && !d.__statOnly; });
 
   var meetingMap = {};
   var memberMeetingCount = {};
@@ -22060,7 +22074,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.78';
+  var VER35='v35.3.79';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22077,7 +22091,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.78';
+  var VER35='v35.3.79';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
