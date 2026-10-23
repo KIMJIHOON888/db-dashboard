@@ -5942,6 +5942,14 @@ function renderFilters() {
     <option value="joint">🤝 조인웍</option>
   </select>`;
 
+  /* v35.3.81 대장님 요청: 지역 필터 — 상세정보 '지역' 선택값(17개 시·도)과 동일 + 미입력 */
+  const _regionList = ['서울','경기','인천','부산','대구','광주','대전','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주'];
+  const regionHTML = '<select id="filter-region" title="지역으로 조회">'
+    + '<option value="all">전체 지역</option>'
+    + _regionList.map(function(r){ return '<option value="' + r + '">' + r + '</option>'; }).join('')
+    + '<option value="__none__">지역 미입력</option>'
+    + '</select>';
+
   // 매니저용 팀원 선택
   let memberHTML = '';
   if (isAdmin) {
@@ -5955,6 +5963,7 @@ function renderFilters() {
     + '<select id="filter-month"></select>'
     + '<select id="filter-assign-day" title="배정일로 조회 (선택 월의 해당 일에 배정된 건만)"></select>'
     + sourceHTML
+    + regionHTML
     + callHTML
     + statusHTML
     + memberHTML;
@@ -6041,7 +6050,7 @@ async function fetchMembersForFilter() {
 }
 
 function attachFilterEvents() {
-  const ids = ['search-keyword','filter-year','filter-month','filter-source','filter-call','filter-status','filter-member'];
+  const ids = ['search-keyword','filter-year','filter-month','filter-source','filter-region','filter-call','filter-status','filter-member'];   /* v35.3.81: filter-region 추가 */
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (el && !el.__bound) {
@@ -6132,6 +6141,9 @@ function renderList() {
         var _callEl = document.getElementById('filter-call');
         if (_callEl) _callEl.value = (_pf.callFilter === null) ? 'all' : _pf.callFilter;
       }
+      /* v35.3.81: 카드·지표 클릭으로 들어오면 지역 필터는 '전체'로 — 남아있으면 카드 숫자와 목록 건수가 달라짐 */
+      var _regionEl0 = document.getElementById('filter-region');
+      if (_regionEl0) _regionEl0.value = 'all';
       // v35.1.79: 페이지 1로 리셋 (필터 적용 시 매번 첫 페이지)
       if (window.appState) window.appState.currentPage = 1;
       // v35.1.18: etcOnly 플래그 — 기타DB 중 부가설명 없는 것만 표시
@@ -6421,6 +6433,17 @@ function renderList() {
       });
     }
   }catch(_e){ console.warn('[조인웍] 목록 합류 경고:', _e && _e.message); }
+
+  /* v35.3.81 대장님 요청: 지역 필터 — 일반·쉐어·조인웍 행이 모두 합쳐진 '뒤' 한 번에 적용 (세 경로 누락 방지) */
+  const _regionSel = document.getElementById('filter-region');
+  const _regionPick = _regionSel ? _regionSel.value : 'all';
+  if (_regionPick && _regionPick !== 'all') {
+    filtered = filtered.filter(function(d){
+      var _rg = String((d && (d.region || (d.raw && d.raw.region))) || '').trim();
+      if (_rg === '-') _rg = '';
+      return (_regionPick === '__none__') ? (_rg === '') : (_rg === _regionPick);
+    });
+  }
 
   // 정렬: 접수일/계약일/재배정일 최신순
   // v35.1.72 김지훈: 재배정 DB는 reassignedDate 기준 정렬 (v35 신규 정책)
@@ -8767,6 +8790,7 @@ async function openDBModal(id, rowNum) {
   modalState.isDirty = false;
   modalState.tempLogs = [];
   modalState._savedLogCount = 0;   // v35.2.84: 이미 저장된 로그 수 (알림은 이 수 이후 새 로그만 대상)
+  modalState._pendingAudioNotify = [];   // v35.3.80: 이번 모달에서 새로 올린 녹취(저장 성공 시 관리자에게 알림)
   modalState.selectedLogTag = 'note';
 
   let rec = null;
@@ -10390,6 +10414,7 @@ function closeDBModal(force) {
   modalState.tempLogs = [];
   modalState._tempId = null;
   modalState.audioFiles = null;
+  modalState._pendingAudioNotify = [];   // v35.3.80: 저장 안 하고 닫으면 알림 대기분도 폐기(파일도 위에서 정리됨)
 }
 
 function collectModalFormData() {
@@ -11297,6 +11322,31 @@ async function saveDBModal(shouldClose) {
         sendAdminCommentNotification(_recForNotify, _addedLogsForNotify);
       }
     } catch(e) { console.warn('[admin comment notify]', e); }
+    // v35.3.80: 대장님 요청 — 팀원이 녹취를 올리고 저장하면 관리자 채팅창에 [열기] 링크 알림
+    //   대상: 이번 모달에서 새로 올리고 + 삭제하지 않은 파일만 (같은 모달에서 재저장해도 중복 발송 X)
+    try {
+      var _pendAud = (modalState && Array.isArray(modalState._pendingAudioNotify)) ? modalState._pendingAudioNotify : [];
+      if (_pendAud.length > 0) {
+        modalState._pendingAudioNotify = [];   // 먼저 비움 → 연타 저장 시 중복 발송 차단
+        var _afNow = (modalState && modalState.audioFiles) || {};
+        var _stillThere = _pendAud.filter(function(p){
+          var _a = p && _afNow[p.kind];
+          return Array.isArray(_a) && _a.indexOf(p.ref) !== -1;   // 저장 전에 지운 파일은 제외
+        });
+        var _audDbId = (modalState && modalState.currentId) || (result && result.data && result.data.id) || '';
+        var _audCompEl = document.getElementById('input-company');
+        var _audComp = (_audCompEl && _audCompEl.value.trim()) || '(업체명 없음)';
+        // 쉐어/조인웍 보기(save_share_note 경로)는 녹취가 원본 DB에 저장되지 않으므로 알림도 보내지 않음
+        if (_stillThere.length > 0 && _audDbId && !modalState.isShareViewMode && typeof sendAudioUploadNotification === 'function') {
+          // 모달이 닫혀도 안전하도록 필요한 값은 지금 복사해서 넘김
+          sendAudioUploadNotification({
+            dbId: String(_audDbId),
+            company: _audComp,
+            files: _stillThere.map(function(p){ return { name: (p.ref && p.ref.name) || '녹취', kind: p.kind }; })
+          });
+        }
+      }
+    } catch(e) { console.warn('[audio upload notify]', e); }
     // v35.2.84: 저장 완료 시점의 로그 수를 '저장된 수'로 갱신 → 같은 모달에서 또 저장해도 중복 알림 안 감
     if (modalState && Array.isArray(modalState.tempLogs)) modalState._savedLogCount = modalState.tempLogs.length;
     // v35.2.84: 신규 저장 후 모달을 유지할 때 재저장이 중복 INSERT 되지 않도록 currentId 확정
@@ -18512,6 +18562,10 @@ async function handleAudioUpload(kind, files) {
   if (!window.modalState.audioFiles) window.modalState.audioFiles = { incall: [], meeting: [] };
   if (!Array.isArray(window.modalState.audioFiles[kind])) window.modalState.audioFiles[kind] = [];
   window.modalState.audioFiles[kind] = window.modalState.audioFiles[kind].concat(uploaded);
+  // v35.3.80: 관리자 녹취 알림 대기열 — 실제 알림은 'DB 저장 성공' 시점에 발송
+  //   (저장 전엔 DB에 녹취가 기록되지 않아, 관리자가 링크를 열어도 파일이 안 보이기 때문)
+  if (!Array.isArray(window.modalState._pendingAudioNotify)) window.modalState._pendingAudioNotify = [];
+  uploaded.forEach(function(_uf){ window.modalState._pendingAudioNotify.push({ ref: _uf, kind: kind }); });
   window.modalState.isDirty = true;
   // 임시 rec 객체로 즉시 렌더
   var tmpRec = { raw: { audioFiles: window.modalState.audioFiles } };
@@ -20483,7 +20537,7 @@ function renderMsgChat(partnerName) {
           : '<span style="font-size:12px;color:#ea580c;font-weight:800">1</span>';
         html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;align-items:flex-end;gap:4px">'
               + '<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;line-height:1.3">' + readMark + '<span style="font-size:10px;color:#94a3b8">' + timeStr + '</span></div>'
-              + '<div style="max-width:85%;background:' + bg + ';color:' + color + ';padding:10px 14px;border-radius:16px 16px 4px 16px;font-size:13px;line-height:1.5;word-break:break-word;font-weight:' + weight + '">'
+              + '<div style="max-width:85%;background:' + bg + ';color:' + color + ';padding:10px 14px;border-radius:16px 16px 4px 16px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-line;font-weight:' + weight + '">'
               + escapeHtml(msg.text) + dbLink + '</div></div>';
       } else {
         // 받은 메시지: 좌측 정렬 + 32x32 아바타 (v34.4 line 5168 동등)
@@ -20492,7 +20546,7 @@ function renderMsgChat(partnerName) {
               + '<div style="width:32px;height:32px;background:#1e3a8a;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;flex-shrink:0;margin-top:2px">' + escapeHtml(avatarChar) + '</div>'
               + '<div><div style="font-size:10px;color:#64748b;margin-bottom:2px;font-weight:600">' + escapeHtml(msg.from_name) + '</div>'
               + '<div style="display:flex;align-items:flex-end;gap:4px">'
-              + '<div style="max-width:380px;background:' + bg + ';color:' + color + ';padding:10px 14px;border-radius:4px 16px 16px 16px;font-size:13px;line-height:1.5;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06);font-weight:' + weight + ';border:' + border + '">'
+              + '<div style="max-width:380px;background:' + bg + ';color:' + color + ';padding:10px 14px;border-radius:4px 16px 16px 16px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-line;box-shadow:0 1px 2px rgba(0,0,0,.06);font-weight:' + weight + ';border:' + border + '">'
               + escapeHtml(msg.text) + dbLink + '</div>'
               + '<span style="font-size:10px;color:#94a3b8">' + timeStr + '</span></div></div></div>';
       }
@@ -21487,6 +21541,56 @@ async function sendAdminCommentNotification(dbRecord, addedLogs) {
   } catch (e) { console.warn('[sendAdminCommentNotification]', e); }
 }
 window.sendAdminCommentNotification = sendAdminCommentNotification;
+
+// v35.3.80 대장님 요청: 팀원 녹취 업로드 → 관리자 채팅창에 [📂 업체 열기] 링크 알림
+//   받는 사람 = 팀원 채팅창에 자동으로 잡히는 그 관리자(initMessageView와 동일 규칙)
+//     1순위: 같은 팀 team_manager/branch_manager → 2순위: 첫 관리자
+//   관리자 본인이 올린 녹취는 알림 X (팀원 → 관리자 방향만)
+async function sendAudioUploadNotification(info) {
+  try {
+    var me = window.currentUser;
+    if (!me || !me.name || !info || !info.dbId) return;
+    if (me.role === 'team_manager' || me.role === 'branch_manager' || me.role === 'system_admin') return;
+    var files = Array.isArray(info.files) ? info.files : [];
+    if (files.length === 0) return;
+
+    if (!appState.members || appState.members.length === 0) {
+      try {
+        var _m = await loadReassignMembers();
+        if (Array.isArray(_m)) appState.members = _m;
+      } catch (e) { console.warn('[녹취 알림] members load 실패:', e); }
+    }
+    var members = (appState.members || []).filter(function(m) { return m && m.name && m.name !== me.name; });
+    var isMgrRole = function(m){ return m.role === 'team_manager' || m.role === 'branch_manager'; };
+    var mgr = null;
+    for (var i = 0; i < members.length; i++) { if (members[i].team === me.team && isMgrRole(members[i])) { mgr = members[i].name; break; } }
+    if (!mgr) { for (var j = 0; j < members.length; j++) { if (isMgrRole(members[j])) { mgr = members[j].name; break; } } }
+    if (!mgr) {
+      // 조용히 넘어가지 않음 — 팀원이 알 수 있게 안내
+      showToast('녹취는 저장됐지만, 알림 받을 관리자를 찾지 못했습니다. 관리자에게 직접 알려주세요.', 'warning');
+      console.warn('[녹취 알림] 수신 관리자 없음 — team:', me.team);
+      return;
+    }
+
+    var company = info.company || '(업체명 없음)';
+    var lines = files.slice(0, 10).map(function(f){
+      return '· ' + (f.kind === 'meeting' ? '[미팅] ' : '[인콜] ') + (f.name || '녹취');
+    });
+    if (files.length > 10) lines.push('· 외 ' + (files.length - 10) + '건');
+    var msgText = '🎙️ [' + company + '] 녹취 ' + files.length + '건이 업로드되었습니다.\n'
+                + lines.join('\n') + '\n아래 [열기]를 눌러 청취 후 피드백 부탁드립니다.';
+
+    var ok = (typeof sendMessage === 'function')
+      ? await sendMessage(mgr, msgText, { type: 'audio_upload', dbId: String(info.dbId), company: company })
+      : false;
+    if (ok) {
+      showToast('📨 ' + mgr + ' 관리자에게 녹취 알림을 보냈습니다.', 'success');
+      console.log('[녹취 알림] 발송: ' + me.name + ' → ' + mgr + ' / [' + company + '] ' + files.length + '건');
+    }
+    // 실패 시엔 sendMessage가 이미 오류 토스트를 띄움
+  } catch (e) { console.warn('[sendAudioUploadNotification]', e); }
+}
+window.sendAudioUploadNotification = sendAudioUploadNotification;
 </script>
 
 
@@ -22074,7 +22178,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.79';
+  var VER35='v35.3.81';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22091,7 +22195,7 @@ window.sendAdminCommentNotification = sendAdminCommentNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.79';
+  var VER35='v35.3.81';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
