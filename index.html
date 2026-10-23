@@ -6040,7 +6040,7 @@ function renderFilters() {
 
 async function fetchMembersForFilter() {
   const me = window.currentUser;
-  let q = sb.from('app_users').select('name,team,role,status,is_new,badge_expert,badge_sidejob').neq('status','retired');
+  let q = sb.from('app_users_directory').select('name,team,role,status,is_new,badge_expert,badge_sidejob').neq('status','retired');
   if (me.team) q = q.eq('team', me.team);  /* v35.2.96: me.team(진입팀/소속팀) 있으면 그 팀만 */
   const { data } = await q.order('name');
   if (!data) return [];
@@ -7291,7 +7291,7 @@ function exportToExcel() {
 //   주의: RLS 정책도 함께 확장 필요 (Supabase 대시보드)
 async function loadDBRecords() {
   // v35.2.95: 퇴사자 이름 캐시 (중복 알림 담당자 '(퇴사자)' 표기용)
-  try{ const {data:_rtn}=await sb.from('app_users').select('name').eq('status','retired'); window.__retiredNames=new Set((_rtn||[]).map(function(x){return x.name;})); }catch(_e){ if(!window.__retiredNames) window.__retiredNames=new Set(); }
+  try{ const {data:_rtn}=await sb.from('app_users_directory').select('name').eq('status','retired'); window.__retiredNames=new Set((_rtn||[]).map(function(x){return x.name;})); }catch(_e){ if(!window.__retiredNames) window.__retiredNames=new Set(); }
   const me = window.currentUser;
   
   // === Step 1: 본인 명의 (또는 팀/전체) DB SELECT — 기존 로직 유지 ===
@@ -7669,7 +7669,7 @@ async function loadReassignMembers(forceReload) {
   }
   try {
     const me = window.currentUser;
-    let q = sb.from('app_users').select('id, name, role, team, status, is_new, badge_expert, badge_sidejob').eq('status', 'approved');
+    let q = sb.from('app_users_directory').select('id, name, role, team, status, is_new, badge_expert, badge_sidejob').eq('status', 'approved');
     if (me && me.team) q = q.eq('team', me.team);  /* v35.2.96: 진입팀/소속팀 기준 */
     const { data, error } = await q.order('name');
     if (error) throw error;
@@ -9075,7 +9075,7 @@ async function openDBModal(id, rowNum) {
       if (ats) {
         ats.innerHTML = '<option value="">배정할 팀원 선택</option>';
         try {
-          const { data: amData, error: amErr } = await sb.from('app_users').select('name, role, team, status, is_new, badge_expert, badge_sidejob').order('name', { ascending: true });
+          const { data: amData, error: amErr } = await sb.from('app_users_directory').select('name, role, team, status, is_new, badge_expert, badge_sidejob').order('name', { ascending: true });
           if (amErr) throw amErr;
           const ops = (amData || []).filter(u => u.name && isAssignableMember(u.role) && u.name !== me.name && u.status === 'approved' && (!me.team || u.team === me.team));
           ops.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
@@ -9232,7 +9232,7 @@ async function populateAdminReassignSelect() {
   const me = window.currentUser;
   sel.innerHTML = '<option value="">불러오는 중...</option>';
   try {
-    const { data, error } = await sb.from('app_users')
+    const { data, error } = await sb.from('app_users_directory')
       .select('name, team, role, is_new, badge_expert, badge_sidejob')
       .order('name', { ascending: true });
     if (error) {
@@ -11683,7 +11683,7 @@ function sortMemberNames(ml, cm) {
 async function loadShareMembers() {
   if (window.shareMembersCache.length > 0) return window.shareMembersCache;
   try {
-    const { data, error } = await sb.from('app_users')
+    const { data, error } = await sb.from('app_users_directory')
       .select('name, role, team, status')
       .order('name', { ascending: true });
     if (error) throw error;
@@ -18578,12 +18578,12 @@ window.handleAudioUpload = handleAudioUpload;
 async function _playAudio(storagePath, displayName) {
   if (!storagePath) { showToast('재생 경로 없음', 'error'); return; }
   try {
-    var { data, error } = await sb.storage.from(window.AUDIO_BUCKET).createSignedUrl(storagePath, 300);  // 5분 유효
+    var { data, error } = await sb.storage.from(window.AUDIO_BUCKET).createSignedUrl(storagePath, 7200);  // v35.3.83: 5분→2시간 — 긴 녹취는 브라우저가 조각조각 받아서, 5분 지나면 뒷부분 조각이 거절돼 멈출 수 있었음
     if (error || !data || !data.signedUrl) { showToast('재생 URL 생성 실패', 'error'); return; }
     // 인라인 모달로 audio 재생 (새 창 차단 회피)
     var ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:10030;display:flex;align-items:center;justify-content:center';
-    ov.innerHTML = '<div style="background:#fff;border-radius:14px;padding:20px;min-width:380px;max-width:90vw"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-weight:800;font-size:14px">▶ ' + escapeHtml(displayName || '녹음') + '</div><button style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8" onclick="this.closest(\'div[style*=fixed]\').remove()">×</button></div><audio controls autoplay style="width:100%" src="' + data.signedUrl + '"></audio><div style="font-size:11px;color:#94a3b8;margin-top:8px">재생 URL은 5분간 유효합니다</div></div>';
+    ov.innerHTML = '<div style="background:#fff;border-radius:14px;padding:20px;min-width:380px;max-width:90vw"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-weight:800;font-size:14px">▶ ' + escapeHtml(displayName || '녹음') + '</div><button style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8" onclick="this.closest(\'div[style*=fixed]\').remove()">×</button></div><audio controls autoplay style="width:100%" src="' + data.signedUrl + '"></audio><div style="font-size:11px;color:#94a3b8;margin-top:8px">재생 URL은 2시간 유효합니다</div></div>';
     document.body.appendChild(ov);
     ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
   } catch (e) {
@@ -22085,7 +22085,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
           var me = window.currentUser || {};
           var sel = document.getElementById('admin-reassign-target');
           if(sel && typeof sb!=='undefined' && sb){
-            var query = sb.from('app_users').select('name, team, status').eq('status', 'approved');
+            var query = sb.from('app_users_directory').select('name, team, status').eq('status', 'approved');
             if(me.team) query = query.eq('team', me.team);   /* v35.2.96: me.team 있으면 그 팀만(진입팀/소속팀) */
             var q = await query;
             var allowed = {}; (q.data||[]).forEach(function(u){ if(u && u.name) allowed[u.name] = true; });
@@ -22178,7 +22178,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.81';
+  var VER35='v35.3.83';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22195,7 +22195,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.81';
+  var VER35='v35.3.83';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
