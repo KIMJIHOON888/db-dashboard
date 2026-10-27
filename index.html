@@ -2881,6 +2881,7 @@ input, select, textarea { font-family: inherit; }
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
           <button id="btn-reassign-bulk-execute" class="btn btn-dark" style="padding:8px 14px;font-size:13px;opacity:0.5;cursor:not-allowed" disabled><i class="fa-solid fa-shuffle"></i> 선택 일괄 재배정</button>
           <button id="btn-reassign-bulk-cancel" class="btn btn-secondary" style="padding:8px 14px;font-size:13px;opacity:0.5;cursor:not-allowed;background:#fbbf24;color:#78350f;border-color:#f59e0b" disabled><i class="fa-solid fa-rotate-left"></i> 선택 일괄 취소</button>
+          <button id="btn-reassign-bulk-delete" class="btn" style="padding:8px 14px;font-size:13px;opacity:0.5;cursor:not-allowed;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5" disabled><i class="fa-solid fa-trash"></i> 선택 삭제</button><!-- v35.3.88 -->
         </div>
       </div>
 
@@ -4949,7 +4950,7 @@ async function enterAppMain(me) {
           var isFrozen = d.is_frozen || raw.isFrozen;
           var frozenTo = d.frozenTo || raw.frozenTo;
           var hasReq = !!(raw.reassignRequest);
-          return isFrozen && !frozenTo && hasReq;
+          return isFrozen && !frozenTo && hasReq && !raw.queueDeleted;   // v35.3.88: 삭제분 제외
         }).length;
         if (pendingCnt > 0) {
           alert('⚠️ 재배정 요청이 ' + pendingCnt + '건 있습니다!\n재배정 대기함을 확인해주세요.');
@@ -6203,9 +6204,9 @@ function renderList() {
     if (sf === 'frozen') {
       if (isAdmin) {
         if (tm !== 'all' && d.member !== tm) return false;
-        return d.isFrozen === true;
+        return d.isFrozen === true && !(d.raw && d.raw.queueDeleted);   // v35.3.88: 대기함에서 삭제한 DB 숨김
       } else {
-        return d.isFrozen === true && d.member === me.name;
+        return d.isFrozen === true && d.member === me.name && !(d.raw && d.raw.queueDeleted);
       }
     }
     // 동결 DB는 일반 필터에서 기본 제외
@@ -8053,6 +8054,7 @@ function classifyReassignQueue() {
     if (!isFrozen) return false;
     const frozenTo = d.raw && d.raw.frozenTo;
     if (frozenTo) return false;
+    if (d.raw && d.raw.queueDeleted) return false;   // v35.3.88: 대기함에서 삭제한 DB 제외
     if (me.role === 'team_manager' && d.team !== me.team) return false;
     return true;
   });
@@ -8175,6 +8177,7 @@ function renderReassignQueueV35() {
         '<td><div style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:nowrap">' +
           '<button class="btn btn-dark" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="executeReassignSingle(\'' + escapeHtml(String(d.id)) + '\',\'' + selId + '\')" title="재배정 실행"><i class="fa-solid fa-shuffle"></i> 실행</button>' +
           '<button class="btn" style="padding:6px 12px;font-size:12px;background:#fbbf24;color:#78350f;border:1px solid #f59e0b;white-space:nowrap" onclick="cancelReassignItem(\'' + escapeHtml(String(d.id)) + '\')" title="취소 (원담당자 복귀)"><i class="fa-solid fa-rotate-left"></i> 취소</button>' +
+          '<button class="btn" style="padding:6px 12px;font-size:12px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;white-space:nowrap" onclick="deleteFromReassignQueue(\'' + escapeHtml(String(d.id)) + '\')" title="대기함에서 삭제 (배정 통계는 유지)"><i class="fa-solid fa-trash"></i> 삭제</button>' +   /* v35.3.88 */
         '</div></td>' +
       '</tr>';
     }).join('');
@@ -8203,6 +8206,7 @@ function renderReassignQueueV35() {
         '<td><div style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:nowrap">' +
           '<button class="btn btn-dark" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="executeReassignSingle(\'' + escapeHtml(String(d.id)) + '\',\'' + selId + '\')" title="재배정 실행"><i class="fa-solid fa-shuffle"></i> 실행</button>' +
           '<button class="btn" style="padding:6px 12px;font-size:12px;background:#fbbf24;color:#78350f;border:1px solid #f59e0b;white-space:nowrap" onclick="cancelReassignItem(\'' + escapeHtml(String(d.id)) + '\')" title="취소 (원담당자 복귀)"><i class="fa-solid fa-rotate-left"></i> 취소</button>' +
+          '<button class="btn" style="padding:6px 12px;font-size:12px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;white-space:nowrap" onclick="deleteFromReassignQueue(\'' + escapeHtml(String(d.id)) + '\')" title="대기함에서 삭제 (배정 통계는 유지)"><i class="fa-solid fa-trash"></i> 삭제</button>' +   /* v35.3.88 */
         '</div></td>' +
       '</tr>';
     }).join('');
@@ -8231,6 +8235,8 @@ function setupReassignBulkUI() {
     bulkExec.style.cursor = disabled ? 'not-allowed' : 'pointer';
     bulkCancel.style.opacity = disabled ? '0.5' : '1';
     bulkCancel.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    var _bulkDel = document.getElementById('btn-reassign-bulk-delete');   // v35.3.88
+    if (_bulkDel) { _bulkDel.disabled = disabled; _bulkDel.style.opacity = disabled ? '0.5' : '1'; _bulkDel.style.cursor = disabled ? 'not-allowed' : 'pointer'; }
   }
 
   allCheck.onchange = function() {
@@ -8253,6 +8259,8 @@ function setupReassignBulkUI() {
 
   bulkExec.onclick = openBulkReassignModal;
   bulkCancel.onclick = cancelReassignBulk;
+  var _bulkDelBtn = document.getElementById('btn-reassign-bulk-delete');   // v35.3.88
+  if (_bulkDelBtn) _bulkDelBtn.onclick = deleteFromReassignQueueBulk;
 
   updateInfo();
 }
@@ -8613,6 +8621,74 @@ async function cancelReassignBulk() {
   if (typeof updateMyReassignBadge === 'function') updateMyReassignBadge();
   renderReassignQueueV35();
 }
+
+// v35.3.88 대장님 요청: 재배정 대기함에서 DB '삭제' — 대기함·DB목록에서 사라지게
+//   ★ 배정 DB 수는 불변: 행을 지우지 않고(동결 상태 그대로) raw.queueDeleted 표시만 붙임
+//     → 동결을 기준으로 집계하는 모든 통계가 지금과 똑같이 계산됨. 활동 로그에 삭제 이력 기록
+//   되돌리기(SQL): raw에서 queueDeleted 키를 지우면 대기함에 다시 나타남
+async function deleteFromReassignQueueCore(id) {
+  const d = (appState.records || []).find(r => String(r.id) === String(id));
+  if (!d) return { ok: false, err: 'DB를 찾을 수 없음' };
+  const me = window.currentUser;
+  if (!me || (me.role !== 'branch_manager' && me.role !== 'team_manager' && me.role !== 'system_admin')) return { ok: false, err: '관리자만 삭제할 수 있습니다' };
+  const isFrozen = d.is_frozen || d.isFrozen || (d.raw && d.raw.isFrozen);
+  if (!isFrozen || (d.raw && d.raw.frozenTo)) return { ok: false, err: '재배정 대기 상태가 아닙니다' };
+  const newRaw = Object.assign({}, d.raw || {}, {
+    queueDeleted: true,
+    queueDeletedAt: new Date().toISOString(),
+    queueDeletedBy: me.name
+  });
+  const updated = {
+    raw: newRaw,
+    logs: [
+      { time: new Date().toLocaleString(), text: '🗑 (시스템) 관리자 [' + me.name + ']가 재배정 대기함에서 삭제 (배정 통계는 유지)', writer: me.name, type: 'system' },
+      ...(d.logs || [])
+    ],
+    updated_at: new Date().toISOString()
+  };
+  try {
+    const { data, error } = await sb.from('db_records').update(updated).eq('id', id).select().maybeSingle();
+    if (error) throw error;
+    if (!data) return { ok: false, err: '권한이 없거나 DB가 없습니다' };   // RLS로 조용히 막힌 경우도 실패로 표시
+    const idx = appState.records.findIndex(r => String(r.id) === String(id));
+    if (idx !== -1) appState.records[idx] = (typeof normalizeDBRecord === 'function') ? normalizeDBRecord(data) : data;
+    return { ok: true };
+  } catch (err) {
+    console.error('[deleteFromReassignQueueCore] 실패:', err);
+    return { ok: false, err: (typeof translateError === 'function') ? translateError(err) : String(err && err.message || err) };
+  }
+}
+function __afterQueueDelete() {
+  if (typeof updateMyReassignBadge === 'function') { try { updateMyReassignBadge(); } catch (e) {} }
+  if (typeof updateReassignBadge === 'function') { try { updateReassignBadge(); } catch (e) {} }
+  renderReassignQueueV35();
+}
+async function deleteFromReassignQueue(id) {
+  const d = (appState.records || []).find(r => String(r.id) === String(id));
+  if (!d) return showToast('DB를 찾을 수 없습니다.', 'error');
+  const compName = d.company || (d.raw && d.raw.company) || '이름없음';
+  if (!confirm('[' + compName + '] DB를 재배정 대기함에서 삭제할까요?\n\n· 대기함과 DB목록에서 사라집니다\n· 배정 통계(배정 DB 수)는 그대로 유지됩니다\n· 활동 기록에 삭제 이력이 남습니다')) return;
+  const r = await deleteFromReassignQueueCore(id);
+  if (r.ok) { showToast('[' + compName + '] 대기함에서 삭제했습니다.', 'success'); __afterQueueDelete(); }
+  else showToast('삭제 실패: ' + (r.err || ''), 'error');
+}
+async function deleteFromReassignQueueBulk() {
+  const checks = document.querySelectorAll('.reassign-row-check:checked');
+  if (checks.length === 0) return showToast('삭제할 항목을 선택하세요.', 'error');
+  const ids = Array.from(checks).map(c => c.dataset.id);
+  if (!confirm('선택한 ' + ids.length + '건을 재배정 대기함에서 삭제할까요?\n\n· 대기함과 DB목록에서 사라집니다\n· 배정 통계(배정 DB 수)는 그대로 유지됩니다')) return;
+  showToast('삭제 처리 중... (' + ids.length + '건)', 'info');
+  let ok = 0, fail = 0, firstErr = '';
+  for (const id of ids) {
+    const r = await deleteFromReassignQueueCore(id);
+    if (r.ok) ok++; else { fail++; if (!firstErr) firstErr = r.err || ''; }
+  }
+  if (fail === 0) showToast('삭제 완료: ' + ok + '건', 'success');
+  else showToast('완료: 성공 ' + ok + '건, 실패 ' + fail + '건 (' + firstErr + ')', fail > ok ? 'error' : 'warning');
+  __afterQueueDelete();
+}
+window.deleteFromReassignQueue = deleteFromReassignQueue;
+window.deleteFromReassignQueueBulk = deleteFromReassignQueueBulk;
 
 // (기존 함수명 호환 — 외부 호출 흔적 있으면 유지)
 async function deleteReassignItem(id) { return cancelReassignItem(id); }
@@ -10014,6 +10090,7 @@ function updateMyReassignBadge() {
       // v35.1.18: 팀원 요청 + 관리자 직권 대기 모두 카운트 (frozenTo 비어있는 동결만)
       const frozenTo = d.raw && d.raw.frozenTo;
       if (frozenTo) return false;
+      if (d.raw && d.raw.queueDeleted) return false;   // v35.3.88: 삭제분 제외
       // team_manager는 본인 팀만
       if (me.role === 'team_manager' && d.team !== me.team) return false;
       return true;
@@ -13548,7 +13625,7 @@ function updateReassignBadge(){
   }
   var dbList = (window.appState && window.appState.records) || [];
   // v34.4: isFrozen && !frozenTo (재배정 대기함 = 동결 + 다음 담당자 미지정)
-  var cnt = dbList.filter(function(d){ return d.isFrozen && !d.frozenTo; }).length;
+  var cnt = dbList.filter(function(d){ return d.isFrozen && !d.frozenTo && !(d.raw && d.raw.queueDeleted); }).length;   // v35.3.88: 삭제분 제외
   var hb = document.getElementById('header-reassign-alert');
   if(!hb) return;
   if(cnt > 0){
@@ -22456,7 +22533,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.87';
+  var VER35='v35.3.88';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22473,7 +22550,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.87';
+  var VER35='v35.3.88';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
