@@ -10906,6 +10906,12 @@ async function saveDBModal(shouldClose) {
     if (typeof showToast === 'function') showToast('외부업체 링크에서는 데이터를 수정할 수 없습니다. (읽기 전용)', 'warning');
     return;
   }
+  // v35.3.86 대장님 승인: 녹취 업로드 중 저장 잠금 — 업로드 도중 저장하면 파일이 임시폴더에 남거나(10-23 김나경 사례)
+  //   2차 저장 없이 닫으면 녹취가 기록되지 않음 → 업로드가 끝날 때까지 저장을 막고 안내
+  if ((window.__audioUploading || 0) > 0) {
+    if (typeof showToast === 'function') showToast('🎙️ 녹취 업로드 중입니다. 업로드 완료 후 저장해주세요.', 'warning');
+    return;
+  }
   const me = window.currentUser;
   const formData = collectModalFormData();
 
@@ -18617,6 +18623,21 @@ async function handleAudioUpload(kind, files) {
 }
 window.handleAudioUpload = handleAudioUpload;
 
+// v35.3.86: 업로드 진행 중 표시 — saveDBModal이 이 값이 0보다 크면 저장을 막는다 (원본 함수 무수정, 감싸기만)
+//   여러 번 연달아 올려도 개수로 세고, 성공·실패·예외 어느 경우든 finally에서 반드시 1 감소
+window.__audioUploading = window.__audioUploading || 0;
+var __origHandleAudioUpload = handleAudioUpload;
+handleAudioUpload = async function(kind, files) {
+  if (!files || !files.length) return __origHandleAudioUpload(kind, files);
+  window.__audioUploading = (window.__audioUploading || 0) + 1;
+  try {
+    return await __origHandleAudioUpload(kind, files);
+  } finally {
+    window.__audioUploading = Math.max(0, (window.__audioUploading || 1) - 1);
+  }
+};
+window.handleAudioUpload = handleAudioUpload;
+
 // 청취 — 임시 Signed URL 생성 후 새 창에서 재생
 async function _playAudio(storagePath, displayName) {
   if (!storagePath) { showToast('재생 경로 없음', 'error'); return; }
@@ -22221,7 +22242,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.85';
+  var VER35='v35.3.86';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22238,7 +22259,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.85';
+  var VER35='v35.3.86';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
