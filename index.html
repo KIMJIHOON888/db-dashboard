@@ -7274,7 +7274,25 @@ function exportToExcel() {
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'DB_List');
     var today = (typeof getTodayKST === 'function') ? getTodayKST() : new Date().toISOString().split('T')[0];
-    var filename = (isAdmin ? '팀원DB관리_' : '나의DB관리_') + today + '.xlsx';
+    /* v35.3.84 대장님 요청: 파일명 앞에 '팀 구분' 추가 → 팀별로 받은 파일이 섞이지 않게.
+       예) 3팀_팀원DB관리_2026-10-27.xlsx / 3팀_나의DB관리_2026-10-27.xlsx
+       팀 결정: 팀원 = 본인 소속팀(me.team)
+               관리자 = 실제로 내보내는 행들의 팀 — 한 팀뿐이면 그 팀, 여러 팀이 섞이면 '전체'(BM·시스템관리자)
+               값이 없으면 me.team → 그것도 없으면 '전체'. 파일명에 못 쓰는 글자는 제거. */
+    var _teamLabel = '';
+    if (isAdmin) {
+      var _teamSet = {};
+      filtered.forEach(function(d){
+        if (!d || d.isVirtualShare) return;
+        var _tm = String(d.team || (d.raw && d.raw.team) || '').trim();
+        if (_tm) _teamSet[_tm] = true;
+      });
+      var _teamKeys = Object.keys(_teamSet);
+      _teamLabel = (_teamKeys.length === 1) ? _teamKeys[0] : (_teamKeys.length > 1 ? '전체' : '');
+    }
+    if (!_teamLabel) _teamLabel = String((me && me.team) || '').trim();
+    _teamLabel = _teamLabel.replace(/[\\\/:*?"<>|]/g, '').trim() || '전체';
+    var filename = _teamLabel + '_' + (isAdmin ? '팀원DB관리_' : '나의DB관리_') + today + '.xlsx';
     XLSX.writeFile(wb, filename);
     showToast((data.length - 1) + '행 엑셀 다운로드 완료', 'success');
   } catch (e) {
@@ -10408,6 +10426,31 @@ function closeDBModal(force) {
       }
     }
   } catch (_cleanEx) { console.warn('[audio orphan cleanup ex]', _cleanEx); }
+  // v35.3.85 대장님 승인: '기존 DB'에서 이번에 올린 녹취를 저장하지 않고 닫으면 저장소에서도 지움 (찌꺼기 방지)
+  //   대상 = 이번 모달에서 올리고 아직 저장되지 않은 파일(_pendingAudioNotify — 저장 성공 시 비워짐)
+  //   안전장치: 저장된 DB(appState.records)의 녹취 목록에 이미 있는 경로는 절대 지우지 않음
+  //   새 DB(임시폴더)는 바로 위 기존 정리 로직이 처리 → 여기서는 currentId 있는 경우만
+  try {
+    var _pendClose = Array.isArray(modalState._pendingAudioNotify) ? modalState._pendingAudioNotify : [];
+    if (modalState.currentId && _pendClose.length) {
+      var _savedRec = (appState.records || []).find(function(r) { return r && String(r.id) === String(modalState.currentId); });
+      var _savedTxt = '';
+      try { _savedTxt = JSON.stringify((_savedRec && _savedRec.raw && _savedRec.raw.audioFiles) || {}); } catch (_jx) { _savedTxt = ''; }
+      var _rmPend = [];
+      _pendClose.forEach(function(p) {
+        var _sp = p && p.ref && p.ref.storagePath;
+        if (!_sp) return;
+        if (_savedTxt.indexOf(_sp) !== -1) return;          // 이미 저장된 녹취 → 보존
+        if (_rmPend.indexOf(_sp) === -1) _rmPend.push(_sp);
+      });
+      if (_rmPend.length) {
+        sb.storage.from(window.AUDIO_BUCKET).remove(_rmPend).catch(function(e) {
+          console.warn('[audio unsaved cleanup]', e);
+        });
+        console.log('[audio unsaved cleanup] 저장 안 한 녹취 ' + _rmPend.length + '개 정리');
+      }
+    }
+  } catch (_pcEx) { console.warn('[audio unsaved cleanup ex]', _pcEx); }
   modalState.currentId = null;
   modalState.isDirty = false;
   modalState.originalData = null;
@@ -22178,7 +22221,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.83';
+  var VER35='v35.3.85';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22195,7 +22238,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.83';
+  var VER35='v35.3.85';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
