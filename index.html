@@ -8826,7 +8826,7 @@ function renderMyReassignListV35() {
       : escapeHtml(raw.reassignedFrom || '-');
     // 배정팀장 컬럼: 동결은 raw.frozenTo (받을 사람), 비동결은 d.member (받은 본인 이름)
     const memberName = isFrozenRow
-      ? escapeHtml(raw.frozenTo || '대기')
+      ? escapeHtml(raw.frozenTo || (raw.queueDeleted ? '삭제' : '대기'))   // v35.3.89: 대기함에서 삭제한 DB는 '삭제'로 표시
       : escapeHtml(d.member || raw.member || '-');
     const company = escapeHtml(d.company || raw.company || '-');
     const dateStr = escapeHtml(d.date || raw.date || '-');
@@ -22533,7 +22533,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.88';
+  var VER35='v35.3.89';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22550,7 +22550,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.88';
+  var VER35='v35.3.89';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
