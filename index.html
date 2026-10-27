@@ -8809,6 +8809,7 @@ async function openDBModal(id, rowNum) {
   modalState.tempLogs = [];
   modalState._savedLogCount = 0;   // v35.2.84: 이미 저장된 로그 수 (알림은 이 수 이후 새 로그만 대상)
   modalState._pendingAudioNotify = [];   // v35.3.80: 이번 모달에서 새로 올린 녹취(저장 성공 시 관리자에게 알림)
+  modalState.__openSeq = (modalState.__openSeq || 0) + 1;   // v35.3.87: 창 열 때마다 번호 증가 → 업로드가 어느 창 것인지 구분
   modalState.selectedLogTag = 'note';
 
   let rec = null;
@@ -10458,6 +10459,7 @@ function closeDBModal(force) {
   modalState._tempId = null;
   modalState.audioFiles = null;
   modalState._pendingAudioNotify = [];   // v35.3.80: 저장 안 하고 닫으면 알림 대기분도 폐기(파일도 위에서 정리됨)
+  modalState.__openSeq = (modalState.__openSeq || 0) + 1;   // v35.3.87: 창 닫힘도 번호 증가 → 올라가는 중인 녹취는 '창 바뀜'으로 판단
 }
 
 function collectModalFormData() {
@@ -10908,7 +10910,7 @@ async function saveDBModal(shouldClose) {
   }
   // v35.3.86 대장님 승인: 녹취 업로드 중 저장 잠금 — 업로드 도중 저장하면 파일이 임시폴더에 남거나(10-23 김나경 사례)
   //   2차 저장 없이 닫으면 녹취가 기록되지 않음 → 업로드가 끝날 때까지 저장을 막고 안내
-  if ((window.__audioUploading || 0) > 0) {
+  if ((window.__audioUploading || 0) > 0 && !window.__audioBgUpload) {   // v35.3.87: 백그라운드 업로드 켜지면 잠금 해제
     if (typeof showToast === 'function') showToast('🎙️ 녹취 업로드 중입니다. 업로드 완료 후 저장해주세요.', 'warning');
     return;
   }
@@ -11396,6 +11398,12 @@ async function saveDBModal(shouldClose) {
         }
       }
     } catch(e) { console.warn('[audio upload notify]', e); }
+    // v35.3.87: 업로드 중에 저장 성공 → 올라가는 중인 녹취에 '저장 의사' + 대상 DB 번호 기록 (끝나면 자동 연결)
+    try {
+      if (typeof window.__audioJobsBind === 'function') {
+        window.__audioJobsBind(modalState.__openSeq || 0, modalState.currentId || (result && result.data && result.data.id) || null);
+      }
+    } catch(e) { console.warn('[audio bg bind]', e); }
     // v35.2.84: 저장 완료 시점의 로그 수를 '저장된 수'로 갱신 → 같은 모달에서 또 저장해도 중복 알림 안 감
     if (modalState && Array.isArray(modalState.tempLogs)) modalState._savedLogCount = modalState.tempLogs.length;
     // v35.2.84: 신규 저장 후 모달을 유지할 때 재저장이 중복 INSERT 되지 않도록 currentId 확정
@@ -18607,6 +18615,11 @@ async function handleAudioUpload(kind, files) {
     }
     return;
   }
+  // v35.3.87: 백그라운드 업로드 — 업로드 도중 저장했거나 창이 바뀌었으면 여기서 처리 (원래 DB에 자동 연결 / 미저장분 정리)
+  if (typeof window.__audioUploadRoute === 'function') {
+    try { if ((await window.__audioUploadRoute(files, kind, uploaded)) === 'handled') return; }
+    catch (_rtEx) { console.warn('[audio route]', _rtEx); }
+  }
   // 현재 모달의 raw에 반영 → DB 저장 시 함께 저장
   if (!window.modalState.audioFiles) window.modalState.audioFiles = { incall: [], meeting: [] };
   if (!Array.isArray(window.modalState.audioFiles[kind])) window.modalState.audioFiles[kind] = [];
@@ -18637,6 +18650,207 @@ handleAudioUpload = async function(kind, files) {
   }
 };
 window.handleAudioUpload = handleAudioUpload;
+
+// ═══════════════════════════════════════════════════════════════════
+// v35.3.87 대장님 승인: 녹취 '백그라운드 업로드'
+//   · 업로드 중에도 [저장] 가능 → 올라가는 중인 녹취는 끝나는 대로 '원래 DB'에 자동 연결 + 관리자 알림
+//   · 저장 후 창을 닫고 다른 DB 작업 가능 (화면 왼쪽 아래 '업로드 중 N건' 표시)
+//   · 한 번도 저장하지 않고 닫은 녹취 → 업로드가 끝나면 자동 삭제 (기존 규칙 유지)
+//   · 업로드 시작 순간 '몇 번 DB 것인지' 기억 → 그사이 다른 DB를 열어도 엉뚱한 DB에 붙지 않음 (숨은 문제 수정)
+//   · 업로드 중 탭 닫기/새로고침 → 경고창 (브라우저가 업로드를 끊기 때문)
+//   원본 handleAudioUpload·v35.3.86 감싸기는 그대로 두고 바깥에서 한 번 더 감쌈
+// ═══════════════════════════════════════════════════════════════════
+window.__audioBgUpload = true;
+window.__audioJobs = window.__audioJobs || [];
+var __audioJobsByFiles = (typeof WeakMap === 'function') ? new WeakMap() : null;
+var __audioJobSeq = 0;
+
+function __audioModalOpen() {
+  var m = document.getElementById('db-modal');
+  return !!(m && m.classList && m.classList.contains('active'));
+}
+
+// 왼쪽 아래 '업로드 중' 표시
+function __audioRenderBadge() {
+  try {
+    var act = (window.__audioJobs || []).filter(function(j) { return j && !j.done; });
+    var el = document.getElementById('audio-bg-badge');
+    if (!act.length) { if (el) el.style.display = 'none'; return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'audio-bg-badge';
+      el.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:9500;background:#1e3a8a;color:#fff;'
+        + 'padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.25);'
+        + 'max-width:calc(100vw - 32px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none';
+      document.body.appendChild(el);
+    }
+    var cnt = act.reduce(function(s, j) { return s + (j.count || 1); }, 0);
+    var names = [];
+    act.forEach(function(j) { if (names.indexOf(j.company) === -1) names.push(j.company); });
+    el.textContent = '🎙️ 녹취 업로드 중 ' + cnt + '건 · ' + names.join(', ');
+    el.style.display = 'block';
+  } catch (e) { console.warn('[audio badge]', e); }
+}
+
+// 저장 성공 시 호출 — 지금 이 창에서 올라가는 중인 녹취에 '저장 의사' + 대상 DB 번호를 붙임
+window.__audioJobsBind = function(seq, dbId) {
+  try {
+    var n = 0;
+    (window.__audioJobs || []).forEach(function(j) {
+      if (!j || j.done || j.seq !== seq) return;
+      j.saveIntent = true;
+      if (!j.dbId && dbId) j.dbId = String(dbId);
+      n += (j.count || 1);
+    });
+    if (n > 0 && typeof showToast === 'function') {
+      showToast('🎙️ 녹취 ' + n + '건 업로드 중 — 끝나면 이 DB에 자동 저장됩니다. 다른 작업을 하셔도 됩니다.', 'info');
+    }
+    return n;
+  } catch (e) { console.warn('[audio bind]', e); return 0; }
+};
+
+async function __audioDiscard(files, why) {
+  try {
+    var paths = (files || []).map(function(f) { return f && f.storagePath; }).filter(Boolean);
+    if (!paths.length) return;
+    await sb.storage.from(window.AUDIO_BUCKET).remove(paths);
+    console.log('[audio bg] 저장하지 않은 녹취 ' + paths.length + '개 정리 (' + (why || '창 닫힘') + ')');
+  } catch (e) { console.warn('[audio bg discard]', e); }
+}
+
+// 업로드가 끝난 녹취를 원래 DB에 직접 연결 (서버의 최신 raw를 다시 읽어 녹취만 추가 → 다른 내용 덮어쓰기 없음)
+async function __audioAttachInBackground(job, kind, files) {
+  var dbId = String(job.dbId);
+  var label = '[' + (job.company || '업체') + ']';
+  try {
+    // 1) 새 DB를 업로드 중에 저장한 경우: 임시폴더 → 정식 폴더로 이동
+    if (job.tempId) {
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        if (!f || !f.storagePath || f.storagePath.indexOf('/' + job.tempId + '/') === -1) continue;
+        var np = f.storagePath.replace('/' + job.tempId + '/', '/' + dbId + '/');
+        try {
+          var mv = await sb.storage.from(window.AUDIO_BUCKET).move(f.storagePath, np);
+          if (mv && !mv.error) { f.storagePath = np; f._tempDbId = null; }
+          else console.warn('[audio bg move] 이동 실패 — 임시경로로 연결(재생은 정상):', mv && mv.error);
+        } catch (mvEx) { console.warn('[audio bg move ex]', mvEx); }
+      }
+    }
+    // 2) 최신 raw 읽기
+    var r = await sb.from('db_records').select('id, raw').eq('id', dbId).maybeSingle();
+    if (r.error || !r.data) {
+      console.warn('[audio bg] DB 조회 실패:', dbId, r.error);
+      showToast('🔴 ' + label + ' 녹취를 DB에 연결하지 못했습니다. 관리자에게 알려주세요. (파일은 보관됨)', 'error');
+      return false;
+    }
+    var raw = r.data.raw;
+    if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch (_pe) { raw = {}; } }
+    raw = raw || {};
+    var af = (raw.audioFiles && typeof raw.audioFiles === 'object') ? raw.audioFiles : {};
+    if (!Array.isArray(af.incall)) af.incall = [];
+    if (!Array.isArray(af.meeting)) af.meeting = [];
+    var k = (kind === 'meeting') ? 'meeting' : 'incall';
+    var have = {};
+    af.incall.concat(af.meeting).forEach(function(x) { if (x && x.storagePath) have[x.storagePath] = true; });
+    var added = files.filter(function(x) { return x && x.storagePath && !have[x.storagePath]; });
+    added.forEach(function(x) { af[k].push(x); });
+    raw.audioFiles = af;
+    // 3) 저장
+    var u = await sb.from('db_records').update({ raw: raw, updated_at: new Date().toISOString() }).eq('id', dbId).select('id').maybeSingle();
+    if (u.error || !u.data) {
+      console.warn('[audio bg] DB 저장 실패:', dbId, u.error);
+      showToast('🔴 ' + label + ' 녹취 자동 저장 실패. 해당 DB를 열어 다시 올려주세요. (파일은 보관됨)', 'error');
+      return false;
+    }
+    // 4) 화면 캐시 반영
+    try {
+      var rec = (appState.records || []).find(function(x) { return x && String(x.id) === dbId; });
+      if (rec) { rec.raw = rec.raw || {}; rec.raw.audioFiles = af; }
+    } catch (_ce) {}
+    // 5) 같은 DB 창이 지금 열려 있으면 목록에도 표시 (저장된 상태이므로 '미저장'으로 취급하지 않음)
+    try {
+      var ms = window.modalState || {};
+      if (__audioModalOpen() && String(ms.currentId) === dbId) {
+        if (!ms.audioFiles) ms.audioFiles = { incall: [], meeting: [] };
+        if (!Array.isArray(ms.audioFiles[k])) ms.audioFiles[k] = [];
+        var mhave = {};
+        (ms.audioFiles.incall || []).concat(ms.audioFiles.meeting || []).forEach(function(x) { if (x && x.storagePath) mhave[x.storagePath] = true; });
+        files.forEach(function(x) { if (x && x.storagePath && !mhave[x.storagePath]) ms.audioFiles[k].push(x); });
+        if (typeof renderAudioLists === 'function') renderAudioLists({ raw: { audioFiles: ms.audioFiles } });
+      }
+    } catch (_me) {}
+    // 6) 관리자 알림 + 완료 안내
+    if (added.length && typeof sendAudioUploadNotification === 'function') {
+      sendAudioUploadNotification({ dbId: dbId, company: job.company, files: added.map(function(x) { return { name: x.name, kind: k }; }) });
+    }
+    showToast('✅ ' + label + ' 녹취 ' + files.length + '건 자동 저장 완료', 'success');
+    return true;
+  } catch (e) {
+    console.warn('[audio bg attach]', e);
+    showToast('🔴 ' + label + ' 녹취 자동 저장 중 오류. 해당 DB를 열어 확인해주세요.', 'error');
+    return false;
+  }
+}
+
+// 원본 handleAudioUpload 끝부분에서 호출 — 'handled'면 원본의 "현재 창에 넣기"를 건너뜀
+window.__audioUploadRoute = async function(files, kind, uploaded) {
+  var job = __audioJobsByFiles ? __audioJobsByFiles.get(files) : null;
+  if (!job) return null;                                     // 추적 정보 없음 → 원래 동작
+  var ms = window.modalState || {};
+  var sameCtx = __audioModalOpen() && ((ms.__openSeq || 0) === job.seq);
+  if (job.saveIntent) {
+    if (!job.dbId) {                                         // 새 DB 저장이 실패한 경우 등
+      if (sameCtx) return null;                              //   창이 그대로면 원래대로 목록에 넣어 다시 저장하게
+      await __audioDiscard(uploaded, '저장된 DB 없음');
+      showToast('⚠️ [' + job.company + '] DB가 저장되지 않아 녹취를 연결하지 못했습니다. 다시 올려주세요.', 'warning');
+      return 'handled';
+    }
+    await __audioAttachInBackground(job, kind, uploaded);
+    return 'handled';
+  }
+  if (sameCtx) return null;                                  // 같은 창 그대로 → 원래 동작(목록에 넣고 저장 대기)
+  await __audioDiscard(uploaded, '저장 안 하고 창 닫음');    // 저장 의사 없이 창이 바뀜/닫힘 → 정리
+  return 'handled';
+};
+
+var __prevHandleAudioUpload = handleAudioUpload;
+handleAudioUpload = async function(kind, files) {
+  if (!files || !files.length || window.isExternalPortal) return __prevHandleAudioUpload(kind, files);
+  var ms = window.modalState || (window.modalState = {});
+  // 원본과 같은 규칙으로 임시 ID를 미리 확정 (원본은 이미 있으면 그대로 사용)
+  if (!ms.currentId && !ms._tempId) {
+    ms._tempId = 'tmp-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+  var _compEl = document.getElementById('input-company');
+  var job = {
+    id: ++__audioJobSeq, kind: kind,
+    dbId: ms.currentId ? String(ms.currentId) : null,
+    tempId: ms.currentId ? null : ms._tempId,
+    seq: ms.__openSeq || 0,
+    company: (_compEl && _compEl.value.trim()) || '(업체명 없음)',
+    count: files.length, saveIntent: false, done: false
+  };
+  window.__audioJobs.push(job);
+  if (__audioJobsByFiles) __audioJobsByFiles.set(files, job);
+  __audioRenderBadge();
+  try {
+    return await __prevHandleAudioUpload(kind, files);
+  } finally {
+    job.done = true;
+    window.__audioJobs = (window.__audioJobs || []).filter(function(j) { return j && !j.done; });
+    __audioRenderBadge();
+  }
+};
+window.handleAudioUpload = handleAudioUpload;
+
+// 업로드 중 탭 닫기/새로고침 경고
+window.addEventListener('beforeunload', function(e) {
+  if ((window.__audioUploading || 0) > 0) {
+    e.preventDefault();
+    e.returnValue = '녹취 업로드 중입니다. 지금 닫으면 업로드가 취소됩니다.';
+    return e.returnValue;
+  }
+});
 
 // 청취 — 임시 Signed URL 생성 후 새 창에서 재생
 async function _playAudio(storagePath, displayName) {
@@ -22242,7 +22456,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드] 원본 하드코딩 문자열 무삭제 · JS로 최신 버전 반영 (v36 var VER 방식과 동일) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.86';
+  var VER35='v35.3.87';
   function setVer35(){
     try{
       document.title = 'DB Pro Master ' + VER35;
@@ -22259,7 +22473,7 @@ window.sendAudioUploadNotification = sendAudioUploadNotification;
 <!-- ===== [v35 버전 표기 오버라이드 보강 · v35.2.92] 사이드바 로고 + 헤더 배지 2곳 추가 커버 (원본·기존 오버라이드 무수정, 추가만) ===== -->
 <script>
 (function(){
-  var VER35='v35.3.86';
+  var VER35='v35.3.87';
   function setVer35Extra(){
     try{
       // (4) 좌측 사이드바 로고 옆 버전: .logo-area 안 버전 span만 교체
